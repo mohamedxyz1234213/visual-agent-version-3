@@ -7,7 +7,7 @@ import { planLessonSeries, planSingleLesson } from '../services/aiPlanner.js';
 import { saveLessonPlan } from '../services/storyboardGenerator.js';
 import { synthesize } from '../services/ttsService.js';
 import { uploadFile, uploadAudio } from '../services/storageService.js';
-import { AGENTROUTER_MODELS, resolveAgentRouterModel } from '../services/agentRouterConfig.js';
+import { BLAZE_MODELS, getBlazeConfig, resolveBlazeModel } from '../services/blazeConfig.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
@@ -15,48 +15,26 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 // ── Available AI providers + models (must match frontend PROVIDER_MODELS) ───
 const AI_PROVIDERS = [
   {
-    id: 'deepseek',
-    label: 'AgentRouter',
-    icon: '🔷',
-    name: 'DeepSeek v4 Pro',
-    desc: 'OpenAI API at agentrouter.org/v1',
-    badge: 'Recommended',
-    models: AGENTROUTER_MODELS.map((m) => ({
-      id: m.id,
-      label: m.label,
-      desc: 'deepseek-v4-pro',
-      badge: m.badge,
-    })),
-  },
-  {
     id: 'blaze',
     label: 'BlazeAI',
     icon: '🔥',
     name: 'BlazeAI (Multi-model)',
     desc: 'Free tier with multiple models',
     badge: null,
-    models: [
-      { id: 'qwen3.6-plus-thinking', label: 'Premium', desc: 'Deepest analysis', badge: 'Recommended' },
-      { id: 'qwen3.6-plus', label: 'Standard', desc: 'Fast & accurate', badge: null },
-    ],
+    models: BLAZE_MODELS,
   },
 ];
 
 function normalizeProvider(raw) {
   const p = String(raw || '').trim().toLowerCase();
-  if (p === 'deepseek' || p === 'agentrouter' || p === 'agent-router') return 'deepseek';
+  if (p === 'deepseek') return 'blaze';
   if (p === 'blaze' || p === 'blazeai') return 'blaze';
-  return p || null;
+  return null;
 }
 
 function resolveAnalysisModel(aiProvider, fromBody) {
-  const model = String(fromBody || '').trim();
-  if (aiProvider === 'deepseek') return resolveAgentRouterModel(model);
-  if (model === 'z-ai/glm-5.1' || model === 'glm-5.1') {
-    return process.env.BLAZE_MODEL || 'qwen3.6-plus';
-  }
-  if (model) return model;
-  return process.env.BLAZE_DEEP_MODEL || process.env.BLAZE_MODEL || 'qwen3.6-plus-thinking';
+  const { defaultDeepModel } = getBlazeConfig();
+  return resolveBlazeModel(fromBody, defaultDeepModel);
 }
 
 function scheduleBackgroundTask(label, task) {
@@ -74,10 +52,10 @@ router.get('/providers', (_req, res) => {
   res.json({ providers: AI_PROVIDERS });
 });
 
-// GET /api/v1/upload/test-ai?provider=deepseek — verify AgentRouter/Blaze connectivity
+// GET /api/v1/upload/test-ai?provider=blaze — verify Blaze connectivity
 router.get('/test-ai', async (req, res, next) => {
   try {
-    const aiProvider = normalizeProvider(req.query.provider) || 'deepseek';
+    const aiProvider = normalizeProvider(req.query.provider) || 'blaze';
     const analysisModel = resolveAnalysisModel(aiProvider, req.query.model);
     const { testAIConnection } = await import('../services/aiPlanner.js');
     const result = await testAIConnection(aiProvider, analysisModel);
@@ -96,14 +74,12 @@ router.post('/', upload.single('file'), async (req, res, next) => {
     const subject = req.body.subject || null;
     const userInstructions = req.body.user_instructions || null;
     const lessonIntent = req.body.lesson_intent || 'teach';
-    const aiProvider = normalizeProvider(req.body.ai_provider) || normalizeProvider(process.env.ACTIVE_LLM) || 'deepseek';
+    const aiProvider = normalizeProvider(req.body.ai_provider) || normalizeProvider(process.env.ACTIVE_LLM) || 'blaze';
     const analysisModel = resolveAnalysisModel(aiProvider, req.body.analysis_model);
     const explanationMode = req.body.explanation_mode || 'full_lesson';
 
     console.log(`[upload] Received: ai_provider=${aiProvider}, analysis_model=${analysisModel}, file=${originalname}`);
-    if (aiProvider === 'deepseek') {
-      console.log(`[upload] DeepSeek/AgentRouter: key=${process.env.DEEPSEEK_API_KEY ? 'SET' : 'MISSING'}, base=${process.env.DEEPSEEK_BASE_URL || 'https://agentrouter.org/v1'}`);
-    }
+    console.log(`[upload] BlazeAI: key=${process.env.BLAZE_API_KEY ? 'SET' : 'MISSING'}, base=${process.env.BLAZE_BASE_URL || 'https://blazeai.boxu.dev/api'}`);
 
     // Create series tracking document
     const series = await LessonSeries.create({
@@ -175,9 +151,9 @@ router.get('/status/:lessonId', async (req, res, next) => {
   }
 });
 
-async function processLesson(lessonId, seriesId, buffer, filename, userInstructions, analysisModel, aiProvider = 'deepseek', explanationMode = 'full_lesson', lessonIntent = 'teach') {
+async function processLesson(lessonId, seriesId, buffer, filename, userInstructions, analysisModel, aiProvider = 'blaze', explanationMode = 'full_lesson', lessonIntent = 'teach') {
   try {
-    const provider = normalizeProvider(aiProvider) || 'deepseek';
+    const provider = normalizeProvider(aiProvider) || 'blaze';
     const model = resolveAnalysisModel(provider, analysisModel);
     console.log(`[upload] processLesson: provider=${provider}, model=${model}`);
 
@@ -265,7 +241,7 @@ async function processLesson(lessonId, seriesId, buffer, filename, userInstructi
 }
 
 // ─── Background: generate lessons 2..N in parallel while user watches lesson 1 ─
-async function processRemainingLessons(seriesId, sourceFilename, totalLessons, aiProvider = 'deepseek', analysisModel = null) {
+async function processRemainingLessons(seriesId, sourceFilename, totalLessons, aiProvider = 'blaze', analysisModel = null) {
   const series = await LessonSeries.findById(seriesId);
   if (!series || !series.remainingSpecs?.length) return;
 

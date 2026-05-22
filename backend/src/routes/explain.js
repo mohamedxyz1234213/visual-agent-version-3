@@ -5,24 +5,20 @@ import { planLessonSeries } from '../services/aiPlanner.js';
 import { saveLessonPlan } from '../services/storyboardGenerator.js';
 import { synthesize } from '../services/ttsService.js';
 import { uploadAudio } from '../services/storageService.js';
-import { resolveAgentRouterModel } from '../services/agentRouterConfig.js';
+import { getBlazeConfig, resolveBlazeModel } from '../services/blazeConfig.js';
 
 const router = Router();
 
 function normalizeProvider(raw) {
   const p = String(raw || '').trim().toLowerCase();
-  if (p === 'deepseek' || p === 'agentrouter') return 'deepseek';
+  if (p === 'deepseek') return 'blaze';
   if (p === 'blaze' || p === 'blazeai') return 'blaze';
-  return p || null;
+  return null;
 }
 
 function resolveModel(provider, fromBody) {
-  const model = String(fromBody || '').trim();
-  if (provider === 'deepseek') return resolveAgentRouterModel(model);
-  if (model === 'z-ai/glm-5.1' || model === 'glm-5.1') {
-    return process.env.BLAZE_MODEL || 'qwen3.6-plus';
-  }
-  return model || process.env.BLAZE_DEEP_MODEL || process.env.BLAZE_MODEL || 'qwen3.6-plus-thinking';
+  const { defaultDeepModel } = getBlazeConfig();
+  return resolveBlazeModel(fromBody, defaultDeepModel);
 }
 
 function scheduleBackgroundTask(label, task) {
@@ -50,7 +46,7 @@ router.post('/', async (req, res, next) => {
     const lessonIntent = req.body.lesson_intent || 'teach';
     const aiProvider = normalizeProvider(req.body.ai_provider)
       || normalizeProvider(process.env.ACTIVE_LLM)
-      || 'deepseek';
+      || 'blaze';
     const analysisModel = resolveModel(aiProvider, req.body.analysis_model);
 
     const sourceTitle = text.slice(0, 60).replace(/\s+/g, ' ') + (text.length > 60 ? '…' : '');
@@ -101,7 +97,7 @@ router.post('/', async (req, res, next) => {
 
 async function processDirectText(lessonId, seriesId, rawText, userInstructions, analysisModel, aiProvider, explanationMode = 'full_lesson', lessonIntent = 'teach') {
   try {
-    const provider = normalizeProvider(aiProvider) || 'deepseek';
+    const provider = normalizeProvider(aiProvider) || 'blaze';
     const model = resolveModel(provider, analysisModel);
 
     const lesson = await Lesson.findById(lessonId);

@@ -1,4 +1,4 @@
-import { getAgentRouterConfig } from './agentRouterConfig.js';
+import { getBlazeConfig, resolveBlazeModel } from './blazeConfig.js';
 
 /**
  * Evaluate quiz answers and return score, feedback, and passed flag.
@@ -72,37 +72,20 @@ async function evalOpen(q, answer, aiProvider = null, analysisModel = null) {
     'Is the student\'s answer correct or substantially correct? ' +
     'Reply with JSON: {"correct": true/false, "explanation": "brief feedback"}';
 
-  const activeAI = aiProvider || process.env.ACTIVE_LLM || 'blaze';
+  const requestedAI = String(aiProvider || process.env.ACTIVE_LLM || 'blaze').trim().toLowerCase();
+  const activeAI = requestedAI === 'deepseek' || requestedAI === 'blazeai'
+    ? 'blaze'
+    : (requestedAI || 'blaze');
 
   try {
-    // ── DeepSeek v4 Pro via AgentRouter ────────────────────────────────────
-    const agentRouter = getAgentRouterConfig();
-    if (activeAI === 'deepseek' && agentRouter.apiKey) {
+    const blaze = getBlazeConfig();
+    if (activeAI === 'blaze' && blaze.apiKey) {
       const { default: OpenAI } = await import('openai');
       const client = new OpenAI({
-        apiKey: agentRouter.apiKey,
-        baseURL: agentRouter.baseURL,
+        apiKey: blaze.apiKey,
+        baseURL: blaze.baseURL,
       });
-      const model = analysisModel || process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro';
-      const response = await client.chat.completions.create({
-        model,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0,
-        max_tokens: 256,
-        response_format: { type: 'json_object' },
-      });
-      const raw = (response.choices[0].message.content || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-      const data = JSON.parse(raw || '{}');
-      return { isCorrect: Boolean(data.correct), explanation: data.explanation || '' };
-    }
-
-    if (activeAI === 'blaze' && process.env.BLAZE_API_KEY) {
-      const { default: OpenAI } = await import('openai');
-      const client = new OpenAI({
-        apiKey: process.env.BLAZE_API_KEY,
-        baseURL: process.env.BLAZE_BASE_URL || 'https://blazeai.boxu.dev/api',
-      });
-      const model = analysisModel || process.env.BLAZE_MODEL || 'qwen3.6-plus';
+      const model = resolveBlazeModel(analysisModel, blaze.defaultModel);
       const response = await client.chat.completions.create({
         model,
         messages: [{ role: 'user', content: prompt }],

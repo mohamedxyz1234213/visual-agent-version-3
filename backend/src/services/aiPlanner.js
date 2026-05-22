@@ -13,8 +13,7 @@
 // -----------------------------------------------------------------------------
 
 import dagre from '@dagrejs/dagre';
-import { getAgentRouterConfig, resolveAgentRouterModel } from './agentRouterConfig.js';
-import { callAgentRouterJSON } from './agentRouterClient.js';
+import { getBlazeConfig, resolveBlazeModel } from './blazeConfig.js';
 
 const STOPWORDS = new Set([
   'about', 'after', 'again', 'against', 'almost', 'also', 'although', 'always',
@@ -77,7 +76,7 @@ const PLANNER_META_CONCEPTS = new Set([
 ]);
 
 // ── Per-provider limits ──────────────────────────────────────────────────────
-// DeepSeek (AgentRouter): 1M token context — send full documents, generous output.
+// Legacy high-context profile retained for backward-compatible sizing knobs.
 const DEEPSEEK_CONTEXT_TOKENS = Number(process.env.DEEPSEEK_CONTEXT_TOKENS ?? 1_000_000);
 // ~3.2M chars leaves room in 1M context for system prompt + JSON output (~4 chars/token est.)
 const DEEPSEEK_MAX_INPUT_CHARS = Number(process.env.DEEPSEEK_MAX_INPUT_CHARS ?? 3_200_000);
@@ -121,13 +120,12 @@ const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS ?? 600_000);
 const AI_COOLDOWN_MS = Number(process.env.AI_COOLDOWN_MS ?? 120_000);
 
 const circuitState = {
-  deepseek: { openUntil: 0, reason: '' },
   blaze:    { openUntil: 0, reason: '' },
   default:  { openUntil: 0, reason: '' },
 };
 let aiCircuitOpenUntil = 0;
 let aiCircuitReason = '';
-/** Set when AgentRouter is blocked and Blaze handles the request. */
+/** Records which backend path served the most recent AI request. */
 let lastAiVia = null;
 
 // =============================================================================
@@ -7004,30 +7002,19 @@ function generateQuizVisuals(lessonTitle, part) {
 
 function normalizeProvider(raw) {
   const p = String(raw || '').trim().toLowerCase();
-  if (p === 'deepseek' || p === 'agentrouter' || p === 'agent-router') return 'deepseek';
+  if (p === 'deepseek') return 'blaze';
   if (p === 'blaze' || p === 'blazeai') return 'blaze';
-  return p || null;
+  return null;
 }
 
 /** Resolve the model id for API calls from user selection + provider. */
 function resolveModel(aiProvider, analysisModel) {
-  const provider = normalizeProvider(aiProvider) || normalizeProvider(process.env.ACTIVE_LLM) || 'deepseek';
-  const model = String(analysisModel || '').trim();
-
-  if (provider === 'deepseek') {
-    return resolveAgentRouterModel(model);
-  }
-
-  if (model === 'z-ai/glm-5.1' || model === 'glm-5.1') {
-    return process.env.BLAZE_MODEL || 'qwen3.6-plus';
-  }
-
-  if (model) return model;
-  return process.env.BLAZE_DEEP_MODEL || process.env.BLAZE_MODEL || 'qwen3.6-plus-thinking';
+  const { defaultDeepModel } = getBlazeConfig();
+  return resolveBlazeModel(analysisModel, defaultDeepModel);
 }
 
 export function resetAICircuit(aiProvider) {
-  const key = normalizeProvider(aiProvider) || 'deepseek';
+  const key = normalizeProvider(aiProvider) || 'blaze';
   const circuit = circuitState[key] || circuitState.default;
   circuit.openUntil = 0;
   circuit.reason = '';
@@ -7042,28 +7029,13 @@ function shouldTripCircuit(error) {
   return true;
 }
 
-function isAgentRouterClientBlocked(error) {
-  if (error?.code === 'AGENTROUTER_CLIENT_BLOCKED') return true;
-  const msg = String(error?.message || error || '');
-  return /unauthorized client|unauthorized_client|client allowlist|rejected this http client|client blocked/i.test(msg);
-}
-
-/** Blaze model when AgentRouter fails — never send deepseek/claude ids to Blaze. */
-function resolveBlazeFallbackModel(analysisModel) {
-  const m = String(analysisModel || '').trim();
-  if (m && !/deepseek|claude/i.test(m) && !/agentrouter/i.test(m)) return m;
-  return process.env.BLAZE_DEEP_MODEL || process.env.BLAZE_MODEL || 'qwen3.6-plus-thinking';
-}
-
 /** Quick connectivity check — call from GET /upload/test-ai */
 export async function testAIConnection(aiProvider, analysisModel) {
-  const provider = normalizeProvider(aiProvider) || 'deepseek';
+  const provider = normalizeProvider(aiProvider) || 'blaze';
   resetAICircuit(provider);
   const model = resolveModel(provider, analysisModel);
-  const cfg = getAgentRouterConfig();
-  const endpoint = provider === 'deepseek'
-    ? cfg.chatCompletionsUrl
-    : (process.env.BLAZE_BASE_URL || 'https://blazeai.boxu.dev/api');
+  const cfg = getBlazeConfig();
+  const endpoint = cfg.chatCompletionsUrl;
   const start = Date.now();
 
   console.log(`[aiPlanner] testAIConnection: provider=${provider}, model=${model}, endpoint=${endpoint}`);
@@ -7084,12 +7056,8 @@ export async function testAIConnection(aiProvider, analysisModel) {
       latencyMs: Date.now() - start,
       sample: result,
       via: lastAiVia || provider,
-      note: lastAiVia === 'blaze-fallback'
-        ? 'AgentRouter blocked this server; request succeeded via BlazeAI fallback.'
-        : undefined,
     };
   } catch (error) {
-    const blocked = isAgentRouterClientBlocked(error);
     return {
       ok: false,
       provider,
@@ -7097,12 +7065,6 @@ export async function testAIConnection(aiProvider, analysisModel) {
       endpoint,
       latencyMs: Date.now() - start,
       error: error.message,
-      agentRouterBlocked: blocked,
-      hint: blocked && process.env.BLAZE_API_KEY
-        ? 'Restart backend after saving BLAZE_API_KEY — uploads should auto-fallback to Blaze.'
-        : blocked
-          ? 'AgentRouter only allows official CLI clients. Add BLAZE_API_KEY to .env or use Blaze in the UI.'
-          : undefined,
     };
   }
 }
@@ -7113,7 +7075,7 @@ async function callAIRace(prompt, maxTokens, timeoutMs = AI_TIMEOUT_MS, aiProvid
   }
 
   lastAiVia = null;
-  const activeAI = normalizeProvider(aiProvider) || normalizeProvider(process.env.ACTIVE_LLM) || 'deepseek';
+  const activeAI = normalizeProvider(aiProvider) || normalizeProvider(process.env.ACTIVE_LLM) || 'blaze';
   const circuit = circuitState[activeAI] || circuitState.default;
   const model = resolveModel(activeAI, analysisModel);
   const hasExplicitModelSelection = Boolean(String(analysisModel || '').trim());
@@ -7122,58 +7084,16 @@ async function callAIRace(prompt, maxTokens, timeoutMs = AI_TIMEOUT_MS, aiProvid
     throw new Error(`AI provider "${activeAI}" cooling down: ${circuit.reason}`);
   }
 
-  if (activeAI === 'deepseek') {
-    const { apiKey, chatCompletionsUrl } = getAgentRouterConfig();
-    if (!apiKey) {
-      throw new Error('AgentRouter API key missing — set DEEPSEEK_API_KEY or OPENAI_API_KEY in backend/.env');
-    }
-
-    console.log(`[aiPlanner] >>> AgentRouter OpenAI: POST ${chatCompletionsUrl} model=${model} max_tokens=${maxTokens}`);
-    try {
-      const result = await callAgentRouter(model, prompt, maxTokens, timeoutMs);
-      lastAiVia = 'agentrouter';
-      circuit.openUntil = 0;
-      circuit.reason = '';
-      return result;
-    } catch (error) {
-      if (isAgentRouterClientBlocked(error) && process.env.BLAZE_API_KEY) {
-        console.warn('[aiPlanner] AgentRouter client blocked — falling back to BlazeAI');
-        const blazeBase = process.env.BLAZE_BASE_URL ?? 'https://blazeai.boxu.dev/api';
-        const blazeModel = resolveBlazeFallbackModel(analysisModel);
-        try {
-          const fallback = await callOpenAICompatible(
-            blazeBase, process.env.BLAZE_API_KEY, blazeModel, prompt, maxTokens, timeoutMs,
-          );
-          lastAiVia = 'blaze-fallback';
-          circuit.openUntil = 0;
-          circuit.reason = '';
-          return fallback;
-        } catch (blazeErr) {
-          throw new Error(
-            `AgentRouter blocked this server and Blaze fallback failed: ${describeAIError(blazeErr)}`,
-          );
-        }
-      }
-      if (!hasExplicitModelSelection && shouldTripCircuit(error)) {
-        const limits = PROVIDER_LIMITS.deepseek;
-        circuit.openUntil = Date.now() + limits.cooldown;
-        circuit.reason = describeAIError(error);
-      }
-      throw new Error(`DeepSeek AI unavailable: ${describeAIError(error)}`);
-    }
-  }
-
   // BlazeAI
-  const baseURL = process.env.BLAZE_BASE_URL ?? 'https://blazeai.boxu.dev/api';
-  const apiKey = process.env.BLAZE_API_KEY;
+  const { baseURL, apiKey, defaultModel, defaultDeepModel } = getBlazeConfig();
   if (!apiKey) throw new Error('BLAZE_API_KEY not set');
 
   // When user chose a model, use ONLY that model. Otherwise race fallbacks.
   const models = analysisModel
     ? [model]
     : [...new Set([
-        process.env.BLAZE_DEEP_MODEL ?? 'qwen3.6-plus-thinking',
-        process.env.BLAZE_MODEL ?? 'qwen3.6-plus',
+        defaultDeepModel,
+        defaultModel,
       ].filter(Boolean))];
 
   console.log(`[aiPlanner] BlazeAI → ${models.join(' | ')} (max_tokens=${maxTokens}, timeout=${timeoutMs}ms)`);
@@ -7182,6 +7102,7 @@ async function callAIRace(prompt, maxTokens, timeoutMs = AI_TIMEOUT_MS, aiProvid
     const result = await Promise.any(
       models.map((m) => callOpenAICompatible(baseURL, apiKey, m, prompt, maxTokens, timeoutMs))
     );
+    lastAiVia = 'blaze';
     circuit.openUntil = 0;
     circuit.reason = '';
     aiCircuitOpenUntil = 0;
@@ -7199,38 +7120,11 @@ async function callAIRace(prompt, maxTokens, timeoutMs = AI_TIMEOUT_MS, aiProvid
   }
 }
 
-/** AgentRouter — OpenAI SDK → /v1/chat/completions (deepseek-v4-pro). */
-async function callAgentRouter(model, prompt, maxTokens, timeoutMs) {
-  const isThinkingModel = model.includes('thinking') || model.includes('reasoner');
-  let tokenBudget = maxTokens;
-  if (isThinkingModel) tokenBudget = Math.round(maxTokens * 1.5);
-
-  const systemPrompt = `You are an expert curriculum designer and professional teacher. You produce highly accurate, well-organized educational content.
-
-ABSOLUTE RULES:
-1. ACCURACY: Only use facts, definitions, and examples from the source material. NEVER invent information.
-2. NO REPETITION: Never repeat the same sentence, phrase, or idea twice. Every sentence must be unique.
-3. VARIED LANGUAGE: Use diverse vocabulary. Do not use the same descriptive word more than twice in the entire output.
-4. COMPLETENESS: Cover every concept from the source material thoroughly.
-5. PROFESSIONAL TONE: Write like a university lecturer — clear, authoritative, well-structured.
-6. GROUNDED: If you are unsure about a fact, omit it rather than guess. Only state what the source explicitly says.
-7. Return raw valid JSON only. No markdown fences, no explanation outside the JSON, no preamble.`;
-
-  const { text } = await callAgentRouterJSON({
-    model,
-    systemPrompt,
-    userPrompt: prompt,
-    maxTokens: tokenBudget,
-    timeoutMs,
-  });
-  return parseJSON(text);
-}
-
 async function callOpenAICompatible(baseURL, apiKey, model, prompt, maxTokens, timeoutMs) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-  const isDeepSeek = baseURL.includes('agentrouter') || baseURL.includes('deepseek');
+  const isDeepSeek = baseURL.includes('deepseek');
   const isThinkingModel = model.includes('thinking') || model.includes('reasoner');
 
   const systemPrompt = isDeepSeek

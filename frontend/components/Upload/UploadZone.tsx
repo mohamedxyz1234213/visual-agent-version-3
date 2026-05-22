@@ -97,12 +97,12 @@ const LESSON_PRESETS: LessonPreset[] = [
 const PROVIDER_MODELS: Record<string, Array<{
   id: string; label: string; modelName: string; desc: string; badge: string | null;
 }>> = {
-  deepseek: [
-    { id: "deepseek-v4-pro", label: "DeepSeek v4 Pro", modelName: "deepseek-v4-pro", desc: "AgentRouter OpenAI API", badge: "Recommended" },
-  ],
   blaze: [
     { id: "qwen3.6-plus-thinking", label: "Premium",  modelName: "qwen3.6-plus-thinking", desc: "Deepest analysis",   badge: "Recommended" },
     { id: "qwen3.6-plus",          label: "Standard", modelName: "qwen3.6-plus",           desc: "Fast & accurate",   badge: null },
+    { id: "grok-4.20-fast", label: "Grok 4.20 Fast", modelName: "grok-4.20-fast", desc: "Low-latency reasoning", badge: null },
+    { id: "qwen3.6-max-preview-thinking", label: "Qwen 3.6 Max Preview", modelName: "qwen3.6-max-preview-thinking", desc: "Extended thinking preview", badge: null },
+    { id: "moonshotai/kimi-k2.6", label: "Kimi K2.6", modelName: "moonshotai/kimi-k2.6", desc: "Long-context generalist", badge: null },
   ],
 };
 
@@ -342,8 +342,8 @@ export default function UploadZone({ onReady }: UploadZoneProps) {
   const [textInstructions, setTextInstructions] = useState("");
 
   // Shared AI config
-  const [analysisModel, setAnalysisModel] = useState<string>("deepseek-v4-pro");
-  const [aiProvider, setAiProvider] = useState<string>("deepseek");
+  const [analysisModel, setAnalysisModel] = useState<string>("qwen3.6-plus-thinking");
+  const [aiProvider, setAiProvider] = useState<string>("blaze");
   const [providers, setProviders] = useState<AiProviderOption[]>([]);
 
   // Processing state
@@ -365,7 +365,6 @@ export default function UploadZone({ onReady }: UploadZoneProps) {
       .then(setProviders)
       .catch(() => {
         setProviders([
-          { id: "deepseek", label: "AgentRouter", icon: "", name: "DeepSeek v4 Pro",       desc: "OpenAI API at agentrouter.org/v1",  badge: "Recommended" },
           { id: "blaze",    label: "BlazeAI",     icon: "", name: "BlazeAI (Multi-model)", desc: "Free tier with multiple models",    badge: null },
         ]);
       });
@@ -490,7 +489,7 @@ export default function UploadZone({ onReady }: UploadZoneProps) {
   }
 
   const selectedProvider = providers.find((p) => p.id === aiProvider)
-    ?? { id: aiProvider, label: aiProvider === "deepseek" ? "AgentRouter" : "BlazeAI", icon: "", name: "", desc: "", badge: null };
+    ?? { id: aiProvider, label: "BlazeAI", icon: "", name: "", desc: "", badge: null };
   const selectedModel = modelOptionsForProvider.find((m) => m.id === analysisModel) ?? modelOptionsForProvider[0];
   const providerLabel = selectedProvider.label || selectedProvider.name;
   const modelDisplayName = selectedModel?.label ?? analysisModel;
@@ -520,7 +519,6 @@ export default function UploadZone({ onReady }: UploadZoneProps) {
 
   // ── Idle form ─────────────────────────────────────────────────────────────
   const fallbackProviders: AiProviderOption[] = [
-    { id: "deepseek", label: "AgentRouter", icon: "", name: "DeepSeek v4 Pro",       desc: "OpenAI API at agentrouter.org/v1",  badge: "Recommended" },
     { id: "blaze",    label: "BlazeAI",     icon: "", name: "BlazeAI (Multi-model)", desc: "Free tier with multiple models",    badge: null },
   ];
   const displayProviders = providers.length > 0 ? providers : fallbackProviders;
