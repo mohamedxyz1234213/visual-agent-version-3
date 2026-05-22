@@ -1,0 +1,800 @@
+[aiPlanner] Using provider=blaze, model=qwen3.6-plus-thinking, inputLimit=200000 chars
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=24000, timeout=240000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=36000 promptLen=1994
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Topic scaffold AI failed, using local brief: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3: Teaching content for "Newton's Second Law" (provider=blaze, model=qwen3.6-plus-thinking)...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=900000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=12392
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 1 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3 Pass 3: Retry with simplified prompt...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=120000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=2798
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 3 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Generating visuals: strategy=overview, field=physics, concepts=4, topics=2
+[aiPlanner] Generating visuals: strategy=detail, field=physics, concepts=4, topics=3
+[aiPlanner] Generating visuals: strategy=application, field=physics, concepts=4, topics=3
+{"topic":"newton","mode":"full_lesson","intent":"teach","title":"Newton's Second Law","summaryWords":55,"contentWords":[147,145,150],"durations":[118,116,120],"titles":["Understanding Newton's Second Law","How Free-Body Diagram Works","Free-Body Diagram in Practice"],"duplicateSentences":4,"hasMetaLeak":false,"hasPromptEcho":false,"hasRelationshipLeak":false,"sceneCounts":[83,87,83],"headers":["Understanding Newton's Second Law","Key Definitions","How These Concepts Connect","Understanding: Force Components","Process: Second Law","Comparing: Force Components On vs Second Law","Review: Key Points","How Free-Body Diagram Works","Analyzing Free-Body Diagram","Understanding: Force Components","Process: Second Law","Comparing: Net Force On Ramp vs Second Law"],"sceneSignature":["draw_text:Understanding Newton's Second Law | draw_text:Newton's second law explains motion on a | draw_circle:Newton's Second Law | draw_rect:Force Components On A Ramp | draw_path: | draw_rect:Second Law | draw_path: | draw_rect:Force Components | draw_path: | draw_callout:Specifically, this is the governing equa | clear: | draw_text:Key Definitions | draw_badge:Newton's Second Law | draw_rect:Net force equals mass times acceleration | draw_badge:Force Components on a Ramp | draw_rect:Weight is resolved into a component para | clear: | draw_text:How These Concepts Connect","draw_text:How Free-Body Diagram Works | draw_badge:Detailed Analysis | draw_text:A free-body diagram isolates the object  | draw_physics_shape:Free-Body Diagram | draw_table: | draw_callout:This is the governing equation that turn | clear: | draw_text:Analyzing Free-Body Diagram | draw_badge:Free-Body Diagram | draw_badge:Net Force On Ramp | draw_rect:Net force equals mass times acceleration | draw_rect:Weight is resolved into a component para | draw_path: | draw_rect:A free-body diagram isolates the object  | draw_rect:Weight is resolved into a component para | draw_path: | draw_rect:Net force equals mass times acceleration | draw_rect:Weight is resolved into a component para","draw_text:Free-Body Diagram in Practice | draw_badge:Practical Application | draw_physics_shape:Free-Body Diagram | draw_table: | draw_callout:This is the governing equation that turn | draw_callout:One essential aspect is that it prevents | clear: | draw_text:Key Takeaways | draw_rect:Newton's Second Law: This is the governi | draw_badge:Takeaway 1 | draw_rect:Force Components on a Ramp: Resolving th | draw_badge:Takeaway 2 | draw_rect:Free-Body Diagram: It prevents missing f | draw_badge:Takeaway 3 | draw_callout:These key takeaways capture the essentia | draw_badge:Section Complete | clear: | draw_physics_shape:Free-Body Diagram"],"sample":"Newton's second law explains motion on a ramp by relating net force to acceleration after each force is resolved into the correct direction. Specifically, this is the governing equation that turns a force diagram into a "}
+[aiPlanner] Using provider=blaze, model=qwen3.6-plus-thinking, inputLimit=200000 chars
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=24000, timeout=240000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=36000 promptLen=2327
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Topic scaffold AI failed, using local brief: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3: Teaching content for "Newton's Second Law" (provider=blaze, model=qwen3.6-plus-thinking)...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=900000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=12725
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 1 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3 Pass 3: Retry with simplified prompt...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=120000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=3131
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 3 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Generating visuals: strategy=overview, field=physics, concepts=4, topics=2
+[aiPlanner] Generating visuals: strategy=overview, field=physics, concepts=4, topics=3
+[aiPlanner] Generating visuals: strategy=application, field=physics, concepts=4, topics=3
+{"topic":"newton","mode":"visual_first","intent":"teach","title":"Newton's Second Law","summaryWords":55,"contentWords":[147,145,150],"durations":[118,116,120],"titles":["Understanding Newton's Second Law","How Free-Body Diagram Works","Free-Body Diagram in Practice"],"duplicateSentences":4,"hasMetaLeak":false,"hasPromptEcho":false,"hasRelationshipLeak":false,"sceneCounts":[132,121,122],"headers":["Understanding Newton's Second Law","Key Definitions","How These Concepts Connect","Concept Map: Force Components","Understanding: Second Law","Comparing: Force Components On vs Second Law","Review: Key Points","Concept Map: Second Law","Understanding: Force Components On A Ramp","Comparing: Newton's Second Law vs Force Components On","Review: Key Points","How Free-Body Diagram Works"],"sceneSignature":["draw_text:Understanding Newton's Second Law | draw_text:Newton's second law explains motion on a | draw_circle:Newton's Second Law | draw_rect:Force Components On A Ramp | draw_path: | draw_rect:Second Law | draw_path: | draw_rect:Force Components | draw_path: | draw_callout:Specifically, this is the governing equa | clear: | draw_text:Key Definitions | draw_badge:Newton's Second Law | draw_rect:Net force equals mass times acceleration | draw_badge:Force Components on a Ramp | draw_rect:Weight is resolved into a component para | clear: | draw_text:How These Concepts Connect","draw_text:How Free-Body Diagram Works | draw_text:A free-body diagram isolates the object  | draw_circle:Free-Body Diagram | draw_rect:Net Force On Ramp | draw_path: | draw_rect:Second Law | draw_path: | draw_rect:Force Components | draw_path: | draw_callout:Newton's second law explains motion on a | clear: | draw_text:Key Definitions | draw_badge:Newton's Second Law | draw_rect:Net force equals mass times acceleration | draw_badge:Force Components on a Ramp | draw_rect:Weight is resolved into a component para | draw_badge:Free-Body Diagram | draw_rect:A free-body diagram isolates the object ","draw_text:Free-Body Diagram in Practice | draw_badge:Practical Application | draw_physics_shape:Free-Body Diagram | draw_table: | draw_callout:This is the governing equation that turn | draw_callout:One essential aspect is that it prevents | clear: | draw_text:Key Takeaways | draw_rect:Newton's Second Law: This is the governi | draw_badge:Takeaway 1 | draw_rect:Force Components on a Ramp: Resolving th | draw_badge:Takeaway 2 | draw_rect:Free-Body Diagram: It prevents missing f | draw_badge:Takeaway 3 | draw_callout:These key takeaways capture the essentia | draw_badge:Section Complete | clear: | draw_physics_shape:Free-Body Diagram"],"sample":"Newton's second law explains motion on a ramp by relating net force to acceleration after each force is resolved into the correct direction. Specifically, this is the governing equation that turns a force diagram into a "}
+[aiPlanner] Using provider=blaze, model=qwen3.6-plus-thinking, inputLimit=200000 chars
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=24000, timeout=240000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=36000 promptLen=2308
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Topic scaffold AI failed, using local brief: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3: Teaching content for "Newton's Second Law" (provider=blaze, model=qwen3.6-plus-thinking)...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=900000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=12706
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 1 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3 Pass 3: Retry with simplified prompt...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=120000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=3112
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 3 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Generating visuals: strategy=detail, field=physics, concepts=4, topics=2
+[aiPlanner] Generating visuals: strategy=detail, field=physics, concepts=4, topics=3
+[aiPlanner] Generating visuals: strategy=detail, field=physics, concepts=4, topics=3
+{"topic":"newton","mode":"step_by_step","intent":"teach","title":"Newton's Second Law","summaryWords":55,"contentWords":[147,145,150],"durations":[118,116,120],"titles":["Understanding Newton's Second Law","How Free-Body Diagram Works","Free-Body Diagram in Practice"],"duplicateSentences":4,"hasMetaLeak":false,"hasPromptEcho":false,"hasRelationshipLeak":false,"sceneCounts":[98,101,101],"headers":["Understanding Newton's Second Law","Analyzing Newton's Second Law","Process: Force Components","Second Law — Explained","Understanding: Force Components On A Ramp","Review: Key Points","Process: Second Law","How Free-Body Diagram Works","Analyzing Free-Body Diagram","Process: Force Components","Second Law — Explained","Understanding: Net Force On Ramp"],"sceneSignature":["draw_text:Understanding Newton's Second Law | draw_badge:Detailed Analysis | draw_text:Newton's second law explains motion on a | draw_physics_shape:Newton's Second Law | draw_table: | draw_callout:This is the governing equation that turn | clear: | draw_text:Analyzing Newton's Second Law | draw_badge:Newton's Second Law | draw_badge:Force Components On A Ramp | draw_rect:Net force equals mass times acceleration | draw_rect:Weight is resolved into a component para | draw_path: | draw_rect:Net force equals mass times acceleration | draw_rect:Weight is resolved into a component para | draw_path: | draw_callout:Newton's second law explains motion on a | clear:","draw_text:How Free-Body Diagram Works | draw_badge:Detailed Analysis | draw_text:A free-body diagram isolates the object  | draw_physics_shape:Free-Body Diagram | draw_table: | draw_callout:This is the governing equation that turn | clear: | draw_text:Analyzing Free-Body Diagram | draw_badge:Free-Body Diagram | draw_badge:Net Force On Ramp | draw_rect:Net force equals mass times acceleration | draw_rect:Weight is resolved into a component para | draw_path: | draw_rect:A free-body diagram isolates the object  | draw_rect:Weight is resolved into a component para | draw_path: | draw_rect:Net force equals mass times acceleration | draw_rect:Weight is resolved into a component para","draw_text:Free-Body Diagram in Practice | draw_badge:Detailed Analysis | draw_text:A free-body diagram isolates the object  | draw_physics_shape:Free-Body Diagram | draw_table: | draw_callout:This is the governing equation that turn | clear: | draw_text:Analyzing Free-Body Diagram | draw_badge:Free-Body Diagram | draw_badge:Net Force On Ramp | draw_rect:Net force equals mass times acceleration | draw_rect:Weight is resolved into a component para | draw_path: | draw_rect:A free-body diagram isolates the object  | draw_rect:Weight is resolved into a component para | draw_path: | draw_rect:Net force equals mass times acceleration | draw_rect:Weight is resolved into a component para"],"sample":"Newton's second law explains motion on a ramp by relating net force to acceleration after each force is resolved into the correct direction. Specifically, this is the governing equation that turns a force diagram into a "}
+[aiPlanner] Using provider=blaze, model=qwen3.6-plus-thinking, inputLimit=200000 chars
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=24000, timeout=240000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=36000 promptLen=2412
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Topic scaffold AI failed, using local brief: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3: Teaching content for "Newton's Second Law" (provider=blaze, model=qwen3.6-plus-thinking)...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=900000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=12822
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 1 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3 Pass 3: Retry with simplified prompt...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=120000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=3216
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 3 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Generating visuals: strategy=overview, field=physics, concepts=4, topics=2
+[aiPlanner] Generating visuals: strategy=detail, field=physics, concepts=4, topics=3
+[aiPlanner] Generating visuals: strategy=application, field=physics, concepts=4, topics=3
+{"topic":"newton","mode":"qa_mode","intent":"practice","title":"Newton's Second Law","summaryWords":55,"contentWords":[147,145,150],"durations":[118,116,120],"titles":["Understanding Newton's Second Law","How Free-Body Diagram Works","Free-Body Diagram in Practice"],"duplicateSentences":4,"hasMetaLeak":false,"hasPromptEcho":false,"hasRelationshipLeak":false,"sceneCounts":[83,87,83],"headers":["Understanding Newton's Second Law","Key Definitions","How These Concepts Connect","Understanding: Force Components","Process: Second Law","Comparing: Force Components On vs Second Law","Review: Key Points","How Free-Body Diagram Works","Analyzing Free-Body Diagram","Understanding: Force Components","Process: Second Law","Comparing: Net Force On Ramp vs Second Law"],"sceneSignature":["draw_text:Understanding Newton's Second Law | draw_text:Newton's second law explains motion on a | draw_circle:Newton's Second Law | draw_rect:Force Components On A Ramp | draw_path: | draw_rect:Second Law | draw_path: | draw_rect:Force Components | draw_path: | draw_callout:Specifically, this is the governing equa | clear: | draw_text:Key Definitions | draw_badge:Newton's Second Law | draw_rect:Net force equals mass times acceleration | draw_badge:Force Components on a Ramp | draw_rect:Weight is resolved into a component para | clear: | draw_text:How These Concepts Connect","draw_text:How Free-Body Diagram Works | draw_badge:Detailed Analysis | draw_text:A free-body diagram isolates the object  | draw_physics_shape:Free-Body Diagram | draw_table: | draw_callout:This is the governing equation that turn | clear: | draw_text:Analyzing Free-Body Diagram | draw_badge:Free-Body Diagram | draw_badge:Net Force On Ramp | draw_rect:Net force equals mass times acceleration | draw_rect:Weight is resolved into a component para | draw_path: | draw_rect:A free-body diagram isolates the object  | draw_rect:Weight is resolved into a component para | draw_path: | draw_rect:Net force equals mass times acceleration | draw_rect:Weight is resolved into a component para","draw_text:Free-Body Diagram in Practice | draw_badge:Practical Application | draw_physics_shape:Free-Body Diagram | draw_table: | draw_callout:This is the governing equation that turn | draw_callout:One essential aspect is that it prevents | clear: | draw_text:Key Takeaways | draw_rect:Newton's Second Law: This is the governi | draw_badge:Takeaway 1 | draw_rect:Force Components on a Ramp: Resolving th | draw_badge:Takeaway 2 | draw_rect:Free-Body Diagram: It prevents missing f | draw_badge:Takeaway 3 | draw_callout:These key takeaways capture the essentia | draw_badge:Section Complete | clear: | draw_physics_shape:Free-Body Diagram"],"sample":"Newton's second law explains motion on a ramp by relating net force to acceleration after each force is resolved into the correct direction. Specifically, this is the governing equation that turns a force diagram into a "}
+[aiPlanner] Using provider=blaze, model=qwen3.6-plus-thinking, inputLimit=200000 chars
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=24000, timeout=240000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=36000 promptLen=2356
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Topic scaffold AI failed, using local brief: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3: Teaching content for "Newton's Second Law" (provider=blaze, model=qwen3.6-plus-thinking)...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=900000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=12754
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 1 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3 Pass 3: Retry with simplified prompt...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=120000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=3160
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 3 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Generating visuals: strategy=overview, field=physics, concepts=4, topics=2
+[aiPlanner] Generating visuals: strategy=detail, field=physics, concepts=4, topics=3
+[aiPlanner] Generating visuals: strategy=detail, field=physics, concepts=4, topics=3
+{"topic":"newton","mode":"text_focus","intent":"notes","title":"Newton's Second Law","summaryWords":55,"contentWords":[147,145,150],"durations":[118,116,120],"titles":["Understanding Newton's Second Law","How Free-Body Diagram Works","Free-Body Diagram in Practice"],"duplicateSentences":4,"hasMetaLeak":false,"hasPromptEcho":false,"hasRelationshipLeak":false,"sceneCounts":[79,73,73],"headers":["Understanding Newton's Second Law","Key Definitions","How These Concepts Connect","Understanding: Force Components","Process: Second Law","Comparing: Force Components On vs Second Law","Review: Key Points","How Free-Body Diagram Works","Analyzing Free-Body Diagram","Understanding: Force Components","Process: Second Law","Comparing: Net Force On Ramp vs Second Law"],"sceneSignature":["draw_text:Understanding Newton's Second Law | draw_text:Newton's second law explains motion on a | draw_circle:Newton's Second Law | draw_rect:Force Components On A Ramp | draw_path: | draw_rect:Second Law | draw_path: | draw_rect:Force Components | draw_path: | draw_callout:Specifically, this is the governing equa | clear: | draw_text:Key Definitions | draw_badge:Newton's Second Law | draw_rect:Net force equals mass times acceleration | draw_badge:Force Components on a Ramp | draw_rect:Weight is resolved into a component para | clear: | draw_text:How These Concepts Connect","draw_text:How Free-Body Diagram Works | draw_badge:Detailed Analysis | draw_text:A free-body diagram isolates the object  | draw_physics_shape:Free-Body Diagram | draw_table: | draw_callout:This is the governing equation that turn | clear: | draw_text:Analyzing Free-Body Diagram | draw_badge:Free-Body Diagram | draw_badge:Net Force On Ramp | draw_rect:Net force equals mass times acceleration | draw_rect:Weight is resolved into a component para | draw_path: | draw_rect:A free-body diagram isolates the object  | draw_rect:Weight is resolved into a component para | draw_path: | draw_rect:Net force equals mass times acceleration | draw_rect:Weight is resolved into a component para","draw_text:Free-Body Diagram in Practice | draw_badge:Detailed Analysis | draw_text:A free-body diagram isolates the object  | draw_physics_shape:Free-Body Diagram | draw_table: | draw_callout:This is the governing equation that turn | clear: | draw_text:Analyzing Free-Body Diagram | draw_badge:Free-Body Diagram | draw_badge:Net Force On Ramp | draw_rect:Net force equals mass times acceleration | draw_rect:Weight is resolved into a component para | draw_path: | draw_rect:A free-body diagram isolates the object  | draw_rect:Weight is resolved into a component para | draw_path: | draw_rect:Net force equals mass times acceleration | draw_rect:Weight is resolved into a component para"],"sample":"Newton's second law explains motion on a ramp by relating net force to acceleration after each force is resolved into the correct direction. Specifically, this is the governing equation that turns a force diagram into a "}
+[aiPlanner] Using provider=blaze, model=qwen3.6-plus-thinking, inputLimit=200000 chars
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=24000, timeout=240000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=36000 promptLen=2021
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Topic scaffold AI failed, using local brief: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3: Teaching content for "Photosynthesis" (provider=blaze, model=qwen3.6-plus-thinking)...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=900000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=12227
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 1 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3 Pass 3: Retry with simplified prompt...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=120000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=2730
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 3 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Generating visuals: strategy=overview, field=biology, concepts=4, topics=3
+[aiPlanner] Generating visuals: strategy=detail, field=biology, concepts=4, topics=4
+[aiPlanner] Generating visuals: strategy=application, field=biology, concepts=4, topics=4
+{"topic":"photosynthesis","mode":"full_lesson","intent":"teach","title":"Photosynthesis","summaryWords":43,"contentWords":[124,123,128],"durations":[99,98,102],"titles":["Understanding Chloroplast Structure","How Calvin Cycle Works","Calvin Cycle in Practice"],"duplicateSentences":6,"hasMetaLeak":false,"hasPromptEcho":false,"hasRelationshipLeak":false,"sceneCounts":[90,82,85],"headers":["Understanding Chloroplast Structure","Key Definitions","How These Concepts Connect","Understanding: Chloroplast Structure","Structure: Calvin","Calvin Cycle — Explained","Commands & Syntax","Concept Map: Chloroplast Structure","How Calvin Cycle Works","Analyzing Calvin Cycle","Understanding: Calvin Cycle","Structure: Light-Dependent Reactions"],"sceneSignature":["draw_text:Understanding Chloroplast Structure | draw_text:Understanding the compartments explains  | draw_circle:Chloroplast Structure | draw_rect:Light-Dependent Reactions: Light-depende | draw_path: | draw_rect:Calvin Cycle: The Calvin cycle uses ATP  | draw_path: | draw_rect:Calvin | draw_path: | draw_callout:Light-dependent reactions use photons to | clear: | draw_text:Key Definitions | draw_badge:Chloroplast Structure | draw_rect:Chloroplasts contain thylakoid membranes | draw_badge:Light-Dependent Reactions | draw_rect:Light-dependent reactions use photons to | draw_badge:Calvin Cycle | draw_rect:The Calvin cycle uses ATP and NADPH to f","draw_text:How Calvin Cycle Works | draw_badge:Detailed Analysis | draw_text:The Calvin cycle uses ATP and NADPH to f | draw_rect:Calvin Cycle | draw_badge:Step 1 | draw_path: | draw_text:The Calvin cycle uses ATP | draw_rect:Glucose Synthesis | draw_badge:Step 2 | draw_path: | draw_text:Glucose emerges indirectly from repeated | draw_rect:Chloroplast Structure | draw_badge:Step 3 | draw_path: | draw_text:Chloroplasts contain thylakoid membranes | draw_rect:Light-Dependent Reactions | draw_badge:Step 4 | draw_text:Light-dependent reactions use photons to","draw_text:Calvin Cycle in Practice | draw_badge:Practical Application | draw_rect:Chloroplasts contain thylakoid membranes | draw_badge:Calvin Cycle | draw_rect:Light-dependent reactions use photons to | draw_badge:Glucose Synthesis | draw_rect:The Calvin cycle uses ATP and NADPH to f | draw_badge:Chloroplast Structure | draw_arrow:combines with | draw_arrow:produces | draw_circle:Result | draw_callout:Glucose emerges indirectly from repeated | clear: | draw_text:Key Takeaways | draw_rect:Chloroplast Structure: Understanding the | draw_badge:Takeaway 1 | draw_rect:Light-Dependent Reactions: These product | draw_badge:Takeaway 2"],"sample":"Understanding the compartments explains why the light reactions and Calvin cycle happen in different places. Light-dependent reactions use photons to split water, move electrons through photosystems, and generate ATP and"}
+[aiPlanner] Using provider=blaze, model=qwen3.6-plus-thinking, inputLimit=200000 chars
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=24000, timeout=240000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=36000 promptLen=2354
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Topic scaffold AI failed, using local brief: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3: Teaching content for "Photosynthesis" (provider=blaze, model=qwen3.6-plus-thinking)...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=900000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=12560
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 1 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3 Pass 3: Retry with simplified prompt...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=120000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=3063
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 3 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Generating visuals: strategy=overview, field=biology, concepts=4, topics=3
+[aiPlanner] Generating visuals: strategy=overview, field=biology, concepts=4, topics=4
+[aiPlanner] Generating visuals: strategy=application, field=biology, concepts=4, topics=4
+{"topic":"photosynthesis","mode":"visual_first","intent":"teach","title":"Photosynthesis","summaryWords":43,"contentWords":[124,123,128],"durations":[99,98,102],"titles":["Understanding Chloroplast Structure","How Calvin Cycle Works","Calvin Cycle in Practice"],"duplicateSentences":6,"hasMetaLeak":false,"hasPromptEcho":false,"hasRelationshipLeak":false,"sceneCounts":[128,130,121],"headers":["Understanding Chloroplast Structure","Key Definitions","How These Concepts Connect","Understanding: Chloroplast Structure","Concept Map: Calvin","Structure: Calvin Cycle","Comparing: Light-Dependent Reactions vs Calvin Cycle","Review: Key Points","Understanding: Calvin","Concept Map: Calvin Cycle","Structure: Light-Dependent Reactions","How Calvin Cycle Works"],"sceneSignature":["draw_text:Understanding Chloroplast Structure | draw_text:Understanding the compartments explains  | draw_circle:Chloroplast Structure | draw_rect:Light-Dependent Reactions: Light-depende | draw_path: | draw_rect:Calvin Cycle: The Calvin cycle uses ATP  | draw_path: | draw_rect:Calvin | draw_path: | draw_callout:Light-dependent reactions use photons to | clear: | draw_text:Key Definitions | draw_badge:Chloroplast Structure | draw_rect:Chloroplasts contain thylakoid membranes | draw_badge:Light-Dependent Reactions | draw_rect:Light-dependent reactions use photons to | draw_badge:Calvin Cycle | draw_rect:The Calvin cycle uses ATP and NADPH to f","draw_text:How Calvin Cycle Works | draw_text:The Calvin cycle uses ATP and NADPH to f | draw_circle:Calvin Cycle | draw_rect:Glucose Synthesis: Glucose emerges indir | draw_path: | draw_rect:Chloroplast Structure: Chloroplasts cont | draw_path: | draw_rect:Light-Dependent Reactions: Light-depende | draw_path: | draw_callout:Photosynthesis links light capture to bi | clear: | draw_text:Key Definitions | draw_badge:Chloroplast Structure | draw_rect:Chloroplasts contain thylakoid membranes | draw_badge:Light-Dependent Reactions | draw_rect:Light-dependent reactions use photons to | draw_badge:Calvin Cycle | draw_rect:The Calvin cycle uses ATP and NADPH to f","draw_text:Calvin Cycle in Practice | draw_badge:Practical Application | draw_rect:Chloroplasts contain thylakoid membranes | draw_badge:Calvin Cycle | draw_rect:Light-dependent reactions use photons to | draw_badge:Glucose Synthesis | draw_rect:The Calvin cycle uses ATP and NADPH to f | draw_badge:Chloroplast Structure | draw_arrow:combines with | draw_arrow:produces | draw_circle:Result | draw_callout:Glucose emerges indirectly from repeated | clear: | draw_text:Key Takeaways | draw_rect:Chloroplast Structure: Understanding the | draw_badge:Takeaway 1 | draw_rect:Light-Dependent Reactions: These product | draw_badge:Takeaway 2"],"sample":"Understanding the compartments explains why the light reactions and Calvin cycle happen in different places. Light-dependent reactions use photons to split water, move electrons through photosystems, and generate ATP and"}
+[aiPlanner] Using provider=blaze, model=qwen3.6-plus-thinking, inputLimit=200000 chars
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=24000, timeout=240000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=36000 promptLen=2335
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Topic scaffold AI failed, using local brief: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3: Teaching content for "Photosynthesis" (provider=blaze, model=qwen3.6-plus-thinking)...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=900000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=12541
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 1 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3 Pass 3: Retry with simplified prompt...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=120000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=3044
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 3 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Generating visuals: strategy=detail, field=biology, concepts=4, topics=3
+[aiPlanner] Generating visuals: strategy=detail, field=biology, concepts=4, topics=4
+[aiPlanner] Generating visuals: strategy=detail, field=biology, concepts=4, topics=4
+{"topic":"photosynthesis","mode":"step_by_step","intent":"teach","title":"Photosynthesis","summaryWords":43,"contentWords":[124,123,128],"durations":[99,98,102],"titles":["Understanding Chloroplast Structure","How Calvin Cycle Works","Calvin Cycle in Practice"],"duplicateSentences":6,"hasMetaLeak":false,"hasPromptEcho":false,"hasRelationshipLeak":false,"sceneCounts":[105,106,106],"headers":["Understanding Chloroplast Structure","Analyzing Chloroplast Structure","Process: Chloroplast Structure","Understanding: Calvin","Calvin Cycle — Explained","Concept Map: Light-Dependent Reactions","Review: Key Points","How Calvin Cycle Works","Analyzing Calvin Cycle","Process: Calvin Cycle","Understanding: Light-Dependent Reactions","Chloroplast Structure — Explained"],"sceneSignature":["draw_text:Understanding Chloroplast Structure | draw_badge:Detailed Analysis | draw_text:Understanding the compartments explains  | draw_rect:Chloroplast Structure | draw_badge:Step 1 | draw_path: | draw_text:Chloroplasts contain thylakoid membranes | draw_rect:Light-Dependent Reactions | draw_badge:Step 2 | draw_path: | draw_text:Light-dependent reactions use photons to | draw_rect:Calvin Cycle | draw_badge:Step 3 | draw_path: | draw_text:The Calvin cycle uses ATP | draw_rect:Calvin | draw_badge:Step 4 | draw_callout:Water splitting releases oxygen as a by-","draw_text:How Calvin Cycle Works | draw_badge:Detailed Analysis | draw_text:The Calvin cycle uses ATP and NADPH to f | draw_rect:Calvin Cycle | draw_badge:Step 1 | draw_path: | draw_text:The Calvin cycle uses ATP | draw_rect:Glucose Synthesis | draw_badge:Step 2 | draw_path: | draw_text:Glucose emerges indirectly from repeated | draw_rect:Chloroplast Structure | draw_badge:Step 3 | draw_path: | draw_text:Chloroplasts contain thylakoid membranes | draw_rect:Light-Dependent Reactions | draw_badge:Step 4 | draw_text:Light-dependent reactions use photons to","draw_text:Calvin Cycle in Practice | draw_badge:Detailed Analysis | draw_text:The Calvin cycle uses ATP and NADPH to f | draw_rect:Calvin Cycle | draw_badge:Step 1 | draw_path: | draw_text:The Calvin cycle uses ATP | draw_rect:Glucose Synthesis | draw_badge:Step 2 | draw_path: | draw_text:Glucose emerges indirectly from repeated | draw_rect:Chloroplast Structure | draw_badge:Step 3 | draw_path: | draw_text:Chloroplasts contain thylakoid membranes | draw_rect:Light-Dependent Reactions | draw_badge:Step 4 | draw_text:Light-dependent reactions use photons to"],"sample":"Understanding the compartments explains why the light reactions and Calvin cycle happen in different places. Light-dependent reactions use photons to split water, move electrons through photosystems, and generate ATP and"}
+[aiPlanner] Using provider=blaze, model=qwen3.6-plus-thinking, inputLimit=200000 chars
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=24000, timeout=240000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=36000 promptLen=2439
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Topic scaffold AI failed, using local brief: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3: Teaching content for "Photosynthesis" (provider=blaze, model=qwen3.6-plus-thinking)...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=900000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=12657
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 1 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3 Pass 3: Retry with simplified prompt...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=120000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=3148
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 3 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Generating visuals: strategy=overview, field=biology, concepts=4, topics=3
+[aiPlanner] Generating visuals: strategy=detail, field=biology, concepts=4, topics=4
+[aiPlanner] Generating visuals: strategy=application, field=biology, concepts=4, topics=4
+{"topic":"photosynthesis","mode":"qa_mode","intent":"practice","title":"Photosynthesis","summaryWords":43,"contentWords":[124,123,128],"durations":[99,98,102],"titles":["Understanding Chloroplast Structure","How Calvin Cycle Works","Calvin Cycle in Practice"],"duplicateSentences":6,"hasMetaLeak":false,"hasPromptEcho":false,"hasRelationshipLeak":false,"sceneCounts":[84,88,87],"headers":["Understanding Chloroplast Structure","Key Definitions","How These Concepts Connect","Guided Questions","Understanding: Calvin","Comparing: Calvin Cycle vs Calvin","Review: Key Points","Guided Questions","How Calvin Cycle Works","Analyzing Calvin Cycle","Guided Questions","Understanding: Light-Dependent Reactions"],"sceneSignature":["draw_text:Understanding Chloroplast Structure | draw_text:Understanding the compartments explains  | draw_circle:Chloroplast Structure | draw_rect:Light-Dependent Reactions: Light-depende | draw_path: | draw_rect:Calvin Cycle: The Calvin cycle uses ATP  | draw_path: | draw_rect:Calvin | draw_path: | draw_callout:Light-dependent reactions use photons to | clear: | draw_text:Key Definitions | draw_badge:Chloroplast Structure | draw_rect:Chloroplasts contain thylakoid membranes | draw_badge:Light-Dependent Reactions | draw_rect:Light-dependent reactions use photons to | draw_badge:Calvin Cycle | draw_rect:The Calvin cycle uses ATP and NADPH to f","draw_text:How Calvin Cycle Works | draw_badge:Detailed Analysis | draw_text:The Calvin cycle uses ATP and NADPH to f | draw_rect:Calvin Cycle | draw_badge:Step 1 | draw_path: | draw_text:The Calvin cycle uses ATP | draw_rect:Glucose Synthesis | draw_badge:Step 2 | draw_path: | draw_text:Glucose emerges indirectly from repeated | draw_rect:Chloroplast Structure | draw_badge:Step 3 | draw_path: | draw_text:Chloroplasts contain thylakoid membranes | draw_rect:Light-Dependent Reactions | draw_badge:Step 4 | draw_text:Light-dependent reactions use photons to","draw_text:Calvin Cycle in Practice | draw_badge:Practical Application | draw_rect:Chloroplasts contain thylakoid membranes | draw_badge:Calvin Cycle | draw_rect:Light-dependent reactions use photons to | draw_badge:Glucose Synthesis | draw_rect:The Calvin cycle uses ATP and NADPH to f | draw_badge:Chloroplast Structure | draw_arrow:combines with | draw_arrow:produces | draw_circle:Result | draw_callout:Glucose emerges indirectly from repeated | clear: | draw_text:Key Takeaways | draw_rect:Chloroplast Structure: Understanding the | draw_badge:Takeaway 1 | draw_rect:Light-Dependent Reactions: These product | draw_badge:Takeaway 2"],"sample":"Understanding the compartments explains why the light reactions and Calvin cycle happen in different places. Light-dependent reactions use photons to split water, move electrons through photosystems, and generate ATP and"}
+[aiPlanner] Using provider=blaze, model=qwen3.6-plus-thinking, inputLimit=200000 chars
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=24000, timeout=240000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=36000 promptLen=2383
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Topic scaffold AI failed, using local brief: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3: Teaching content for "Photosynthesis" (provider=blaze, model=qwen3.6-plus-thinking)...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=900000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=12589
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 1 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3 Pass 3: Retry with simplified prompt...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=120000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=3092
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 3 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Generating visuals: strategy=overview, field=biology, concepts=4, topics=3
+[aiPlanner] Generating visuals: strategy=detail, field=biology, concepts=4, topics=4
+[aiPlanner] Generating visuals: strategy=detail, field=biology, concepts=4, topics=4
+{"topic":"photosynthesis","mode":"text_focus","intent":"notes","title":"Photosynthesis","summaryWords":43,"contentWords":[124,123,128],"durations":[99,98,102],"titles":["Understanding Chloroplast Structure","How Calvin Cycle Works","Calvin Cycle in Practice"],"duplicateSentences":6,"hasMetaLeak":false,"hasPromptEcho":false,"hasRelationshipLeak":false,"sceneCounts":[75,70,70],"headers":["Understanding Chloroplast Structure","Key Definitions","How These Concepts Connect","Study Notes","Calvin — Explained","Understanding: Calvin Cycle","Comparing: Light-Dependent Reactions vs Calvin Cycle","How Calvin Cycle Works","Analyzing Calvin Cycle","Study Notes","Light-Dependent Reactions — Explained","Understanding: Chloroplast Structure"],"sceneSignature":["draw_text:Understanding Chloroplast Structure | draw_text:Understanding the compartments explains  | draw_circle:Chloroplast Structure | draw_rect:Light-Dependent Reactions: Light-depende | draw_path: | draw_rect:Calvin Cycle: The Calvin cycle uses ATP  | draw_path: | draw_rect:Calvin | draw_path: | draw_callout:Light-dependent reactions use photons to | clear: | draw_text:Key Definitions | draw_badge:Chloroplast Structure | draw_rect:Chloroplasts contain thylakoid membranes | draw_badge:Light-Dependent Reactions | draw_rect:Light-dependent reactions use photons to | draw_badge:Calvin Cycle | draw_rect:The Calvin cycle uses ATP and NADPH to f","draw_text:How Calvin Cycle Works | draw_badge:Detailed Analysis | draw_text:The Calvin cycle uses ATP and NADPH to f | draw_rect:Calvin Cycle | draw_badge:Step 1 | draw_path: | draw_text:The Calvin cycle uses ATP | draw_rect:Glucose Synthesis | draw_badge:Step 2 | draw_path: | draw_text:Glucose emerges indirectly from repeated | draw_rect:Chloroplast Structure | draw_badge:Step 3 | draw_path: | draw_text:Chloroplasts contain thylakoid membranes | draw_rect:Light-Dependent Reactions | draw_badge:Step 4 | draw_text:Light-dependent reactions use photons to","draw_text:Calvin Cycle in Practice | draw_badge:Detailed Analysis | draw_text:The Calvin cycle uses ATP and NADPH to f | draw_rect:Calvin Cycle | draw_badge:Step 1 | draw_path: | draw_text:The Calvin cycle uses ATP | draw_rect:Glucose Synthesis | draw_badge:Step 2 | draw_path: | draw_text:Glucose emerges indirectly from repeated | draw_rect:Chloroplast Structure | draw_badge:Step 3 | draw_path: | draw_text:Chloroplasts contain thylakoid membranes | draw_rect:Light-Dependent Reactions | draw_badge:Step 4 | draw_text:Light-dependent reactions use photons to"],"sample":"Understanding the compartments explains why the light reactions and Calvin cycle happen in different places. Light-dependent reactions use photons to split water, move electrons through photosystems, and generate ATP and"}
+[aiPlanner] Using provider=blaze, model=qwen3.6-plus-thinking, inputLimit=200000 chars
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=24000, timeout=240000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=36000 promptLen=2007
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Topic scaffold AI failed, using local brief: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3: Teaching content for "Cosine" (provider=blaze, model=qwen3.6-plus-thinking)...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=900000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=11910
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 1 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3 Pass 3: Retry with simplified prompt...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=120000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=2614
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 3 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Generating visuals: strategy=overview, field=mathematics, concepts=4, topics=4
+[aiPlanner] Generating visuals: strategy=detail, field=mathematics, concepts=4, topics=4
+[aiPlanner] Generating visuals: strategy=application, field=mathematics, concepts=4, topics=4
+{"topic":"cosine","mode":"full_lesson","intent":"teach","title":"Cosine","summaryWords":51,"contentWords":[152,122,122],"durations":[122,98,98],"titles":["Understanding Right-Triangle Cosine","How Cosine Graph Behavior Works","Cosine Graph Behavior in Practice"],"duplicateSentences":7,"hasMetaLeak":false,"hasPromptEcho":false,"hasRelationshipLeak":false,"sceneCounts":[88,92,88],"headers":["Understanding Right-Triangle Cosine","Key Definitions","How These Concepts Connect","Understanding: Cosine","Cosine Graph Behavior — Explained","Comparing: Unit Circle Cosine vs Cosine Graph Behavior","Process: Right-Triangle Cosine","How Cosine Graph Behavior Works","Analyzing Cosine Graph Behavior","Understanding: Unit Circle Cosine","Right-Triangle Cosine — Explained","Comparing: Cosine In Problems vs Right-Triangle Cosine"],"sceneSignature":["draw_text:Understanding Right-Triangle Cosine | draw_text:The hypotenuse is always the longest sid | draw_circle:Right-Triangle Cosine | draw_rect:Unit Circle Cosine: On the unit circle,  | draw_path: | draw_rect:Cosine Graph Behavior: The cosine graph  | draw_path: | draw_rect:Cosine | draw_path: | draw_callout:Specifically, the adjacent side is the s | clear: | draw_text:Key Definitions | draw_badge:Right-Triangle Cosine | draw_rect:In a right triangle, cosine of an angle  | draw_badge:Unit Circle Cosine | draw_rect:On the unit circle, cosine gives the x-c | draw_badge:Cosine Graph Behavior | draw_rect:The cosine graph starts at 1, oscillates","draw_text:How Cosine Graph Behavior Works | draw_badge:Detailed Analysis | draw_text:Period describes how long it takes the g | show_equation:Cosine Graph Behavior | draw_coordinate_system: | draw_table: | draw_callout:This definition makes cosine a ratio tha | clear: | draw_text:Analyzing Cosine Graph Behavior | draw_badge:Cosine Graph Behavior | draw_badge:Cosine In Problems | draw_rect:In a right triangle, cosine of an angle  | draw_rect:On the unit circle, cosine gives the x-c | draw_path: | draw_rect:The cosine graph starts at 1, oscillates | draw_rect:Cosine helps solve missing lengths, proj | draw_path: | draw_rect:In a right triangle, cosine of an angle ","draw_text:Cosine Graph Behavior in Practice | draw_badge:Practical Application | show_equation:Cosine Graph Behavior | draw_coordinate_system: | draw_table: | draw_callout:This definition makes cosine a ratio tha | draw_callout:Cosine helps solve missing lengths, proj | clear: | draw_text:Key Takeaways | draw_rect:Right-Triangle Cosine: This definition m | draw_badge:Takeaway 1 | draw_rect:Unit Circle Cosine: This interpretation  | draw_badge:Takeaway 2 | draw_rect:Cosine Graph Behavior: Graph behavior he | draw_badge:Takeaway 3 | draw_callout:These key takeaways capture the essentia | draw_badge:Section Complete | clear:"],"sample":"The hypotenuse is always the longest side in the right triangle. Specifically, the adjacent side is the side next to the chosen angle that is not the hypotenuse. According to the source material, angles in the first and "}
+[aiPlanner] Using provider=blaze, model=qwen3.6-plus-thinking, inputLimit=200000 chars
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=24000, timeout=240000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=36000 promptLen=2340
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Topic scaffold AI failed, using local brief: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3: Teaching content for "Cosine" (provider=blaze, model=qwen3.6-plus-thinking)...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=900000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=12243
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 1 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3 Pass 3: Retry with simplified prompt...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=120000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=2947
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 3 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Generating visuals: strategy=overview, field=mathematics, concepts=4, topics=4
+[aiPlanner] Generating visuals: strategy=overview, field=mathematics, concepts=4, topics=4
+[aiPlanner] Generating visuals: strategy=application, field=mathematics, concepts=4, topics=4
+{"topic":"cosine","mode":"visual_first","intent":"teach","title":"Cosine","summaryWords":51,"contentWords":[152,122,122],"durations":[122,98,98],"titles":["Understanding Right-Triangle Cosine","How Cosine Graph Behavior Works","Cosine Graph Behavior in Practice"],"duplicateSentences":7,"hasMetaLeak":false,"hasPromptEcho":false,"hasRelationshipLeak":false,"sceneCounts":[134,134,120],"headers":["Understanding Right-Triangle Cosine","Key Definitions","How These Concepts Connect","Understanding: Cosine","Cosine Graph Behavior — Explained","Comparing: Unit Circle Cosine vs Cosine Graph Behavior","Process: Right-Triangle Cosine","Review: Key Points","Understanding: Unit Circle Cosine","Right-Triangle Cosine — Explained","How Cosine Graph Behavior Works","Key Definitions"],"sceneSignature":["draw_text:Understanding Right-Triangle Cosine | draw_text:The hypotenuse is always the longest sid | draw_circle:Right-Triangle Cosine | draw_rect:Unit Circle Cosine: On the unit circle,  | draw_path: | draw_rect:Cosine Graph Behavior: The cosine graph  | draw_path: | draw_rect:Cosine | draw_path: | draw_callout:Specifically, the adjacent side is the s | clear: | draw_text:Key Definitions | draw_badge:Right-Triangle Cosine | draw_rect:In a right triangle, cosine of an angle  | draw_badge:Unit Circle Cosine | draw_rect:On the unit circle, cosine gives the x-c | draw_badge:Cosine Graph Behavior | draw_rect:The cosine graph starts at 1, oscillates","draw_text:How Cosine Graph Behavior Works | draw_text:Period describes how long it takes the g | draw_circle:Cosine Graph Behavior | draw_rect:Cosine In Problems | draw_path: | draw_rect:Right-Triangle Cosine: In a right triang | draw_path: | draw_rect:Unit Circle Cosine: On the unit circle,  | draw_path: | draw_callout:To elaborate, amplitude describes the ma | clear: | draw_text:Key Definitions | draw_badge:Right-Triangle Cosine | draw_rect:In a right triangle, cosine of an angle  | draw_badge:Unit Circle Cosine | draw_rect:On the unit circle, cosine gives the x-c | draw_badge:Cosine Graph Behavior | draw_rect:The cosine graph starts at 1, oscillates","draw_text:Cosine Graph Behavior in Practice | draw_badge:Practical Application | show_equation:Cosine Graph Behavior | draw_coordinate_system: | draw_table: | draw_callout:This definition makes cosine a ratio tha | draw_callout:Cosine helps solve missing lengths, proj | clear: | draw_text:Key Takeaways | draw_rect:Right-Triangle Cosine: This definition m | draw_badge:Takeaway 1 | draw_rect:Unit Circle Cosine: This interpretation  | draw_badge:Takeaway 2 | draw_rect:Cosine Graph Behavior: Graph behavior he | draw_badge:Takeaway 3 | draw_callout:These key takeaways capture the essentia | draw_badge:Section Complete | clear:"],"sample":"The hypotenuse is always the longest side in the right triangle. Specifically, the adjacent side is the side next to the chosen angle that is not the hypotenuse. According to the source material, angles in the first and "}
+[aiPlanner] Using provider=blaze, model=qwen3.6-plus-thinking, inputLimit=200000 chars
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=24000, timeout=240000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=36000 promptLen=2321
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Topic scaffold AI failed, using local brief: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3: Teaching content for "Cosine" (provider=blaze, model=qwen3.6-plus-thinking)...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=900000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=12224
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 1 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3 Pass 3: Retry with simplified prompt...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=120000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=2928
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 3 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Generating visuals: strategy=detail, field=mathematics, concepts=4, topics=4
+[aiPlanner] Generating visuals: strategy=detail, field=mathematics, concepts=4, topics=4
+[aiPlanner] Generating visuals: strategy=detail, field=mathematics, concepts=4, topics=4
+{"topic":"cosine","mode":"step_by_step","intent":"teach","title":"Cosine","summaryWords":51,"contentWords":[152,122,122],"durations":[122,98,98],"titles":["Understanding Right-Triangle Cosine","How Cosine Graph Behavior Works","Cosine Graph Behavior in Practice"],"duplicateSentences":7,"hasMetaLeak":false,"hasPromptEcho":false,"hasRelationshipLeak":false,"sceneCounts":[104,104,104],"headers":["Understanding Right-Triangle Cosine","Analyzing Right-Triangle Cosine","Process: Cosine","Cosine Graph Behavior — Explained","Understanding: Unit Circle Cosine","Review: Key Points","Process: Cosine Graph Behavior","How Cosine Graph Behavior Works","Analyzing Cosine Graph Behavior","Process: Unit Circle Cosine","Right-Triangle Cosine — Explained","Understanding: Cosine In Problems"],"sceneSignature":["draw_text:Understanding Right-Triangle Cosine | draw_badge:Detailed Analysis | draw_text:The hypotenuse is always the longest sid | show_equation:Right-Triangle Cosine | draw_coordinate_system: | draw_table: | draw_callout:This definition makes cosine a ratio tha | clear: | draw_text:Analyzing Right-Triangle Cosine | draw_badge:Right-Triangle Cosine | draw_badge:Unit Circle Cosine | draw_rect:In a right triangle, cosine of an angle  | draw_rect:On the unit circle, cosine gives the x-c | draw_path: | draw_rect:The cosine graph starts at 1, oscillates | draw_rect:Cosine helps solve missing lengths, proj | draw_path: | draw_rect:In a right triangle, cosine of an angle ","draw_text:How Cosine Graph Behavior Works | draw_badge:Detailed Analysis | draw_text:Period describes how long it takes the g | show_equation:Cosine Graph Behavior | draw_coordinate_system: | draw_table: | draw_callout:This definition makes cosine a ratio tha | clear: | draw_text:Analyzing Cosine Graph Behavior | draw_badge:Cosine Graph Behavior | draw_badge:Cosine In Problems | draw_rect:In a right triangle, cosine of an angle  | draw_rect:On the unit circle, cosine gives the x-c | draw_path: | draw_rect:The cosine graph starts at 1, oscillates | draw_rect:Cosine helps solve missing lengths, proj | draw_path: | draw_rect:In a right triangle, cosine of an angle ","draw_text:Cosine Graph Behavior in Practice | draw_badge:Detailed Analysis | draw_text:Period describes how long it takes the g | show_equation:Cosine Graph Behavior | draw_coordinate_system: | draw_table: | draw_callout:This definition makes cosine a ratio tha | clear: | draw_text:Analyzing Cosine Graph Behavior | draw_badge:Cosine Graph Behavior | draw_badge:Cosine In Problems | draw_rect:In a right triangle, cosine of an angle  | draw_rect:On the unit circle, cosine gives the x-c | draw_path: | draw_rect:The cosine graph starts at 1, oscillates | draw_rect:Cosine helps solve missing lengths, proj | draw_path: | draw_rect:In a right triangle, cosine of an angle "],"sample":"The hypotenuse is always the longest side in the right triangle. Specifically, the adjacent side is the side next to the chosen angle that is not the hypotenuse. According to the source material, angles in the first and "}
+[aiPlanner] Using provider=blaze, model=qwen3.6-plus-thinking, inputLimit=200000 chars
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=24000, timeout=240000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=36000 promptLen=2425
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Topic scaffold AI failed, using local brief: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3: Teaching content for "Cosine" (provider=blaze, model=qwen3.6-plus-thinking)...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=900000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=12340
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 1 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3 Pass 3: Retry with simplified prompt...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=120000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=3032
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 3 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Generating visuals: strategy=overview, field=mathematics, concepts=4, topics=4
+[aiPlanner] Generating visuals: strategy=detail, field=mathematics, concepts=4, topics=4
+[aiPlanner] Generating visuals: strategy=application, field=mathematics, concepts=4, topics=4
+{"topic":"cosine","mode":"qa_mode","intent":"practice","title":"Cosine","summaryWords":51,"contentWords":[152,122,122],"durations":[122,98,98],"titles":["Understanding Right-Triangle Cosine","How Cosine Graph Behavior Works","Cosine Graph Behavior in Practice"],"duplicateSentences":7,"hasMetaLeak":false,"hasPromptEcho":false,"hasRelationshipLeak":false,"sceneCounts":[88,92,88],"headers":["Understanding Right-Triangle Cosine","Key Definitions","How These Concepts Connect","Understanding: Cosine","Cosine Graph Behavior — Explained","Comparing: Unit Circle Cosine vs Cosine Graph Behavior","Process: Right-Triangle Cosine","How Cosine Graph Behavior Works","Analyzing Cosine Graph Behavior","Understanding: Unit Circle Cosine","Right-Triangle Cosine — Explained","Comparing: Cosine In Problems vs Right-Triangle Cosine"],"sceneSignature":["draw_text:Understanding Right-Triangle Cosine | draw_text:The hypotenuse is always the longest sid | draw_circle:Right-Triangle Cosine | draw_rect:Unit Circle Cosine: On the unit circle,  | draw_path: | draw_rect:Cosine Graph Behavior: The cosine graph  | draw_path: | draw_rect:Cosine | draw_path: | draw_callout:Specifically, the adjacent side is the s | clear: | draw_text:Key Definitions | draw_badge:Right-Triangle Cosine | draw_rect:In a right triangle, cosine of an angle  | draw_badge:Unit Circle Cosine | draw_rect:On the unit circle, cosine gives the x-c | draw_badge:Cosine Graph Behavior | draw_rect:The cosine graph starts at 1, oscillates","draw_text:How Cosine Graph Behavior Works | draw_badge:Detailed Analysis | draw_text:Period describes how long it takes the g | show_equation:Cosine Graph Behavior | draw_coordinate_system: | draw_table: | draw_callout:This definition makes cosine a ratio tha | clear: | draw_text:Analyzing Cosine Graph Behavior | draw_badge:Cosine Graph Behavior | draw_badge:Cosine In Problems | draw_rect:In a right triangle, cosine of an angle  | draw_rect:On the unit circle, cosine gives the x-c | draw_path: | draw_rect:The cosine graph starts at 1, oscillates | draw_rect:Cosine helps solve missing lengths, proj | draw_path: | draw_rect:In a right triangle, cosine of an angle ","draw_text:Cosine Graph Behavior in Practice | draw_badge:Practical Application | show_equation:Cosine Graph Behavior | draw_coordinate_system: | draw_table: | draw_callout:This definition makes cosine a ratio tha | draw_callout:Cosine helps solve missing lengths, proj | clear: | draw_text:Key Takeaways | draw_rect:Right-Triangle Cosine: This definition m | draw_badge:Takeaway 1 | draw_rect:Unit Circle Cosine: This interpretation  | draw_badge:Takeaway 2 | draw_rect:Cosine Graph Behavior: Graph behavior he | draw_badge:Takeaway 3 | draw_callout:These key takeaways capture the essentia | draw_badge:Section Complete | clear:"],"sample":"The hypotenuse is always the longest side in the right triangle. Specifically, the adjacent side is the side next to the chosen angle that is not the hypotenuse. According to the source material, angles in the first and "}
+[aiPlanner] Using provider=blaze, model=qwen3.6-plus-thinking, inputLimit=200000 chars
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=24000, timeout=240000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=36000 promptLen=2369
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Topic scaffold AI failed, using local brief: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3: Teaching content for "Cosine" (provider=blaze, model=qwen3.6-plus-thinking)...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=900000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=12272
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 1 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3 Pass 3: Retry with simplified prompt...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=120000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=2976
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 3 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Generating visuals: strategy=overview, field=mathematics, concepts=4, topics=4
+[aiPlanner] Generating visuals: strategy=detail, field=mathematics, concepts=4, topics=4
+[aiPlanner] Generating visuals: strategy=detail, field=mathematics, concepts=4, topics=4
+{"topic":"cosine","mode":"text_focus","intent":"notes","title":"Cosine","summaryWords":51,"contentWords":[152,122,122],"durations":[122,98,98],"titles":["Understanding Right-Triangle Cosine","How Cosine Graph Behavior Works","Cosine Graph Behavior in Practice"],"duplicateSentences":7,"hasMetaLeak":false,"hasPromptEcho":false,"hasRelationshipLeak":false,"sceneCounts":[72,78,78],"headers":["Understanding Right-Triangle Cosine","Key Definitions","How These Concepts Connect","Understanding: Cosine","Cosine Graph Behavior — Explained","Comparing: Unit Circle Cosine vs Cosine Graph Behavior","How Cosine Graph Behavior Works","Analyzing Cosine Graph Behavior","Understanding: Unit Circle Cosine","Right-Triangle Cosine — Explained","Comparing: Cosine In Problems vs Right-Triangle Cosine","Process: Cosine Graph Behavior"],"sceneSignature":["draw_text:Understanding Right-Triangle Cosine | draw_text:The hypotenuse is always the longest sid | draw_circle:Right-Triangle Cosine | draw_rect:Unit Circle Cosine: On the unit circle,  | draw_path: | draw_rect:Cosine Graph Behavior: The cosine graph  | draw_path: | draw_rect:Cosine | draw_path: | draw_callout:Specifically, the adjacent side is the s | clear: | draw_text:Key Definitions | draw_badge:Right-Triangle Cosine | draw_rect:In a right triangle, cosine of an angle  | draw_badge:Unit Circle Cosine | draw_rect:On the unit circle, cosine gives the x-c | draw_badge:Cosine Graph Behavior | draw_rect:The cosine graph starts at 1, oscillates","draw_text:How Cosine Graph Behavior Works | draw_badge:Detailed Analysis | draw_text:Period describes how long it takes the g | show_equation:Cosine Graph Behavior | draw_coordinate_system: | draw_table: | draw_callout:This definition makes cosine a ratio tha | clear: | draw_text:Analyzing Cosine Graph Behavior | draw_badge:Cosine Graph Behavior | draw_badge:Cosine In Problems | draw_rect:In a right triangle, cosine of an angle  | draw_rect:On the unit circle, cosine gives the x-c | draw_path: | draw_rect:The cosine graph starts at 1, oscillates | draw_rect:Cosine helps solve missing lengths, proj | draw_path: | draw_rect:In a right triangle, cosine of an angle ","draw_text:Cosine Graph Behavior in Practice | draw_badge:Detailed Analysis | draw_text:Period describes how long it takes the g | show_equation:Cosine Graph Behavior | draw_coordinate_system: | draw_table: | draw_callout:This definition makes cosine a ratio tha | clear: | draw_text:Analyzing Cosine Graph Behavior | draw_badge:Cosine Graph Behavior | draw_badge:Cosine In Problems | draw_rect:In a right triangle, cosine of an angle  | draw_rect:On the unit circle, cosine gives the x-c | draw_path: | draw_rect:The cosine graph starts at 1, oscillates | draw_rect:Cosine helps solve missing lengths, proj | draw_path: | draw_rect:In a right triangle, cosine of an angle "],"sample":"The hypotenuse is always the longest side in the right triangle. Specifically, the adjacent side is the side next to the chosen angle that is not the hypotenuse. According to the source material, angles in the first and "}
+[aiPlanner] Using provider=blaze, model=qwen3.6-plus-thinking, inputLimit=200000 chars
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=24000, timeout=240000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=36000 promptLen=2017
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Topic scaffold AI failed, using local brief: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3: Teaching content for "Electric Circuits" (provider=blaze, model=qwen3.6-plus-thinking)...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=900000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=11518
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 1 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3 Pass 3: Retry with simplified prompt...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=120000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=2429
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 3 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Generating visuals: strategy=overview, field=physics, concepts=4, topics=3
+[aiPlanner] Generating visuals: strategy=detail, field=physics, concepts=4, topics=3
+[aiPlanner] Generating visuals: strategy=application, field=physics, concepts=4, topics=3
+{"topic":"circuits","mode":"full_lesson","intent":"teach","title":"Electric Circuits","summaryWords":43,"contentWords":[105,113,113],"durations":[90,90,90],"titles":["Understanding Voltage","How Resistance Works","Resistance in Practice"],"duplicateSentences":6,"hasMetaLeak":false,"hasPromptEcho":false,"hasRelationshipLeak":false,"sceneCounts":[82,87,83],"headers":["Understanding Voltage","Key Definitions","How These Concepts Connect","Understanding: Resistance","Process: Electric Circuits","Comparing: Current vs Electric Circuits","Review: Key Points","How Resistance Works","Analyzing Resistance","Understanding: Current","Process: Electric Circuits","Comparing: Ohm's Law vs Electric Circuits"],"sceneSignature":["draw_text:Understanding Voltage | draw_text:It is the energy-per-charge viewpoint th | draw_circle:Voltage | draw_rect:Current: Current measures the rate at wh | draw_path: | draw_rect:Electric Circuits | draw_path: | draw_rect:Resistance: Resistance describes how str | draw_path: | draw_callout:Voltage is the electrical potential diff | clear: | draw_text:Key Definitions | draw_badge:Voltage | draw_rect:Voltage is the electrical potential diff | draw_badge:Current | draw_rect:Current measures the rate at which elect | draw_badge:Resistance | draw_rect:Resistance describes how strongly a comp","draw_text:How Resistance Works | draw_badge:Detailed Analysis | draw_text:Resistance describes how strongly a comp | draw_physics_shape:Resistance | draw_table: | draw_callout:Tracking current shows how strongly the  | clear: | draw_text:Analyzing Resistance | draw_badge:Resistance | draw_badge:Ohm's Law | draw_rect:Current measures the rate at which elect | draw_rect:Resistance describes how strongly a comp | draw_path: | draw_rect:Ohm's law states that voltage equals cur | draw_rect:Resistance describes how strongly a comp | draw_path: | draw_rect:Current measures the rate at which elect | draw_rect:Resistance describes how strongly a comp","draw_text:Resistance in Practice | draw_badge:Practical Application | draw_physics_shape:Resistance | draw_table: | draw_callout:Tracking current shows how strongly the  | draw_callout:What this tells us is that the law links | clear: | draw_text:Key Takeaways | draw_rect:Current: Tracking current shows how stro | draw_badge:Takeaway 1 | draw_rect:Resistance: It determines how much curre | draw_badge:Takeaway 2 | draw_rect:Ohm's Law: This relationship is the simp | draw_badge:Takeaway 3 | draw_callout:These key takeaways capture the essentia | draw_badge:Section Complete | clear: | draw_physics_shape:Resistance"],"sample":"It is the energy-per-charge viewpoint that explains why current moves. Voltage is the electrical potential difference that pushes charge through a circuit. Tracking current shows how strongly the circuit is responding to"}
+[aiPlanner] Using provider=blaze, model=qwen3.6-plus-thinking, inputLimit=200000 chars
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=24000, timeout=240000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=36000 promptLen=2350
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Topic scaffold AI failed, using local brief: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3: Teaching content for "Electric Circuits" (provider=blaze, model=qwen3.6-plus-thinking)...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=900000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=11851
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 1 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3 Pass 3: Retry with simplified prompt...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=120000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=2762
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 3 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Generating visuals: strategy=overview, field=physics, concepts=4, topics=3
+[aiPlanner] Generating visuals: strategy=overview, field=physics, concepts=4, topics=3
+[aiPlanner] Generating visuals: strategy=application, field=physics, concepts=4, topics=3
+{"topic":"circuits","mode":"visual_first","intent":"teach","title":"Electric Circuits","summaryWords":43,"contentWords":[105,113,113],"durations":[90,90,90],"titles":["Understanding Voltage","How Resistance Works","Resistance in Practice"],"duplicateSentences":6,"hasMetaLeak":false,"hasPromptEcho":false,"hasRelationshipLeak":false,"sceneCounts":[121,121,122],"headers":["Understanding Voltage","Key Definitions","How These Concepts Connect","Concept Map: Resistance","Understanding: Electric Circuits","Comparing: Current vs Electric Circuits","Review: Key Points","Concept Map: Electric Circuits","Understanding: Current","Comparing: Voltage vs Current","How Resistance Works","Key Definitions"],"sceneSignature":["draw_text:Understanding Voltage | draw_text:It is the energy-per-charge viewpoint th | draw_circle:Voltage | draw_rect:Current: Current measures the rate at wh | draw_path: | draw_rect:Electric Circuits | draw_path: | draw_rect:Resistance: Resistance describes how str | draw_path: | draw_callout:Voltage is the electrical potential diff | clear: | draw_text:Key Definitions | draw_badge:Voltage | draw_rect:Voltage is the electrical potential diff | draw_badge:Current | draw_rect:Current measures the rate at which elect | draw_badge:Resistance | draw_rect:Resistance describes how strongly a comp","draw_text:How Resistance Works | draw_text:Resistance describes how strongly a comp | draw_circle:Resistance | draw_rect:Ohm's Law: Ohm's law states that voltage | draw_path: | draw_rect:Electric Circuits | draw_path: | draw_rect:Current: Current measures the rate at wh | draw_path: | draw_callout:Basic circuit analysis explains how volt | clear: | draw_text:Key Definitions | draw_badge:Current | draw_rect:Current measures the rate at which elect | draw_badge:Resistance | draw_rect:Resistance describes how strongly a comp | draw_badge:Ohm's Law | draw_rect:Ohm's law states that voltage equals cur","draw_text:Resistance in Practice | draw_badge:Practical Application | draw_physics_shape:Resistance | draw_table: | draw_callout:Tracking current shows how strongly the  | draw_callout:What this tells us is that the law links | clear: | draw_text:Key Takeaways | draw_rect:Current: Tracking current shows how stro | draw_badge:Takeaway 1 | draw_rect:Resistance: It determines how much curre | draw_badge:Takeaway 2 | draw_rect:Ohm's Law: This relationship is the simp | draw_badge:Takeaway 3 | draw_callout:These key takeaways capture the essentia | draw_badge:Section Complete | clear: | draw_physics_shape:Resistance"],"sample":"It is the energy-per-charge viewpoint that explains why current moves. Voltage is the electrical potential difference that pushes charge through a circuit. Tracking current shows how strongly the circuit is responding to"}
+[aiPlanner] Using provider=blaze, model=qwen3.6-plus-thinking, inputLimit=200000 chars
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=24000, timeout=240000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=36000 promptLen=2331
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Topic scaffold AI failed, using local brief: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3: Teaching content for "Electric Circuits" (provider=blaze, model=qwen3.6-plus-thinking)...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=900000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=11832
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 1 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3 Pass 3: Retry with simplified prompt...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=120000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=2743
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 3 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Generating visuals: strategy=detail, field=physics, concepts=4, topics=3
+[aiPlanner] Generating visuals: strategy=detail, field=physics, concepts=4, topics=3
+[aiPlanner] Generating visuals: strategy=detail, field=physics, concepts=4, topics=3
+{"topic":"circuits","mode":"step_by_step","intent":"teach","title":"Electric Circuits","summaryWords":43,"contentWords":[105,113,113],"durations":[90,90,90],"titles":["Understanding Voltage","How Resistance Works","Resistance in Practice"],"duplicateSentences":6,"hasMetaLeak":false,"hasPromptEcho":false,"hasRelationshipLeak":false,"sceneCounts":[101,101,101],"headers":["Understanding Voltage","Analyzing Voltage","Process: Resistance","Electric Circuits — Explained","Understanding: Current","Review: Key Points","Process: Electric Circuits","How Resistance Works","Analyzing Resistance","Process: Current","Electric Circuits — Explained","Understanding: Ohm's Law"],"sceneSignature":["draw_text:Understanding Voltage | draw_badge:Detailed Analysis | draw_text:It is the energy-per-charge viewpoint th | draw_physics_shape:Voltage | draw_table: | draw_callout:It is the energy-per-charge viewpoint th | clear: | draw_text:Analyzing Voltage | draw_badge:Voltage | draw_badge:Current | draw_rect:Voltage is the electrical potential diff | draw_rect:Current measures the rate at which elect | draw_path: | draw_rect:Resistance describes how strongly a comp | draw_rect:Current measures the rate at which elect | draw_path: | draw_rect:Voltage is the electrical potential diff | draw_rect:Current measures the rate at which elect","draw_text:How Resistance Works | draw_badge:Detailed Analysis | draw_text:Resistance describes how strongly a comp | draw_physics_shape:Resistance | draw_table: | draw_callout:Tracking current shows how strongly the  | clear: | draw_text:Analyzing Resistance | draw_badge:Resistance | draw_badge:Ohm's Law | draw_rect:Current measures the rate at which elect | draw_rect:Resistance describes how strongly a comp | draw_path: | draw_rect:Ohm's law states that voltage equals cur | draw_rect:Resistance describes how strongly a comp | draw_path: | draw_rect:Current measures the rate at which elect | draw_rect:Resistance describes how strongly a comp","draw_text:Resistance in Practice | draw_badge:Detailed Analysis | draw_text:Adding resistors in series increases tot | draw_physics_shape:Resistance | draw_table: | draw_callout:Tracking current shows how strongly the  | clear: | draw_text:Analyzing Resistance | draw_badge:Resistance | draw_badge:Ohm's Law | draw_rect:Current measures the rate at which elect | draw_rect:Resistance describes how strongly a comp | draw_path: | draw_rect:Ohm's law states that voltage equals cur | draw_rect:Resistance describes how strongly a comp | draw_path: | draw_rect:Current measures the rate at which elect | draw_rect:Resistance describes how strongly a comp"],"sample":"It is the energy-per-charge viewpoint that explains why current moves. Voltage is the electrical potential difference that pushes charge through a circuit. Tracking current shows how strongly the circuit is responding to"}
+[aiPlanner] Using provider=blaze, model=qwen3.6-plus-thinking, inputLimit=200000 chars
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=24000, timeout=240000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=36000 promptLen=2435
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Topic scaffold AI failed, using local brief: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3: Teaching content for "Electric Circuits" (provider=blaze, model=qwen3.6-plus-thinking)...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=900000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=11948
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 1 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3 Pass 3: Retry with simplified prompt...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=120000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=2847
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 3 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Generating visuals: strategy=overview, field=physics, concepts=4, topics=3
+[aiPlanner] Generating visuals: strategy=detail, field=physics, concepts=4, topics=3
+[aiPlanner] Generating visuals: strategy=application, field=physics, concepts=4, topics=3
+{"topic":"circuits","mode":"qa_mode","intent":"practice","title":"Electric Circuits","summaryWords":43,"contentWords":[105,113,113],"durations":[90,90,90],"titles":["Understanding Voltage","How Resistance Works","Resistance in Practice"],"duplicateSentences":6,"hasMetaLeak":false,"hasPromptEcho":false,"hasRelationshipLeak":false,"sceneCounts":[82,87,83],"headers":["Understanding Voltage","Key Definitions","How These Concepts Connect","Understanding: Resistance","Process: Electric Circuits","Comparing: Current vs Electric Circuits","Review: Key Points","How Resistance Works","Analyzing Resistance","Understanding: Current","Process: Electric Circuits","Comparing: Ohm's Law vs Electric Circuits"],"sceneSignature":["draw_text:Understanding Voltage | draw_text:It is the energy-per-charge viewpoint th | draw_circle:Voltage | draw_rect:Current: Current measures the rate at wh | draw_path: | draw_rect:Electric Circuits | draw_path: | draw_rect:Resistance: Resistance describes how str | draw_path: | draw_callout:Voltage is the electrical potential diff | clear: | draw_text:Key Definitions | draw_badge:Voltage | draw_rect:Voltage is the electrical potential diff | draw_badge:Current | draw_rect:Current measures the rate at which elect | draw_badge:Resistance | draw_rect:Resistance describes how strongly a comp","draw_text:How Resistance Works | draw_badge:Detailed Analysis | draw_text:Resistance describes how strongly a comp | draw_physics_shape:Resistance | draw_table: | draw_callout:Tracking current shows how strongly the  | clear: | draw_text:Analyzing Resistance | draw_badge:Resistance | draw_badge:Ohm's Law | draw_rect:Current measures the rate at which elect | draw_rect:Resistance describes how strongly a comp | draw_path: | draw_rect:Ohm's law states that voltage equals cur | draw_rect:Resistance describes how strongly a comp | draw_path: | draw_rect:Current measures the rate at which elect | draw_rect:Resistance describes how strongly a comp","draw_text:Resistance in Practice | draw_badge:Practical Application | draw_physics_shape:Resistance | draw_table: | draw_callout:Tracking current shows how strongly the  | draw_callout:What this tells us is that the law links | clear: | draw_text:Key Takeaways | draw_rect:Current: Tracking current shows how stro | draw_badge:Takeaway 1 | draw_rect:Resistance: It determines how much curre | draw_badge:Takeaway 2 | draw_rect:Ohm's Law: This relationship is the simp | draw_badge:Takeaway 3 | draw_callout:These key takeaways capture the essentia | draw_badge:Section Complete | clear: | draw_physics_shape:Resistance"],"sample":"It is the energy-per-charge viewpoint that explains why current moves. Voltage is the electrical potential difference that pushes charge through a circuit. Tracking current shows how strongly the circuit is responding to"}
+[aiPlanner] Using provider=blaze, model=qwen3.6-plus-thinking, inputLimit=200000 chars
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=24000, timeout=240000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=36000 promptLen=2379
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Topic scaffold AI failed, using local brief: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3: Teaching content for "Electric Circuits" (provider=blaze, model=qwen3.6-plus-thinking)...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=900000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=11880
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 1 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Phase 3 Pass 3: Retry with simplified prompt...
+[aiPlanner] BlazeAI → qwen3.6-plus-thinking (max_tokens=64000, timeout=120000ms)
+[aiPlanner] -> POST https://blazeai.boxu.dev/api/chat/completions model=qwen3.6-plus-thinking max_tokens=96000 promptLen=2791
+[aiPlanner] API error 502 from https://blazeai.boxu.dev/api/chat/completions: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!
+[aiPlanner] Phase 3 Pass 3 failed: All Blaze AI models unavailable: HTTP 502: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+[aiPlanner] Generating visuals: strategy=overview, field=physics, concepts=4, topics=3
+[aiPlanner] Generating visuals: strategy=detail, field=physics, concepts=4, topics=3
+[aiPlanner] Generating visuals: strategy=detail, field=physics, concepts=4, topics=3
+{"topic":"circuits","mode":"text_focus","intent":"notes","title":"Electric Circuits","summaryWords":43,"contentWords":[105,113,113],"durations":[90,90,90],"titles":["Understanding Voltage","How Resistance Works","Resistance in Practice"],"duplicateSentences":6,"hasMetaLeak":false,"hasPromptEcho":false,"hasRelationshipLeak":false,"sceneCounts":[82,73,73],"headers":["Understanding Voltage","Key Definitions","How These Concepts Connect","Understanding: Resistance","Process: Electric Circuits","Comparing: Current vs Electric Circuits","Review: Key Points","How Resistance Works","Analyzing Resistance","Understanding: Current","Process: Electric Circuits","Comparing: Ohm's Law vs Electric Circuits"],"sceneSignature":["draw_text:Understanding Voltage | draw_text:It is the energy-per-charge viewpoint th | draw_circle:Voltage | draw_rect:Current: Current measures the rate at wh | draw_path: | draw_rect:Electric Circuits | draw_path: | draw_rect:Resistance: Resistance describes how str | draw_path: | draw_callout:Voltage is the electrical potential diff | clear: | draw_text:Key Definitions | draw_badge:Voltage | draw_rect:Voltage is the electrical potential diff | draw_badge:Current | draw_rect:Current measures the rate at which elect | draw_badge:Resistance | draw_rect:Resistance describes how strongly a comp","draw_text:How Resistance Works | draw_badge:Detailed Analysis | draw_text:Resistance describes how strongly a comp | draw_physics_shape:Resistance | draw_table: | draw_callout:Tracking current shows how strongly the  | clear: | draw_text:Analyzing Resistance | draw_badge:Resistance | draw_badge:Ohm's Law | draw_rect:Current measures the rate at which elect | draw_rect:Resistance describes how strongly a comp | draw_path: | draw_rect:Ohm's law states that voltage equals cur | draw_rect:Resistance describes how strongly a comp | draw_path: | draw_rect:Current measures the rate at which elect | draw_rect:Resistance describes how strongly a comp","draw_text:Resistance in Practice | draw_badge:Detailed Analysis | draw_text:Adding resistors in series increases tot | draw_physics_shape:Resistance | draw_table: | draw_callout:Tracking current shows how strongly the  | clear: | draw_text:Analyzing Resistance | draw_badge:Resistance | draw_badge:Ohm's Law | draw_rect:Current measures the rate at which elect | draw_rect:Resistance describes how strongly a comp | draw_path: | draw_rect:Ohm's law states that voltage equals cur | draw_rect:Resistance describes how strongly a comp | draw_path: | draw_rect:Current measures the rate at which elect | draw_rect:Resistance describes how strongly a comp"],"sample":"It is the energy-per-charge viewpoint that explains why current moves. Voltage is the electrical potential difference that pushes charge through a circuit. Tracking current shows how strongly the circuit is responding to"}
