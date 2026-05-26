@@ -2182,7 +2182,11 @@ function estimateSceneLayoutBox(scene) {
   }
 }
 
-function sceneBoxesOverlap(left, right, padding = 24) {
+// Minimum spacing between whiteboard elements to prevent visual clutter
+const SCENE_ELEMENT_GAP = 28;
+const SCENE_OVERLAP_PADDING = 24;
+
+function sceneBoxesOverlap(left, right, padding = SCENE_OVERLAP_PADDING) {
   return left.x < right.x + right.width + padding
     && left.x + left.width + padding > right.x
     && left.y < right.y + right.height + padding
@@ -2190,47 +2194,50 @@ function sceneBoxesOverlap(left, right, padding = 24) {
 }
 
 function resolveSceneLayoutBox(box, occupiedBoxes) {
-  const gap = 28; // Minimum gap between elements for readability
   let candidate = {
     ...box,
     x: clampBoxX(box.x, box.width, 20),
     y: clampBoxY(box.y, box.height, 20),
   };
 
+  // First half of attempts use standard directional resolution;
+  // second half switches to grid-based diagonal fallback for packed boards
+  const DIAGONAL_FALLBACK_THRESHOLD = 15;
+
   for (let attempt = 0; attempt < 30; attempt += 1) {
     const collision = occupiedBoxes.find((occupied) => sceneBoxesOverlap(candidate, occupied));
     if (!collision) return candidate;
 
     // Try moving down first (most natural for whiteboard flow)
-    const downY = collision.y + collision.height + gap;
+    const downY = collision.y + collision.height + SCENE_ELEMENT_GAP;
     if (downY <= 500 - candidate.height - 20) {
       candidate = { ...candidate, y: clampBoxY(Math.max(candidate.y + 10, downY), candidate.height, 20) };
       continue;
     }
 
     // Try moving right
-    const rightX = collision.x + collision.width + gap;
+    const rightX = collision.x + collision.width + SCENE_ELEMENT_GAP;
     if (rightX <= 800 - candidate.width - 20) {
       candidate = { ...candidate, x: clampBoxX(rightX, candidate.width, 20), y: clampBoxY(box.y, box.height, 20) };
       continue;
     }
 
     // Try moving left
-    const leftX = collision.x - candidate.width - gap;
+    const leftX = collision.x - candidate.width - SCENE_ELEMENT_GAP;
     if (leftX >= 20) {
       candidate = { ...candidate, x: clampBoxX(leftX, candidate.width, 20), y: clampBoxY(box.y, box.height, 20) };
       continue;
     }
 
     // Try moving up
-    const upY = collision.y - candidate.height - gap;
+    const upY = collision.y - candidate.height - SCENE_ELEMENT_GAP;
     if (upY >= 72) {
       candidate = { ...candidate, y: clampBoxY(upY, candidate.height, 20) };
       continue;
     }
 
     // Last resort: scale down and try diagonal placement
-    if (attempt > 15) {
+    if (attempt > DIAGONAL_FALLBACK_THRESHOLD) {
       candidate = {
         ...candidate,
         x: clampBoxX(20 + (attempt % 3) * 260, candidate.width, 20),
