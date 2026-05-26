@@ -3768,44 +3768,27 @@ function buildTopicFallbackQuizTitles(explanationMode) {
 }
 
 function buildOverviewPageTitle(explanationMode) {
-  if (explanationMode === 'visual_first') return 'Diagram Labels';
-  if (explanationMode === 'qa_mode') return 'Warm-Up Questions';
-  if (explanationMode === 'text_focus') return 'Core Notes';
-  return 'Key Definitions';
+  return 'Let\u2019s define these';
 }
 
 function buildOverviewConnectionsTitle(explanationMode) {
-  if (explanationMode === 'visual_first') return 'Board Connections';
-  if (explanationMode === 'qa_mode') return 'Reasoning Chain';
-  if (explanationMode === 'text_focus') return 'How The Notes Connect';
-  return 'How These Concepts Connect';
+  return 'Now watch how they connect';
 }
 
 function buildDetailPageTitle(explanationMode, concept) {
-  if (explanationMode === 'step_by_step') return `Step Breakdown: ${truncateWords(concept, 4)}`;
-  if (explanationMode === 'qa_mode') return `Reason Through ${truncateWords(concept, 4)}`;
-  if (explanationMode === 'text_focus') return `Focused Notes: ${truncateWords(concept, 4)}`;
-  return `Analyzing ${truncateWords(concept, 4)}`;
+  return `Let\u2019s break down ${truncateWords(concept, 4)}`;
 }
 
 function buildDetailBadgeLabel(explanationMode) {
-  if (explanationMode === 'step_by_step') return 'Step by Step';
-  if (explanationMode === 'qa_mode') return 'Reason It Out';
-  if (explanationMode === 'text_focus') return 'Focused Notes';
-  return 'Detailed Analysis';
+  return '';
 }
 
 function buildApplicationBadgeLabel(explanationMode) {
-  if (explanationMode === 'qa_mode') return 'Practice Scenario';
-  if (explanationMode === 'text_focus') return 'Revision Notes';
-  if (explanationMode === 'visual_first') return 'Diagram Application';
-  return 'Practical Application';
+  return '';
 }
 
 function buildApplicationTakeawayTitle(explanationMode) {
-  if (explanationMode === 'qa_mode') return 'Try These Checks';
-  if (explanationMode === 'text_focus') return 'Revision Notes';
-  return 'Key Takeaways';
+  return 'What to remember';
 }
 
 function buildTopicFallbackLesson(spec) {
@@ -4309,15 +4292,16 @@ function generateContentVisuals({ lessonTitle, part, contentIndex, comprehension
     scenes = buildApplicationVisuals(part.title, concepts, relevantTopics, narrationSentences, continuity, visualField, explanationMode);
   }
 
-  // A teacher writes/draws continuously — aim for 1 new element every 2 seconds
+  // A teacher reveals one idea at a time — aim for 1 new element every 4-5 seconds
+  // Keep boards clean: fewer elements per page, more frequent clears
   const modeSceneFloor = explanationMode === 'visual_first'
-    ? 132
+    ? 40
     : explanationMode === 'step_by_step'
-      ? 104
+      ? 28
       : explanationMode === 'text_focus'
-        ? 84
-        : 90;
-  const minScenes = Math.max(modeSceneFloor, Math.ceil(durationSeconds / 2));
+        ? 32
+        : 30;
+  const minScenes = Math.max(modeSceneFloor, Math.ceil(durationSeconds / 5));
   if (scenes.length < minScenes) {
     const lastTime = Math.max(...scenes.map((s) => Number(s.time) || 0), 1);
     const extra = buildDeepDivePages(concepts, relevantTopics, narrationSentences, lastTime + 4, minScenes - scenes.length, visualField, explanationMode);
@@ -5349,10 +5333,7 @@ function buildOverviewVisuals(title, concepts, topics, sentences, continuity, fi
   })); t += 3;
 
   if (continuity?.previous) {
-    scenes.push(scene(t, 'draw_badge', {
-      content: `Builds on: ${truncateWords(continuity.previous, 3)}`,
-      position: [30, 14], style: { bg: '#0f766e', color: '#fff', fontSize: 14 },
-    })); t += 2;
+    // Skip generic continuity badge — teacher just starts teaching
   }
 
   if (field === 'economics') {
@@ -5462,11 +5443,7 @@ function buildOverviewVisuals(title, concepts, topics, sentences, continuity, fi
     })); t += 3;
   }
 
-  // Summary badge
-  scenes.push(scene(t, 'draw_badge', {
-    content: continuity?.next ? `Next: ${truncateWords(continuity.next, 3)}` : 'Foundation complete',
-    position: [300, 440], style: { bg: '#16a34a', color: '#fff', fontSize: 15 },
-  })); t += 3;
+  // End of overview — no generic badges, teacher moves on naturally
 
   return scenes;
 }
@@ -5515,10 +5492,7 @@ function buildDetailVisuals(lessonTitle, title, concepts, topics, sentences, con
     position: [400, 38], style: { fontSize: 24, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
   })); t += 3;
 
-  scenes.push(scene(t, 'draw_badge', {
-    content: buildDetailBadgeLabel(explanationMode),
-    position: [30, 14], style: { bg: '#1d4ed8', color: '#fff', fontSize: 15 },
-  })); t += 3;
+  // No generic badge — the title speaks for itself
 
   // Process/flow diagram based on field
   if (visualField === 'physics') {
@@ -5629,10 +5603,7 @@ function buildApplicationVisuals(title, concepts, topics, sentences, continuity,
     position: [400, 38], style: { fontSize: 24, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
   })); t += 3;
 
-  scenes.push(scene(t, 'draw_badge', {
-    content: buildApplicationBadgeLabel(explanationMode),
-    position: [30, 14], style: { bg: '#be123c', color: '#fff', fontSize: 15 },
-  })); t += 3;
+  // No generic badge — teacher starts drawing directly
 
   if (visualField === 'mathematics') {
     scenes.push(...buildMathVisualBoard(title, concepts, topics, sentences, t));
@@ -5681,7 +5652,7 @@ function buildApplicationVisuals(title, concepts, topics, sentences, continuity,
     position: [400, 38], style: { fontSize: 22, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
   })); t += 3;
 
-  // Takeaway cards
+  // Takeaway cards — show the actual concepts, no generic numbering
   for (let i = 0; i < Math.min(3, concepts.length); i++) {
     const x = 30 + i * 255;
     const topic = topics[i];
@@ -5693,28 +5664,8 @@ function buildApplicationVisuals(title, concepts, topics, sentences, continuity,
       x, y: 104, width: 240, height: 132,
       label,
       style: { fill: FILLS[i % FILLS.length], stroke: COLORS[i % COLORS.length], strokeWidth: 2, rx: 12 },
-    })); t += 4;
-
-    scenes.push(scene(t, 'draw_badge', {
-      content: `Takeaway ${i + 1}`,
-      position: [x + 8, 64],
-      style: { bg: COLORS[i % COLORS.length], color: '#fff', fontSize: 15 },
-    })); t += 3;
+    })); t += 5;
   }
-
-  // Final summary callout
-  scenes.push(scene(t, 'draw_callout', {
-    content: continuity?.next
-      ? `These takeaways prepare you for ${truncateWords(continuity.next, 4)}. The ideas here form the bridge to what comes next.`
-      : `These key takeaways capture the essential knowledge from this section. Review them and make sure you can explain each one.`,
-    position: [90, 300], width: 620,
-    style: { bg: '#f8fafc', stroke: '#94a3b8', color: '#0f172a' },
-  })); t += 4;
-
-  scenes.push(scene(t, 'draw_badge', {
-    content: 'Section Complete',
-    position: [330, 434], style: { bg: '#16a34a', color: '#fff', fontSize: 16 },
-  })); t += 3;
 
   return scenes;
 }
@@ -6256,74 +6207,58 @@ function buildDeepDivePages(concepts, topics, sentences, startTime, count, field
 
     } else if (pageType === 'detail_cards') {
       extra.push(scene(t, 'draw_text', {
-        content: `Understanding: ${truncateWords(pageConcepts[0], 5)}`,
+        content: truncateWords(pageConcepts[0], 5),
         position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
       })); t += 3;
 
-      for (let i = 0; i < Math.min(4, pageConcepts.length); i++) {
-        const col = i % 2;
-        const row = Math.floor(i / 2);
-        const x = 30 + col * 390;
-        const y = 70 + row * 200;
+      // Only 2 cards per page to prevent overlap — teacher explains one, then the next
+      for (let i = 0; i < Math.min(2, pageConcepts.length); i++) {
+        const x = 40;
+        const y = 80 + i * 190;
         const tp = pageTopics[i];
         const color = COLORS[i % COLORS.length];
         const fill = FILLS[i % FILLS.length];
 
-        extra.push(scene(t, 'draw_badge', {
-          content: truncateWords(pageConcepts[i], 5),
-          position: [x + 10, y], style: { bg: color, color: '#fff', fontSize: 14 },
-        })); t += 2;
-
         extra.push(scene(t, 'draw_rect', {
-          x, y: y + 22, width: 370, height: 155,
+          x, y, width: 720, height: 140,
           label: truncateWords(tp?.definition || sentences[i] || pageConcepts[i], 20),
           style: { fill, stroke: color, strokeWidth: 1.5, rx: 10 },
-        })); t += 4;
+        })); t += 5;
       }
 
     } else if (pageType === 'hierarchy') {
       extra.push(scene(t, 'draw_text', {
-        content: `Structure: ${truncateWords(pageConcepts[0], 5)}`,
+        content: truncateWords(pageConcepts[0], 5),
         position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
       })); t += 3;
 
       // Root
       extra.push(scene(t, 'draw_rect', {
-        x: 280, y: 70, width: 240, height: 55,
+        x: 280, y: 80, width: 240, height: 55,
         label: truncateWords(pageConcepts[0], 5),
         style: { fill: '#eff6ff', stroke: '#2563eb', strokeWidth: 2, rx: 10 },
-      })); t += 3;
+      })); t += 4;
 
-      // Children
-      const childCount = Math.min(3, pageConcepts.length - 1);
-      const childWidth = 220;
-      const childStartX = 400 - (childCount * (childWidth + 20)) / 2;
+      // Only 2 children max to prevent overlap
+      const childCount = Math.min(2, pageConcepts.length - 1);
+      const childWidth = 280;
+      const childStartX = 400 - (childCount * (childWidth + 40)) / 2;
 
       for (let i = 0; i < childCount; i++) {
-        const cx = childStartX + i * (childWidth + 20);
+        const cx = childStartX + i * (childWidth + 40);
         const color = COLORS[(i + 1) % COLORS.length];
         const fill = FILLS[(i + 1) % FILLS.length];
 
         extra.push(scene(t, 'draw_arrow', {
-          from: [400, 120], to: [cx + childWidth / 2, 160],
+          from: [400, 130], to: [cx + childWidth / 2, 180],
           style: { color, strokeWidth: 2 },
-        })); t += 2;
-
-        extra.push(scene(t, 'draw_rect', {
-          x: cx, y: 160, width: childWidth, height: 55,
-          label: truncateWords(pageConcepts[i + 1], 5),
-          style: { fill, stroke: color, strokeWidth: 1.5, rx: 8 },
         })); t += 3;
 
-        // Grandchildren
-        const tp = pageTopics[i + 1];
-        if (tp?.details?.[0]) {
-          extra.push(scene(t, 'draw_rect', {
-            x: cx + 8, y: 235, width: childWidth - 16, height: 48,
-            label: truncateWords(tp.details[0], 10),
-            style: { fill: '#f8fafc', stroke: '#94a3b8', strokeWidth: 1, rx: 6 },
-          })); t += 2;
-        }
+        extra.push(scene(t, 'draw_rect', {
+          x: cx, y: 180, width: childWidth, height: 60,
+          label: truncateWords(pageConcepts[i + 1], 5),
+          style: { fill, stroke: color, strokeWidth: 1.5, rx: 8 },
+        })); t += 4;
       }
 
     } else if (pageType === 'code_display') {
@@ -6373,7 +6308,7 @@ function buildDeepDivePages(concepts, topics, sentences, startTime, count, field
 
     } else if (pageType === 'comparison') {
       extra.push(scene(t, 'draw_text', {
-        content: `Comparing: ${truncateWords(pageConcepts[0], 4)} vs ${truncateWords(pageConcepts[1] || pageConcepts[0], 4)}`,
+        content: `${truncateWords(pageConcepts[0], 4)} vs ${truncateWords(pageConcepts[1] || pageConcepts[0], 4)}`,
         position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
       })); t += 3;
 
@@ -6381,133 +6316,97 @@ function buildDeepDivePages(concepts, topics, sentences, startTime, count, field
       extra.push(scene(t, 'draw_line', {
         from: [400, 65], to: [400, 440],
         style: { color: '#e2e8f0', strokeWidth: 2, dashed: true },
-      })); t += 2;
+      })); t += 3;
 
-      for (let i = 0; i < 3; i++) {
-        const y = 75 + i * 120;
+      // Only 2 rows to prevent overlap (4 rects total + divider = 5 elements max)
+      for (let i = 0; i < 2; i++) {
+        const y = 80 + i * 170;
         const leftTp = pageTopics[i * 2] || pageTopics[0];
         const rightTp = pageTopics[i * 2 + 1] || pageTopics[Math.min(1, pageTopics.length - 1)];
 
         extra.push(scene(t, 'draw_rect', {
-          x: 25, y, width: 360, height: 95,
+          x: 25, y, width: 355, height: 130,
           label: truncateWords(leftTp?.definition || pageConcepts[i * 2] || '', 14),
           style: { fill: '#eff6ff', stroke: '#2563eb', strokeWidth: 1.5, rx: 8 },
-        })); t += 3;
+        })); t += 4;
 
         extra.push(scene(t, 'draw_rect', {
-          x: 415, y, width: 360, height: 95,
+          x: 420, y, width: 355, height: 130,
           label: truncateWords(rightTp?.definition || pageConcepts[i * 2 + 1] || '', 14),
           style: { fill: '#f5f3ff', stroke: '#7c3aed', strokeWidth: 1.5, rx: 8 },
-        })); t += 3;
-      }
-
-    } else if (pageType === 'explanation') {
-      // Page that writes out actual sentences from the narration, like a teacher writing on the board
-      extra.push(scene(t, 'draw_text', {
-        content: `${truncateWords(pageConcepts[0], 5)} — Explained`,
-        position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-      })); t += 3;
-
-      // Use narration sentences that relate to current concepts
-      const conceptLower = (pageConcepts[0] || '').toLowerCase();
-      const relevant = sentences.filter((s) => s.toLowerCase().includes(conceptLower)).slice(0, 5);
-      const useLines = relevant.length >= 2 ? relevant : sentences.slice(ci % Math.max(sentences.length, 1), ci % Math.max(sentences.length, 1) + 5);
-
-      for (let i = 0; i < Math.min(5, useLines.length); i++) {
-        const y = 70 + i * 80;
-        const color = COLORS[i % COLORS.length];
-
-        extra.push(scene(t, 'draw_text', {
-          content: `${i + 1}.`,
-          position: [30, y + 20], style: { fontSize: 18, color, fontWeight: 'bold' },
-        })); t += 2;
-
-        extra.push(scene(t, 'draw_text', {
-          content: truncateWords(useLines[i], 14),
-          position: [55, y + 20], style: { fontSize: 15, color: '#1f2937' },
-        })); t += 3;
-
-        if (i < 4) {
-          extra.push(scene(t, 'draw_line', {
-            from: [30, y + 55], to: [770, y + 55],
-            style: { color: '#e2e8f0', strokeWidth: 1, dashed: true },
-          })); t += 1;
-        }
-      }
-
-      // Add a key takeaway callout at the bottom
-      const tp = pageTopics[0];
-      if (tp?.importance) {
-        extra.push(scene(t, 'draw_callout', {
-          content: truncateWords(tp.importance, 16),
-          position: [60, 420], width: 680,
-          style: { bg: '#fef3c7', stroke: '#d97706', color: '#713f12' },
         })); t += 4;
       }
 
-    } else if (pageType === 'process_steps') {
-      // Vertical step-by-step process flow
+    } else if (pageType === 'explanation') {
+      // Teacher writes key sentences one at a time
       extra.push(scene(t, 'draw_text', {
-        content: `Process: ${truncateWords(pageConcepts[0], 5)}`,
+        content: truncateWords(pageConcepts[0], 5),
         position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
       })); t += 3;
 
-      const stepCount = Math.min(5, pageConcepts.length);
+      // Use narration sentences that relate to current concepts — max 3 per page
+      const conceptLower = (pageConcepts[0] || '').toLowerCase();
+      const relevant = sentences.filter((s) => s.toLowerCase().includes(conceptLower)).slice(0, 3);
+      const useLines = relevant.length >= 2 ? relevant : sentences.slice(ci % Math.max(sentences.length, 1), ci % Math.max(sentences.length, 1) + 3);
+
+      for (let i = 0; i < Math.min(3, useLines.length); i++) {
+        const y = 80 + i * 120;
+
+        extra.push(scene(t, 'draw_text', {
+          content: truncateWords(useLines[i], 14),
+          position: [55, y + 20], style: { fontSize: 16, color: '#1f2937' },
+        })); t += 5;
+      }
+
+    } else if (pageType === 'process_steps') {
+      // Teacher draws steps one at a time — max 3 per page
+      extra.push(scene(t, 'draw_text', {
+        content: truncateWords(pageConcepts[0], 5),
+        position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
+      })); t += 3;
+
+      const stepCount = Math.min(3, pageConcepts.length);
       for (let i = 0; i < stepCount; i++) {
-        const y = 70 + i * 82;
+        const y = 80 + i * 130;
         const color = COLORS[i % COLORS.length];
         const fill = FILLS[i % FILLS.length];
         const tp = pageTopics[i];
         const label = tp?.definition ? truncateWords(tp.definition, 14) : truncateWords(pageConcepts[i], 6);
 
-        // Step number badge
-        extra.push(scene(t, 'draw_badge', {
-          content: `Step ${i + 1}`,
-          position: [35, y], style: { bg: color, color: '#fff', fontSize: 14 },
-        })); t += 2;
-
-        // Step content box
+        // Step content box only (no separate badge — the box IS the step)
         extra.push(scene(t, 'draw_rect', {
-          x: 105, y: y - 5, width: 665, height: 60,
+          x: 60, y, width: 680, height: 90,
           label,
           style: { fill, stroke: color, strokeWidth: 1.5, rx: 8 },
-        })); t += 3;
+        })); t += 5;
 
         // Arrow down to next step
         if (i < stepCount - 1) {
           extra.push(scene(t, 'draw_arrow', {
-            from: [435, y + 50], to: [435, y + 65],
+            from: [400, y + 90], to: [400, y + 115],
             style: { color: '#94a3b8', strokeWidth: 2 },
-          })); t += 2;
+          })); t += 3;
         }
       }
 
-    } else { // summary_grid
+    } else { // summary_grid — reduced to 2 items
       extra.push(scene(t, 'draw_text', {
-        content: `Review: Key Points`,
+        content: truncateWords(pageConcepts[0], 5),
         position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
       })); t += 3;
 
-      for (let i = 0; i < Math.min(4, pageConcepts.length); i++) {
-        const col = i % 2;
-        const row = Math.floor(i / 2);
-        const x = 48 + col * 384;
-        const y = 106 + row * 156;
+      for (let i = 0; i < Math.min(2, pageConcepts.length); i++) {
+        const x = 48 + i * 384;
+        const y = 110;
         const color = COLORS[i % COLORS.length];
         const fill = FILLS[i % FILLS.length];
         const tp = pageTopics[i];
 
         extra.push(scene(t, 'draw_rect', {
-          x, y, width: 320, height: 112,
+          x, y, width: 340, height: 150,
           label: truncateWords(tp?.definition || sentences[i] || pageConcepts[i], 16),
           style: { fill, stroke: color, strokeWidth: 2, rx: 12 },
-        })); t += 3;
-
-        extra.push(scene(t, 'draw_badge', {
-          content: truncateWords(pageConcepts[i], 4),
-          position: [x + 10, y - 34],
-          style: { bg: color, color: '#fff', fontSize: 14 },
-        })); t += 3;
+        })); t += 5;
       }
     }
 
@@ -6979,11 +6878,11 @@ function fitSceneTimeline(scenes, durationSeconds) {
   const targetEnd = Math.max(12, Math.round(durationSeconds) - 4);
   const count = safeScenes.length;
 
-  // Strategy: distribute scenes evenly across the timeline, with extra spacing after 'clear'
-  // This prevents clustering and ensures the whiteboard always has activity
-  const MIN_GAP = 2;           // minimum seconds between any two scenes
-  const CLEAR_PAUSE = 4;      // seconds to pause after a clear (let user see the wipe)
-  const POST_CLEAR_GAP = 2;   // extra gap before first element after clear
+  // Strategy: teacher-like pacing — each element gets time to be absorbed
+  // A real teacher writes one thing, pauses to explain, then writes the next
+  const MIN_GAP = 4;           // minimum seconds between any two scenes (teacher pause)
+  const CLEAR_PAUSE = 5;      // seconds to pause after a clear (let student absorb)
+  const POST_CLEAR_GAP = 3;   // extra gap before first element after clear
 
   // First pass: assign ideal even spacing
   const avgGap = targetEnd / Math.max(count - 1, 1);
