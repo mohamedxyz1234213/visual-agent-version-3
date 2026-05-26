@@ -71,6 +71,26 @@ interface DrawGraphP {
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
+// Varied entrance animations for dynamic teacher-like whiteboard feel
+const ENTRANCE_ANIMATIONS = [
+  "wb-appear", "wb-zoom-in", "wb-teach", "wb-slide-u", "wb-expand", "wb-drop",
+];
+const SHAPE_ANIMATIONS = [
+  "wb-scale", "wb-zoom-in", "wb-bounce", "wb-teach",
+];
+const LABEL_ANIMATIONS = [
+  "wb-appear", "wb-zoom-out", "wb-teach", "wb-slide-u",
+];
+
+function pickAnimation(id: string, pool: string[]): string {
+  // Deterministic but varied selection based on element ID hash
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = ((hash << 5) - hash + id.charCodeAt(i)) | 0;
+  }
+  return pool[Math.abs(hash) % pool.length];
+}
+
 export interface WhiteboardProps {
   scenes: StoryboardScene[];
   elapsed: number;
@@ -489,7 +509,7 @@ function DrawText({ id, p }: { id: string; p: DrawTextP }) {
   const underlineY = y + (titleLike ? displayFontSize * 1.4 : displayFontSize * 1.2);
 
   return (
-    <g key={id} className="wb-appear">
+    <g key={id} className={pickAnimation(id, ENTRANCE_ANIMATIONS)}>
       {titleLike ? (
         <ellipse cx={x} cy={y + 10} rx={underlineWidth * 0.42} ry={displayFontSize * 0.9} fill={color} fillOpacity={0.08} filter="url(#wb-glow)" className="wb-halo" />
       ) : null}
@@ -540,7 +560,7 @@ function DrawRect({ id, p }: { id: string; p: DrawRectP }) {
   const fill = s.fill === undefined ? "#ffffff" : s.fill;
 
   return (
-    <g key={id} className="wb-scale">
+    <g key={id} className={pickAnimation(id, SHAPE_ANIMATIONS)}>
       <ellipse cx={x + w / 2} cy={y + h / 2} rx={Math.max(28, w / 2 + 10)} ry={Math.max(18, h / 2 + 6)} fill={accent} fillOpacity={0.08} filter="url(#wb-glow)" className="wb-halo" />
       <rect
         x={x} y={y} width={w} height={h}
@@ -605,7 +625,7 @@ function DrawCircle({ id, p }: { id: string; p: DrawCircleP }) {
   const lineHeight = fontSize * 1.1;
   const startY = cy - ((Math.max(lines.length, 1) - 1) * lineHeight) / 2;
   return (
-    <g key={id} className="wb-bounce">
+    <g key={id} className={pickAnimation(id, SHAPE_ANIMATIONS)}>
       <circle
         cx={cx} cy={cy} r={r}
         fill={s.fill ?? "none"}
@@ -747,7 +767,7 @@ function DrawBadge({ id, p }: { id: string; p: DrawBadgeP }) {
   const h      = fs + padY * 2;
 
   return (
-    <g key={id} className="wb-slide-u">
+    <g key={id} className={pickAnimation(id, LABEL_ANIMATIONS)}>
       <ellipse cx={x + estW / 2} cy={y + h / 2} rx={estW / 2 + 10} ry={h / 2 + 6} fill={bg} fillOpacity={0.18} filter="url(#wb-glow)" className="wb-halo" />
       <rect x={x} y={y} width={estW} height={h} rx={h / 2} fill={bg} filter="url(#wb-shadow)" />
       <circle cx={x + 13} cy={y + h / 2} r={4.2} fill="#ffffff" fillOpacity={0.82} />
@@ -802,7 +822,7 @@ function DrawCallout({ id, p }: { id: string; p: DrawCalloutP }) {
   const headerRuleWidth = Math.min(w - 56, Math.max(92, w * 0.44));
 
   return (
-    <g key={id} className="wb-slide-r">
+    <g key={id} className={pickAnimation(id, LABEL_ANIMATIONS)}>
       <ellipse cx={x + w / 2} cy={y + boxH / 2} rx={Math.max(40, w / 2 + 8)} ry={Math.max(22, boxH / 2 + 4)} fill={stroke} fillOpacity={0.1} filter="url(#wb-glow)" className="wb-halo" />
       {/* Box */}
       <rect x={x} y={y} width={w} height={boxH} rx={12} fill={bg} stroke={stroke} strokeWidth={1.6} filter="url(#wb-shadow)" />

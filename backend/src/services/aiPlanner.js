@@ -268,44 +268,59 @@ IMPORTANT: Return ONLY valid JSON. No markdown fences. No explanatory text befor
 
 const TEACHING_PROMPT = `You are not a summarizer, slideshow generator, or generic AI assistant.
 
-You are an elite instructional designer, cognitive learning expert, and professional whiteboard teacher.
+You are an elite instructional designer, cognitive learning expert, and professional whiteboard teacher — the kind who makes students say "I finally get it."
 
-Your task is to transform lesson material into a highly structured, pedagogically accurate, visually meaningful, teacher-like whiteboard lesson.
+Your task is to transform lesson material into a highly structured, pedagogically accurate, visually meaningful, teacher-like whiteboard lesson that feels like being in a REAL classroom with an extraordinary teacher.
 
 PRIMARY OBJECTIVE
-- Teach deeply and visually like an exceptional human teacher.
-- Optimize for understanding, not decoration.
-- Create a lesson that feels like a real teacher drawing and explaining gradually.
+- Teach deeply and visually like an exceptional human teacher standing at a whiteboard.
+- Build understanding GRADUALLY — reveal one idea at a time, just like a real teacher drawing step by step.
+- The whiteboard must feel ALIVE: the teacher writes, draws, circles, connects, erases, and rebuilds.
+- Optimize for deep understanding, not decoration or information density.
+
+TEACHER-LIKE SEQUENCING (this is what makes the difference)
+- Start EVERY part with a hook: a question, a surprising fact, or a relatable scenario.
+- Write the core keyword/term FIRST on the board, then explain around it.
+- Draw connections AFTER establishing individual concepts — never all at once.
+- Use pauses (clear) between major concept shifts — like a teacher erasing the board.
+- Build complexity gradually: simple → nuanced → applied.
+- End each section by circling back to connect with what came before.
 
 ABSOLUTE RULES
 - Use only source-grounded information unless topic mode explicitly allows general instructional knowledge.
-- Teach. Never merely summarize.
-- One content part = one teaching goal.
-- Keep visible whiteboard text short: usually 3-15 words, never long paragraphs.
-- No decorative visuals.
-- No random arrows. Arrows only represent cause, flow, sequence, dependency, direction, or transformation.
+- Teach. Never merely summarize or list bullet points.
+- One content part = one teaching goal. Never cram multiple unrelated ideas.
+- Keep visible whiteboard text short: 3-12 words per element. A teacher writes KEYWORDS, not paragraphs.
+- No decorative visuals — every drawn element must advance understanding.
+- No random arrows. Arrows ONLY represent: cause→effect, sequence, dependency, data flow, or transformation.
 - Never output coordinates, x/y positions, or raw visual_sequence drawing commands.
 - Output semantic roles only. The layout engine decides placement.
-- Avoid cognitive overload: one core idea with 2-4 supporting visuals.
-- Prefer the teaching flow: hook -> concept -> relationship -> example -> mini recap -> quiz.
+- One core idea per scene with 2-4 supporting visuals maximum. Never overload.
+- NEVER repeat the same visual pattern across parts. Each part must feel unique.
 
-VISUAL PEDAGOGY
-- Cause/effect -> arrow
-- Sequence/process -> path or pipeline
-- Timeline -> chronology
-- Hierarchy -> tree
-- Comparison -> side_by_side
-- Category -> cluster
-- Data -> graph
-- Definition -> keyword plus callout
-- Formula -> isolated draw sequence
-- Example -> boxed illustration
+VISUAL PEDAGOGY (match the concept to the right visual form)
+- Cause/effect → arrow with labeled relationship
+- Sequence/process → numbered path or pipeline
+- Timeline → chronological bar with markers
+- Hierarchy → tree with clear parent-child
+- Comparison → side_by_side boxes with differentiators
+- Category/grouping → cluster of related items
+- Data/quantity → graph with labeled axes
+- Definition → keyword in bold + callout explanation
+- Formula/equation → isolated centered equation
+- Example → boxed worked illustration with steps
+
+DYNAMIC VARIETY (prevent templated feel)
+- NEVER use the same visual_logic pattern in consecutive parts.
+- Vary the teaching flow: hook→concept→example, or question→discovery→principle, or story→diagram→rule.
+- Each animation_sequence must be unique — mix different orderings.
+- Use different visual types across parts: if Part 1 uses arrows, Part 2 should use boxes or a table.
 
 QUALITY BAR
-- Every narration sentence must teach a distinct idea.
-- Every visual element must improve understanding.
-- Prefer keywords, labels, formulas, and anchor phrases instead of prose on the board.
-- The student should feel: "I understand this concept now."
+- Every narration sentence must teach a distinct idea — no filler, no repetition.
+- Every visual element must improve understanding of the specific concept being taught.
+- The student should feel progressive "aha" moments, not information overload.
+- Narration should sound like a teacher TALKING, not reading from a textbook.
 
 OUTPUT CONTRACT
 Return ONLY valid JSON with this schema:
@@ -356,12 +371,12 @@ Return ONLY valid JSON with this schema:
   ]
 }
 
-Before finalizing, internally ask:
-- Does this teach?
-- Would a human teacher draw this?
-- Are the visuals meaningful?
-- Is there too much text?
-- Is the pacing gradual?
+Before finalizing, internally verify:
+- Does each part teach ONE clear idea progressively?
+- Would a real teacher draw these visuals in this order?
+- Is there visual VARIETY between parts (not the same pattern repeated)?
+- Is the narration conversational and teacher-like (not textbook-like)?
+- Is the pacing gradual with proper build-up?
 
 If not, improve it before returning the JSON.`; 
 
@@ -616,181 +631,13 @@ function buildTopicEntry(topic, definition, importance, details = [], relationsh
 }
 
 function buildTopicHeuristicComprehension(topicText, field, title) {
-  const normalized = normalizeText(`${title} ${topicText}`).toLowerCase();
-
-  if (/photosynthesis|chloroplast|thylakoid|calvin cycle|light-dependent|glucose/.test(normalized)) {
-    return {
-      document_subject: title,
-      field: 'biology',
-      core_thesis: 'Photosynthesis converts light energy into stored chemical energy by coupling light-driven electron transfer with carbon fixation.',
-      key_topics: [
-        buildTopicEntry(
-          'Chloroplast Structure',
-          'Chloroplasts contain thylakoid membranes for light capture and stroma for carbon-fixing reactions.',
-          'Understanding the compartments explains why the light reactions and Calvin cycle happen in different places.',
-          ['Thylakoid membranes hold chlorophyll, photosystems, and the electron transport chain.', 'The stroma contains the enzymes that assemble carbohydrates from carbon dioxide.', 'Stacks of thylakoids called grana increase the membrane area available for light capture.', 'The thylakoid lumen becomes important because proton buildup there helps drive ATP synthesis.'],
-          ['Connects to Light-Dependent Reactions', 'Connects to Calvin Cycle']
-        ),
-        buildTopicEntry(
-          'Light-Dependent Reactions',
-          'Light-dependent reactions use photons to split water, move electrons through photosystems, and generate ATP and NADPH.',
-          'These products provide the energy and reducing power needed for glucose production.',
-          ['Water splitting releases oxygen as a by-product.', 'Electron flow across the thylakoid membrane builds the proton gradient used by ATP synthase.', 'Photosystem II begins the chain by exciting electrons with incoming light energy.', 'Photosystem I re-energizes electrons so NADP+ can be reduced to NADPH.'],
-          ['Supplies Calvin Cycle', 'Depends on Chloroplast Structure']
-        ),
-        buildTopicEntry(
-          'Calvin Cycle',
-          'The Calvin cycle uses ATP and NADPH to fix carbon dioxide into higher-energy carbon compounds in the stroma.',
-          'This stage explains how captured light energy is converted into stored chemical bonds.',
-          ['Carbon fixation begins when RuBisCO attaches carbon dioxide to RuBP.', 'The cycle regenerates RuBP so carbon fixation can continue.', 'An intermediate called G3P is produced and can be diverted toward sugar synthesis.', 'Energy from ATP and electrons from NADPH are consumed during the reduction steps.'],
-          ['Uses Light-Dependent Reactions', 'Produces Precursors for Glucose Synthesis']
-        ),
-        buildTopicEntry(
-          'Glucose Synthesis',
-          'Glucose emerges indirectly from repeated carbon fixation and rearrangement of triose phosphates.',
-          'It is the stable chemical form in which photosynthetic organisms store usable energy.',
-          ['Photosynthesis links light capture to biomass production.', 'The final sugars can be used immediately or stored for later metabolism.', 'Some of the carbon products become starch for storage or cellulose for plant structure.', 'The glucose pathway explains how photosynthesis supports growth, repair, and later respiration.'],
-          ['Built from Calvin Cycle']
-        ),
-      ],
-      logical_flow: 'Start with chloroplast structure, move into the light-dependent reactions, then show how the Calvin cycle uses those products to build sugars.',
-      difficulty_level: 'intermediate',
-      teaching_approach: 'Use process diagrams, labeled chloroplast layouts, and staged energy-flow visuals.',
-    };
-  }
-
-  if (/newton.?s second law|f\s*=\s*m\s*a|inclined plane|ramp|force diagram|free body/.test(normalized)) {
-    return {
-      document_subject: title,
-      field: 'physics',
-      core_thesis: "Newton's second law explains motion on a ramp by relating net force to acceleration after each force is resolved into the correct direction.",
-      key_topics: [
-        buildTopicEntry(
-          "Newton's Second Law",
-          'Net force equals mass times acceleration, so acceleration depends on the total unbalanced force acting on the object.',
-          'This is the governing equation that turns a force diagram into a motion prediction.',
-          ['The direction of the net force matches the direction of the acceleration.', 'Multiple forces must be added as vectors before applying the law.', 'On an incline, the law is usually applied along axes chosen parallel and perpendicular to the surface.', 'Changing the mass changes how much acceleration a fixed net force can produce.'],
-          ['Connects to Net Force on the Ramp', 'Connects to Free-Body Diagram']
-        ),
-        buildTopicEntry(
-          'Force Components on a Ramp',
-          'Weight is resolved into a component parallel to the incline and a component perpendicular to the surface.',
-          'Resolving the force into components makes the ramp problem solvable with one axis along the surface and one axis perpendicular to it.',
-          ['The parallel component drives motion along the ramp.', 'The perpendicular component helps determine the normal force.', 'Using the incline angle with sine and cosine maps gravity into the two chosen axes.', 'This decomposition prevents mixing together forces that influence different directions of motion.'],
-          ['Connects to Newton\'s Second Law', 'Connects to Free-Body Diagram']
-        ),
-        buildTopicEntry(
-          'Free-Body Diagram',
-          'A free-body diagram isolates the object and labels every external force such as weight, normal force, friction, and applied force.',
-          'It prevents missing forces and keeps the equation setup consistent with the physical situation.',
-          ['Each force should be drawn from the object with a clear direction.', 'The diagram becomes the map for the component equations.', 'The weight vector still points vertically downward even when the ramp is tilted.', 'Choosing a clean origin and arrow directions reduces sign mistakes in the final equations.'],
-          ['Supports Force Components on a Ramp', 'Supports Net Force on the Ramp']
-        ),
-        buildTopicEntry(
-          'Net Force on the Ramp',
-          'The net force along the incline comes from combining the parallel component of gravity with friction or any applied forces.',
-          'That net force determines whether the object speeds up, slows down, or remains in equilibrium.',
-          ['A frictionless ramp simplifies the net force to the downhill component of weight.', 'Including friction reduces the downhill acceleration.', 'If the forces balance exactly, the acceleration becomes zero.', 'The sign of the net force must match the positive direction chosen on the diagram.'],
-          ['Uses Newton\'s Second Law', 'Uses Force Components on a Ramp']
-        ),
-      ],
-      logical_flow: 'Begin with the law itself, then draw the free-body diagram, resolve gravity into components, and finish by computing the net force and acceleration.',
-      difficulty_level: 'intermediate',
-      teaching_approach: 'Use ramp diagrams, force arrows, and worked vector decomposition on the board.',
-    };
-  }
-
-  if (/cos|cosine|adjacent|hypotenuse|unit circle|trigonometry/.test(normalized)) {
-    return {
-      document_subject: title,
-      field: 'mathematics',
-      core_thesis: 'Cosine measures horizontal alignment: in triangles it compares adjacent side to hypotenuse, and on the unit circle it gives the x-coordinate of the angle.',
-      key_topics: [
-        buildTopicEntry(
-          'Right-Triangle Cosine',
-          'In a right triangle, cosine of an angle equals adjacent side divided by hypotenuse.',
-          'This definition makes cosine a ratio that connects angle size to side lengths.',
-          ['The adjacent side is the side next to the chosen angle that is not the hypotenuse.', 'The hypotenuse is always the longest side in the right triangle.', 'As the angle grows from 0 to 90 degrees, the cosine value falls from 1 toward 0.', 'Rearranging the ratio lets you solve for an unknown side when the angle and one side are known.'],
-          ['Connects to Unit Circle Cosine']
-        ),
-        buildTopicEntry(
-          'Unit Circle Cosine',
-          'On the unit circle, cosine gives the x-coordinate of the point reached by the angle.',
-          'This interpretation extends cosine beyond right triangles and explains its sign in different quadrants.',
-          ['Angles in the first and fourth quadrants have positive cosine.', 'Angles in the second and third quadrants have negative cosine.', 'The point on the unit circle is written as (cos θ, sin θ), which pairs cosine with horizontal position.', 'Reference angles explain why different quadrants can share the same cosine magnitude but differ in sign.'],
-          ['Connects to Right-Triangle Cosine', 'Connects to Cosine Graph Behavior']
-        ),
-        buildTopicEntry(
-          'Cosine Graph Behavior',
-          'The cosine graph starts at 1, oscillates smoothly, and repeats every 2π radians.',
-          'Graph behavior helps learners connect the ratio and unit-circle views to periodic motion.',
-          ['Amplitude describes the maximum distance from the midline.', 'Period describes how long it takes the graph to repeat.', 'The graph reaches a maximum at 0 and a minimum at π before rising again.', 'Cosine is an even function, so the graph mirrors itself across the y-axis.'],
-          ['Connects to Unit Circle Cosine']
-        ),
-        buildTopicEntry(
-          'Using Cosine in Problems',
-          'Cosine helps solve missing lengths, project vectors horizontally, and model periodic behavior.',
-          'Application turns the definition into a practical calculation tool.',
-          ['Set up the triangle or angle reference before substituting values.', 'Check whether the answer should be positive or negative from the geometry.', 'In vector problems, cosine often gives the horizontal or adjacent component of a quantity.', 'In wave models, cosine describes repeating behavior that starts at a maximum value.'],
-          ['Uses Right-Triangle Cosine', 'Uses Unit Circle Cosine']
-        ),
-      ],
-      logical_flow: 'Start with the triangle ratio, reinterpret cosine on the unit circle, then connect both views to the graph and worked applications.',
-      difficulty_level: 'intermediate',
-      teaching_approach: 'Use triangles, coordinate axes, unit-circle sweeps, and graph overlays.',
-    };
-  }
-
-  if (/voltage|current|resistance|ohm|series circuit|electric circuit|electrical circuit/.test(normalized)) {
-    return {
-      document_subject: title,
-      field: 'physics',
-      core_thesis: 'Basic circuit analysis explains how voltage drives charge flow, current measures that flow, and resistance limits it according to Ohm\'s law.',
-      key_topics: [
-        buildTopicEntry(
-          'Voltage',
-          'Voltage is the electrical potential difference that pushes charge through a circuit.',
-          'It is the energy-per-charge viewpoint that explains why current moves.',
-          ['A battery provides a voltage difference between its terminals.', 'Higher voltage can drive more current if resistance stays fixed.', 'Voltage is measured in volts and compares the electrical energy available per unit charge.', 'A voltage source creates the push that makes charges move once a complete path exists.'],
-          ['Connects to Current', 'Connects to Ohm\'s Law']
-        ),
-        buildTopicEntry(
-          'Current',
-          'Current measures the rate at which electric charge flows through a circuit.',
-          'Tracking current shows how strongly the circuit is responding to the applied voltage.',
-          ['In a series circuit the same current passes through each component.', 'Current is usually measured in amperes.', 'Current can be described as charge per unit time moving through the circuit.', 'When resistance rises while voltage stays fixed, the current decreases.'],
-          ['Connects to Voltage', 'Connects to Resistance']
-        ),
-        buildTopicEntry(
-          'Resistance',
-          'Resistance describes how strongly a component opposes charge flow.',
-          'It determines how much current results from a given voltage.',
-          ['Adding resistors in series increases total resistance.', 'Greater resistance reduces current when voltage is unchanged.', 'Resistance is measured in ohms and depends on both the material and the geometry of the conductor.', 'A resistor converts electrical energy into other forms such as heat while limiting current.'],
-          ['Connects to Current', 'Connects to Ohm\'s Law']
-        ),
-        buildTopicEntry(
-          "Ohm's Law",
-          'Ohm\'s law states that voltage equals current times resistance.',
-          'This relationship is the simplest calculation rule for predicting missing circuit quantities.',
-          ['You can rearrange the law to solve for current or resistance.', 'The law links the three core electrical quantities in one equation.', 'If voltage is fixed, increasing resistance lowers the resulting current.', 'If resistance is fixed, increasing voltage raises the current proportionally.'],
-          ['Uses Voltage', 'Uses Current', 'Uses Resistance']
-        ),
-      ],
-      logical_flow: 'Define voltage, current, and resistance first, then use Ohm\'s law to analyze a simple series circuit step by step.',
-      difficulty_level: 'beginner',
-      teaching_approach: 'Use circuit sketches, labeled arrows for charge flow, and small worked calculations.',
-    };
-  }
-
+  // Removed hardcoded topic heuristics — the AI generates comprehension dynamically
+  // for all topics, producing more accurate and varied results.
   return null;
 }
 
 function buildTopicHeuristicTitle(topicText) {
-  const normalized = normalizeText(topicText).toLowerCase();
-  if (/photosynthesis|chloroplast|thylakoid|calvin cycle|light-dependent|glucose/.test(normalized)) return 'Photosynthesis';
-  if (/newton.?s second law|f\s*=\s*m\s*a|inclined plane|ramp|force diagram|free body/.test(normalized)) return "Newton's Second Law";
-  if (/cos|cosine|adjacent|hypotenuse|unit circle|trigonometry/.test(normalized)) return 'Cosine';
-  if (/voltage|current|resistance|ohm|series circuit|electric circuit|electrical circuit/.test(normalized)) return 'Electric Circuits';
+  // Removed hardcoded title heuristics — dynamic title generation handles all topics.
   return '';
 }
 
@@ -924,83 +771,28 @@ function buildPromptAwareDefinition(concept, role, rootConcept, concepts) {
   const relatedText = related.length ? related.join(' and ') : rootConcept;
 
   if (isRootConcept) {
-    switch (role) {
-      case 'biology_process':
-      case 'biology_stage':
-      case 'biology_structure':
-        return `${concept} is the full biological process or system that ties ${relatedText} into one ordered explanation.`;
-      case 'market_quantity':
-      case 'market_condition':
-      case 'market_force':
-        return `${concept} is the market model that shows how ${relatedText} interact and settle into an outcome.`;
-      case 'system_actor':
-      case 'record_structure':
-      case 'coordination_rule':
-      case 'distributed_system':
-      case 'system_process':
-      case 'system_component':
-        return `${concept} is the full system that coordinates ${relatedText} into one working sequence.`;
-      case 'history_event':
-      case 'history_cause':
-      case 'history_phase':
-      case 'history_outcome':
-      case 'history_factor':
-        return `${concept} is the historical episode that links ${relatedText} into one causal sequence.`;
-      case 'process_cycle':
-      case 'cycle_stage':
-      case 'scientific_factor':
-      case 'process_stage':
-        return `${concept} is the complete cycle or process that connects ${relatedText} into a repeating sequence of changes.`;
-      default:
-        return `${concept} is the main idea that organizes ${relatedText} into one explanation.`;
-    }
+    return `${concept} is the central idea that connects ${relatedText} into one coherent explanation.`;
   }
 
-  switch (role) {
-    case 'biology_process':
-      return `${concept} is the biological process or stage used to explain how ${rootConcept} unfolds.`;
-    case 'biology_stage':
-      return `${concept} marks one of the ordered checkpoints that makes ${rootConcept} easier to follow from start to finish.`;
-    case 'biology_structure':
-      return `${concept} is one of the biological structures or materials that makes the mechanism of ${rootConcept} visible.`;
-    case 'market_quantity':
-      return `${concept} is one of the market quantities that changes how ${rootConcept} behaves.`;
-    case 'market_condition':
-      return `${concept} names the market condition created when the forces inside ${rootConcept} meet or fall out of balance.`;
-    case 'market_force':
-      return `${concept} is one of the main market forces that shapes the outcome in ${rootConcept}.`;
-    case 'history_event':
-      return `${concept} is the central historical episode that organizes the causes, phases, and consequences of ${rootConcept}.`;
-    case 'history_cause':
-      return `${concept} names one of the pressures or triggers that pushed ${rootConcept} into motion.`;
-    case 'history_phase':
-      return `${concept} marks one of the major phases that divides ${rootConcept} into a readable timeline.`;
-    case 'history_outcome':
-      return `${concept} captures one of the main consequences or lasting changes produced by ${rootConcept}.`;
-    case 'history_factor':
-      return `${concept} is one of the actors, institutions, or pressures that helps explain how ${rootConcept} developed.`;
-    case 'system_actor':
-      return `${concept} is one of the participants that helps ${rootConcept} move toward agreement.`;
-    case 'record_structure':
-      return `${concept} is one of the records or data structures that carries verified information through ${rootConcept}.`;
-    case 'coordination_rule':
-      return `${concept} is the rule set that tells ${rootConcept} how to accept the next valid state.`;
-    case 'distributed_system':
-      return `${concept} is one of the distributed-system ideas needed to explain how ${rootConcept} stays consistent.`;
-    case 'system_process':
-      return `${concept} is one of the processes that turns ${rootConcept} into an operating sequence.`;
-    case 'system_component':
-      return `${concept} is one of the components that makes ${rootConcept} work as a coordinated system.`;
-    case 'process_cycle':
-      return `${concept} is the repeating natural or scientific cycle that connects each stage of ${rootConcept}.`;
-    case 'cycle_stage':
-      return `${concept} is one of the named stages that moves the material or condition through ${rootConcept}.`;
-    case 'scientific_factor':
-      return `${concept} is one of the scientific conditions or materials that shapes how ${rootConcept} progresses.`;
-    case 'process_stage':
-      return `${concept} is one of the stages that breaks ${rootConcept} into a clear sequence.`;
+  const roleCategory = role.split('_')[0];
+  switch (roleCategory) {
+    case 'biology':
+      return `${concept} is a biological component or process within ${rootConcept}.`;
+    case 'market':
+      return `${concept} is a market factor that influences the outcome in ${rootConcept}.`;
+    case 'history':
+      return `${concept} is a historical element that shapes the sequence of ${rootConcept}.`;
+    case 'system':
+    case 'distributed':
+    case 'record':
+    case 'coordination':
+      return `${concept} is a system component that enables ${rootConcept} to function.`;
+    case 'cycle':
+    case 'process':
+    case 'scientific':
+      return `${concept} is a stage or factor in the process of ${rootConcept}.`;
     default:
-      return `${concept} is one of the concrete elements used to explain ${rootConcept} through ${relatedText}.`;
+      return `${concept} is one of the key elements used to explain ${rootConcept}.`;
   }
 }
 
@@ -1010,84 +802,10 @@ function buildPromptAwareImportance(concept, role, rootConcept, concepts) {
   const relatedText = related.length ? related.join(' and ') : rootConcept;
 
   if (isRootConcept) {
-    switch (role) {
-      case 'biology_process':
-      case 'biology_stage':
-      case 'biology_structure':
-        return `This matters because ${concept} gives the learner the full biological sequence that makes ${relatedText} intelligible.`;
-      case 'market_quantity':
-      case 'market_condition':
-      case 'market_force':
-        return `This matters because ${concept} lets the learner predict how ${relatedText} shift together under changing market conditions.`;
-      case 'system_actor':
-      case 'record_structure':
-      case 'coordination_rule':
-      case 'distributed_system':
-      case 'system_process':
-      case 'system_component':
-        return `This matters because ${concept} explains how ${relatedText} coordinate into one accepted system outcome.`;
-      case 'history_event':
-      case 'history_cause':
-      case 'history_phase':
-      case 'history_outcome':
-      case 'history_factor':
-        return `This matters because ${concept} links ${relatedText} into a coherent chain of causes, turning points, and consequences.`;
-      case 'process_cycle':
-      case 'cycle_stage':
-      case 'scientific_factor':
-      case 'process_stage':
-        return `This matters because ${concept} lets the learner track how ${relatedText} repeat, transform, and feed the next stage.`;
-      default:
-        return `This matters because ${concept} organizes ${relatedText} into one explanation the learner can actually follow.`;
-    }
+    return `Understanding ${concept} is essential because it organizes ${relatedText} into a clear, learnable sequence.`;
   }
 
-  switch (role) {
-    case 'biology_process':
-      return `This matters because tracking ${concept} clarifies the order and purpose of the changes inside ${rootConcept}.`;
-    case 'biology_stage':
-      return `This stage matters because the learner can use ${concept} to tell what happens before, during, and after ${rootConcept}.`;
-    case 'biology_structure':
-      return `This matters because watching ${concept} shows which parts move, attach, store information, or carry out the work in ${rootConcept}.`;
-    case 'market_quantity':
-      return `This matters because changes in ${concept} shift the prediction a learner makes about ${rootConcept}.`;
-    case 'market_condition':
-      return `This matters because the presence of ${concept} reveals whether the system is balanced or whether market pressure is still building.`;
-    case 'market_force':
-      return `This matters because ${concept} helps explain why ${rootConcept} settles, shifts, or fails to settle under a given scenario.`;
-    case 'history_event':
-      return `This matters because ${concept} gives the learner the main event sequence that the rest of ${rootConcept} depends on.`;
-    case 'history_cause':
-      return `This matters because ${concept} explains why pressure built before the major events in ${rootConcept}.`;
-    case 'history_phase':
-      return `This matters because ${concept} helps the learner separate one turning point from the next inside ${rootConcept}.`;
-    case 'history_outcome':
-      return `This matters because ${concept} shows what changed after the main phases of ${rootConcept}.`;
-    case 'history_factor':
-      return `This matters because ${concept} reveals one of the forces or institutions that shaped the direction of ${rootConcept}.`;
-    case 'system_actor':
-      return `This matters because agreement depends on the checks performed by ${concept}.`;
-    case 'record_structure':
-      return `This matters because the system still needs ${concept} to bundle and preserve verified information.`;
-    case 'coordination_rule':
-      return `This matters because without ${concept} the system cannot decide which update becomes authoritative.`;
-    case 'distributed_system':
-      return `This matters because ${concept} explains how ${rootConcept} coordinates multiple moving pieces without a single viewpoint.`;
-    case 'system_process':
-      return `This matters because ${concept} shows how information moves from one decision point to the next.`;
-    case 'system_component':
-      return `This matters because the role of ${concept} exposes one of the working parts that must interact correctly for ${rootConcept} to hold together.`;
-    case 'process_cycle':
-      return `This matters because ${concept} explains the full repeating path rather than leaving the stages disconnected.`;
-    case 'cycle_stage':
-      return `This matters because ${concept} marks a specific transformation that pushes ${rootConcept} into its next stage.`;
-    case 'scientific_factor':
-      return `This matters because ${concept} helps explain which conditions or materials control the behavior of ${rootConcept}.`;
-    case 'process_stage':
-      return `This matters because ${concept} gives the learner a stable checkpoint inside the full sequence.`;
-    default:
-      return `This matters because ${concept} ties ${rootConcept} to ${relatedText} instead of leaving the idea abstract.`;
-  }
+  return `${concept} matters because it reveals how one part of ${rootConcept} connects to or drives another.`;
 }
 
 function buildPromptAwareDetails(concept, role, rootConcept, concepts) {
@@ -1095,186 +813,18 @@ function buildPromptAwareDetails(concept, role, rootConcept, concepts) {
   const related = concepts.filter((entry) => entry !== concept).slice(0, 2);
 
   if (isRootConcept) {
-    switch (role) {
-      case 'biology_process':
-      case 'biology_stage':
-      case 'biology_structure':
-        return uniqueNormalizedStrings([
-          `${concept} should be taught as one ordered biological mechanism rather than as a disconnected list of terms.`,
-          related[0] ? `The explanation should connect ${related[0]} directly to the next visible change in the process.` : '',
-          `The learner should be able to describe the starting state, the transition, and the final biological result.`,
-        ], 3);
-      case 'market_quantity':
-      case 'market_condition':
-      case 'market_force':
-        return uniqueNormalizedStrings([
-          `${concept} should be shown as one market model where the forces interact instead of being memorized separately.`,
-          related[0] ? `The explanation should compare ${related[0]} with the resulting shift in the market outcome.` : '',
-          `The learner should be able to predict how the outcome changes when one part of the model moves.`,
-        ], 3);
-      case 'system_actor':
-      case 'record_structure':
-      case 'coordination_rule':
-      case 'distributed_system':
-      case 'system_process':
-      case 'system_component':
-        return uniqueNormalizedStrings([
-          `${concept} should be shown as a connected system with visible actors, records, and decision rules.`,
-          related[0] ? `The explanation should connect ${related[0]} to the next accepted state in the system.` : '',
-          `The learner should be able to trace how information moves from proposal to accepted result.`,
-        ], 3);
-      case 'history_event':
-      case 'history_cause':
-      case 'history_phase':
-      case 'history_outcome':
-      case 'history_factor':
-        return uniqueNormalizedStrings([
-          `${concept} should be taught as a timeline with clear causes, turning points, and consequences.`,
-          related[0] ? `The explanation should show how ${related[0]} helps produce the next major historical change.` : '',
-          `The learner should be able to tell what happened first, what shifted in the middle, and what changed afterward.`,
-        ], 3);
-      case 'process_cycle':
-      case 'cycle_stage':
-      case 'scientific_factor':
-      case 'process_stage':
-        return uniqueNormalizedStrings([
-          `${concept} should be shown as a repeating sequence rather than as a disconnected list of stages.`,
-          related[0] ? `The explanation should place ${related[0]} in order so the learner sees what changes next.` : '',
-          `The learner should be able to track how matter, energy, or conditions move through the full cycle.`,
-        ], 3);
-      default:
-        return uniqueNormalizedStrings([
-          `${concept} should be explained as the main idea that organizes the rest of the lesson.`,
-          related[0] ? `The explanation should connect ${related[0]} to the next visible part of the concept.` : '',
-          `The learner should be able to explain how the main idea breaks into smaller working pieces.`,
-        ], 3);
-    }
+    return uniqueNormalizedStrings([
+      `${concept} should be taught as a connected system rather than isolated facts.`,
+      related[0] ? `Connect ${related[0]} to the next visible change in the process.` : '',
+      `The learner should be able to describe how the parts work together.`,
+    ], 3);
   }
 
-  switch (role) {
-    case 'biology_process':
-      return uniqueNormalizedStrings([
-        `The order of events inside ${concept} matters because each later change depends on the earlier arrangement.`,
-        related[0] ? `The explanation of ${concept} becomes clearer when it is linked directly to ${related[0]}.` : '',
-        `A complete explanation of ${concept} tracks the starting state, the transition, and the final state.`,
-      ], 3);
-    case 'biology_stage':
-      return uniqueNormalizedStrings([
-        `The stage ${concept} works best as a checkpoint that separates one visible change from the next.`,
-        related[0] ? `The stage ${concept} should be compared with ${related[0]} so the learner sees what changes across the sequence.` : '',
-        `The learner should be able to describe what becomes more organized, more separated, or more aligned at ${concept}.`,
-      ], 3);
-    case 'biology_structure':
-      return uniqueNormalizedStrings([
-        `The concept ${concept} should be tied to a visible role rather than treated as an isolated label.`,
-        related[0] ? `The explanation should connect ${concept} to ${related[0]} as part of the mechanism behind ${rootConcept}.` : '',
-        `The explanation becomes stronger when ${concept} is tracked as a moving part, attachment point, or stored structure.`,
-      ], 3);
-    case 'market_quantity':
-      return uniqueNormalizedStrings([
-        `When ${concept} changes, the market outcome shifts rather than staying fixed.`,
-        related[0] ? `${concept} should be compared against ${related[0]} so the learner can see the direction of change.` : '',
-        `Learners should practice describing whether ${concept} rises, falls, or settles at a stable point.`,
-      ], 3);
-    case 'market_condition':
-      return uniqueNormalizedStrings([
-        `${concept} signals whether market forces are balanced or misaligned.`,
-        related[0] ? `${concept} is easiest to understand when matched against ${related[0]}.` : '',
-        `The explanation should connect ${concept} to the price or quantity pattern that creates it.`,
-      ], 3);
-    case 'market_force':
-      return uniqueNormalizedStrings([
-        `${concept} becomes clearer when it is shown as a pressure that pushes the system toward or away from balance.`,
-        `The presence of ${concept} alters the outcome together with the other market forces.`,
-        `A good explanation of ${concept} makes the direction of the market shift easy to predict.`,
-      ], 3);
-    case 'history_event':
-      return uniqueNormalizedStrings([
-        `${concept} should be framed as the central sequence that the other historical ideas plug into.`,
-        related[0] ? `The explanation should connect ${related[0]} to the next major turning point inside ${rootConcept}.` : '',
-        `The learner should be able to retell the event as a causal chain instead of a loose summary.`,
-      ], 3);
-    case 'history_cause':
-      return uniqueNormalizedStrings([
-        `${concept} should be shown as the pressure that built before the key events of ${rootConcept}.`,
-        related[0] ? `${concept} becomes clearer when it is linked directly to ${related[0]} as part of the buildup.` : '',
-        `The learner should be able to explain why ${concept} made later conflict or change more likely.`,
-      ], 3);
-    case 'history_phase':
-      return uniqueNormalizedStrings([
-        `${concept} should mark one visible segment on the timeline of ${rootConcept}.`,
-        related[0] ? `${concept} should be compared with ${related[0]} so the learner sees how the historical situation changed.` : '',
-        `The learner should be able to state what begins, peaks, or resolves during ${concept}.`,
-      ], 3);
-    case 'history_outcome':
-      return uniqueNormalizedStrings([
-        `${concept} should be tied to the changes that remained after the main phases of ${rootConcept}.`,
-        related[0] ? `${concept} is easier to understand when matched against ${related[0]} as a cause-and-effect pair.` : '',
-        `The learner should be able to explain which institutions, rights, or power relationships changed because of ${concept}.`,
-      ], 3);
-    case 'history_factor':
-      return uniqueNormalizedStrings([
-        `${concept} should be shown as one of the actors, institutions, or pressures inside the historical story.`,
-        related[0] ? `${concept} should be linked to ${related[0]} so the learner sees how historical forces combine.` : '',
-        `The learner should be able to say what role ${concept} plays in the broader sequence of ${rootConcept}.`,
-      ], 3);
-    case 'system_actor':
-      return uniqueNormalizedStrings([
-        `The concept ${concept} should be tracked as one of the checkpoints where approval or rejection can occur.`,
-        `The explanation should show the information flow through ${concept} as agreement develops across the system.`,
-        `The explanation should make clear what ${concept} checks before the system accepts a result.`,
-      ], 3);
-    case 'record_structure':
-      return uniqueNormalizedStrings([
-        `${concept} should be treated as the container that preserves accepted information in order.`,
-        `The explanation should show how ${concept} stores or carries verified state from one step to the next.`,
-        `The learner should see what gets stored inside ${concept} and why that storage matters.`,
-      ], 3);
-    case 'coordination_rule':
-      return uniqueNormalizedStrings([
-        `${concept} matters most at the moment when the system chooses one acceptable result instead of another.`,
-        `${concept} determines how proposed updates are accepted, rejected, or reordered.`,
-        `The explanation should show how ${concept} turns multiple competing updates into one accepted sequence.`,
-      ], 3);
-    case 'distributed_system':
-    case 'system_process':
-    case 'system_component':
-      return uniqueNormalizedStrings([
-        `The concept ${concept} should be shown as part of a connected system rather than as a standalone label.`,
-        `The explanation should show the work or information flowing through ${concept} and the rest of the system as the process continues.`,
-        `The explanation becomes clearer when ${concept} is tied to an input, a decision, and an output.`,
-      ], 3);
-    case 'process_cycle':
-      return uniqueNormalizedStrings([
-        `${concept} should be shown as a repeating loop with a clear order of stages.`,
-        related[0] ? `The explanation should show how ${related[0]} feeds the next stage of the cycle.` : '',
-        `The learner should be able to track what transforms, moves, or reappears as the cycle continues.`,
-      ], 3);
-    case 'cycle_stage':
-      return uniqueNormalizedStrings([
-        `${concept} should mark a specific transformation inside ${rootConcept}.`,
-        related[0] ? `${concept} should be placed next to ${related[0]} so the learner sees the stage order.` : '',
-        `The learner should be able to explain what enters ${concept}, what changes there, and what leaves it next.`,
-      ], 3);
-    case 'scientific_factor':
-      return uniqueNormalizedStrings([
-        `${concept} should be shown as one of the scientific conditions or materials that shapes the cycle.`,
-        related[0] ? `The explanation should connect ${concept} to ${related[0]} so the learner sees how the process is controlled.` : '',
-        `The learner should be able to describe what role ${concept} plays in keeping ${rootConcept} moving.`,
-      ], 3);
-    case 'process_stage':
-      return uniqueNormalizedStrings([
-        `${concept} should mark a specific checkpoint in the full sequence of ${rootConcept}.`,
-        related[0] ? `${concept} should be compared with ${related[0]} so the learner sees what changes between stages.` : '',
-        `The learner should be able to explain what begins at ${concept} and what it sets up next.`,
-      ], 3);
-    default:
-      return uniqueNormalizedStrings([
-        `${concept} should be explained as one of the visible anchors inside ${rootConcept}.`,
-        related[0] ? `${concept} connects directly to ${related[0]} in the lesson flow.` : '',
-        `The learner should be able to name what ${concept} contributes to the bigger idea.`,
-      ], 3);
-  }
+  return uniqueNormalizedStrings([
+    `${concept} should be shown in relation to ${rootConcept}, not in isolation.`,
+    related[0] ? `Link ${concept} to ${related[0]} to show how they interact.` : '',
+    `The learner should understand what ${concept} contributes to the whole.`,
+  ], 3);
 }
 
 function buildPromptAwareTeachingApproach(field, topicText, concepts) {
@@ -1761,12 +1311,25 @@ async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, ana
     }
   }
 
-  // ── Pass 3 (if Pass 1 failed): Try a simpler prompt to avoid total fallback ──
+  // ── Pass 3 (if Pass 1 failed): Try with a focused prompt to avoid total fallback ──
   if (!finalPlan) {
     try {
       await report('ai_retry');
-      console.log(`[aiPlanner] Phase 3 Pass 3: Retry with simplified prompt...`);
-      const retryPrompt = `${buildIntentPrefix(normalizedLessonIntent)}${buildModePrefix(lessonSpec.explanation_mode)}${buildSourceModePrefix(lessonSpec.source_mode)}You are an instructional designer building a whiteboard storyboard. Return JSON with title, summary, and parts. Each content part must include: title, part_type, duration_seconds, scene_goal, learning_objective, narration, key_concepts, visual_logic, and animation_sequence. Each quiz part must include quiz_questions. Do not output coordinates or raw visual_sequence drawing commands. Build at least 3 content parts and 2 quiz parts unless the material is extremely short. Keep the lesson teacher-like, semantic, and uncluttered.\n\nMATERIAL:\n${(lessonSpec.section_text || '').slice(0, refineSourceLimit)}`;
+      console.log(`[aiPlanner] Phase 3 Pass 3: Retry with focused prompt...`);
+      const retryPrompt = `${buildIntentPrefix(normalizedLessonIntent)}${buildModePrefix(lessonSpec.explanation_mode)}${buildSourceModePrefix(lessonSpec.source_mode)}You are a professional whiteboard teacher. Create a lesson that feels like a real classroom experience.
+
+RULES:
+- Return valid JSON with: title, summary, parts array.
+- Each content part needs: title, part_type ("content"), duration_seconds (300-400), scene_goal, learning_objective, narration (conversational teacher voice, 150-300 words), key_concepts (3-5 terms), visual_logic (semantic visual descriptions), animation_sequence.
+- Each quiz part needs: title, part_type ("quiz"), duration_seconds (55), quiz_questions with question_type, question_text, options, correct_answer, explanation.
+- Build 3-5 content parts and 1-2 quiz parts.
+- Narration must sound like a teacher TALKING to students, not reading a textbook.
+- Each part teaches ONE main idea progressively.
+- Visual_logic entries describe what a teacher would DRAW — use varied types (arrows for flow, boxes for definitions, circles for grouping, tables for comparison).
+- No coordinates. No raw drawing commands.
+
+TOPIC: ${lessonSpec.title || 'General Topic'}
+MATERIAL:\n${(lessonSpec.section_text || '').slice(0, refineSourceLimit)}`;
       const retryPlan = await callAIRace(
         retryPrompt,
         limits.contentTok,
@@ -2619,7 +2182,11 @@ function estimateSceneLayoutBox(scene) {
   }
 }
 
-function sceneBoxesOverlap(left, right, padding = 16) {
+// Minimum spacing between whiteboard elements to prevent visual clutter
+const SCENE_ELEMENT_GAP = 28;
+const SCENE_OVERLAP_PADDING = 24;
+
+function sceneBoxesOverlap(left, right, padding = SCENE_OVERLAP_PADDING) {
   return left.x < right.x + right.width + padding
     && left.x + left.width + padding > right.x
     && left.y < right.y + right.height + padding
@@ -2633,32 +2200,49 @@ function resolveSceneLayoutBox(box, occupiedBoxes) {
     y: clampBoxY(box.y, box.height, 20),
   };
 
-  for (let attempt = 0; attempt < 20; attempt += 1) {
+  // First half of attempts use standard directional resolution;
+  // second half switches to grid-based diagonal fallback for packed boards
+  const DIAGONAL_FALLBACK_THRESHOLD = 15;
+
+  for (let attempt = 0; attempt < 30; attempt += 1) {
     const collision = occupiedBoxes.find((occupied) => sceneBoxesOverlap(candidate, occupied));
     if (!collision) return candidate;
 
-    const downY = collision.y + collision.height + 16;
+    // Try moving down first (most natural for whiteboard flow)
+    const downY = collision.y + collision.height + SCENE_ELEMENT_GAP;
     if (downY <= 500 - candidate.height - 20) {
-      candidate = { ...candidate, y: clampBoxY(Math.max(candidate.y + 8, downY), candidate.height, 20) };
+      candidate = { ...candidate, y: clampBoxY(Math.max(candidate.y + 10, downY), candidate.height, 20) };
       continue;
     }
 
-    const rightX = collision.x + collision.width + 16;
+    // Try moving right
+    const rightX = collision.x + collision.width + SCENE_ELEMENT_GAP;
     if (rightX <= 800 - candidate.width - 20) {
-      candidate = { ...candidate, x: clampBoxX(rightX, candidate.width, 20) };
+      candidate = { ...candidate, x: clampBoxX(rightX, candidate.width, 20), y: clampBoxY(box.y, box.height, 20) };
       continue;
     }
 
-    const leftX = collision.x - candidate.width - 16;
+    // Try moving left
+    const leftX = collision.x - candidate.width - SCENE_ELEMENT_GAP;
     if (leftX >= 20) {
-      candidate = { ...candidate, x: clampBoxX(leftX, candidate.width, 20) };
+      candidate = { ...candidate, x: clampBoxX(leftX, candidate.width, 20), y: clampBoxY(box.y, box.height, 20) };
       continue;
     }
 
-    const upY = collision.y - candidate.height - 16;
-    if (upY >= 92) {
+    // Try moving up
+    const upY = collision.y - candidate.height - SCENE_ELEMENT_GAP;
+    if (upY >= 72) {
       candidate = { ...candidate, y: clampBoxY(upY, candidate.height, 20) };
       continue;
+    }
+
+    // Last resort: scale down and try diagonal placement
+    if (attempt > DIAGONAL_FALLBACK_THRESHOLD) {
+      candidate = {
+        ...candidate,
+        x: clampBoxX(20 + (attempt % 3) * 260, candidate.width, 20),
+        y: clampBoxY(92 + Math.floor(attempt / 3) * 130, candidate.height, 20),
+      };
     }
   }
 
@@ -4633,7 +4217,10 @@ function selectPedagogicalStrategy(part, contentIndex, explanationMode) {
     return contentIndex === 0 ? 'overview' : 'detail';
   }
 
-  return contentIndex === 0 ? 'overview' : contentIndex === 1 ? 'detail' : 'application';
+  // Dynamic strategy rotation — prevents same visual pattern across parts
+  const strategies = ['overview', 'detail', 'application'];
+  const seed = hashVisualSeed(`${part.title || ''}|${contentIndex}|${part.scene_goal || ''}`);
+  return strategies[(contentIndex + seed) % strategies.length];
 }
 
 function buildPedagogicalTopicEntry(entry, part) {
@@ -5885,13 +5472,14 @@ function buildOverviewVisuals(title, concepts, topics, sentences, continuity, fi
 }
 
 function buildAdaptiveGenericDetailBoard(title, concepts, topics, sentences, startTime, field, explanationMode = 'full_lesson', contentIndex = 0) {
-  const seed = hashVisualSeed(`${field}|detail|${explanationMode}|${title}|${(concepts || []).join('|')}`);
+  const seed = hashVisualSeed(`${field}|detail|${explanationMode}|${title}|${(concepts || []).join('|')}|${contentIndex}`);
   const variants = explanationMode === 'text_focus'
-    ? ['note_stack', 'concept_map', 'topic_object', 'process_flow']
+    ? ['note_stack', 'concept_map', 'topic_object', 'process_flow', 'question_ladder']
     : explanationMode === 'step_by_step'
-      ? ['process_flow', 'topic_object', 'concept_map', 'question_ladder']
-      : ['process_flow', 'concept_map', 'question_ladder', 'topic_object'];
-  const variant = variants[(seed + Math.max(0, Number(contentIndex) || 0)) % variants.length];
+      ? ['process_flow', 'topic_object', 'concept_map', 'question_ladder', 'note_stack']
+      : ['process_flow', 'concept_map', 'question_ladder', 'topic_object', 'note_stack'];
+  // Use both seed and contentIndex to ensure consecutive parts always get different visuals
+  const variant = variants[(seed + contentIndex * 2 + 1) % variants.length];
 
   if (variant === 'note_stack') {
     return buildNoteStackBoard(concepts, topics, sentences, startTime);

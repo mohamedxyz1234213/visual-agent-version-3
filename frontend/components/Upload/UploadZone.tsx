@@ -119,7 +119,7 @@ function buildStages(providerLabel: string, modelName: string, textMode = false)
     { key: "deep_scanning",       label: "Deep Scan (2nd pass)",        desc: `${agent} is re-reading for missed topics and procedures…` },
     { key: "planning_lessons",    label: "Splitting Into Lessons",      desc: `${agent} is dividing the material into focused lessons…` },
     { key: "ai_generating",       label: "Generating Lesson",           desc: `${agent} is writing narration, explanations, and quizzes…` },
-    { key: "ai_retry",            label: "Retrying Generation",         desc: `${agent} is retrying with a simplified prompt after an upstream failure…` },
+    { key: "ai_retry",            label: "Optimizing Generation",       desc: `${agent} is refining the approach for better results…` },
     { key: "ai_refining",         label: "Refining Output",             desc: `${agent} is reviewing and improving for accuracy…` },
     { key: "planning_outline",    label: "Building Lesson Structure",   desc: `${agent} is structuring parts and key concepts…` },
     { key: "planning_visuals_1",  label: "Drawing Part 1",              desc: `${agent} is creating whiteboard animations for Part 1…` },
