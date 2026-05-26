@@ -2025,12 +2025,12 @@ function estimateContainerHeight(text, width, pxPerChar = 7.6, lineHeight = 18, 
   return clamp(24 + lines * lineHeight, minHeight, maxHeight);
 }
 
-function clampBoxX(x, width, padding = 24) {
+function clampBoxX(x, width, padding = 40) {
   if (!Number.isFinite(Number(x)) || !Number.isFinite(Number(width))) return x;
   return clamp(Number(x), padding, 800 - Number(width) - padding);
 }
 
-function clampBoxY(y, height, padding = 24) {
+function clampBoxY(y, height, padding = 40) {
   if (!Number.isFinite(Number(y)) || !Number.isFinite(Number(height))) return y;
   return clamp(Number(y), 56, 500 - Number(height) - padding);
 }
@@ -2183,7 +2183,7 @@ function estimateSceneLayoutBox(scene) {
 }
 
 // Minimum spacing between whiteboard elements to prevent visual clutter
-const SCENE_ELEMENT_GAP = 28;
+const SCENE_ELEMENT_GAP = 40; // Minimum 40px between unrelated elements (pedagogical requirement)
 const SCENE_OVERLAP_PADDING = 24;
 
 function sceneBoxesOverlap(left, right, padding = SCENE_OVERLAP_PADDING) {
@@ -4292,16 +4292,19 @@ function generateContentVisuals({ lessonTitle, part, contentIndex, comprehension
     scenes = buildApplicationVisuals(part.title, concepts, relevantTopics, narrationSentences, continuity, visualField, explanationMode);
   }
 
-  // A teacher reveals one idea at a time — aim for 1 new element every 4-5 seconds
+  // A teacher reveals one idea at a time — aim for 1 new element every 8-10 seconds
   // Keep boards clean: fewer elements per page, more frequent clears
+  // MAX 6-8 elements per board page (between clears) to prevent overlap
+  const MAX_ELEMENTS_PER_PAGE = 7;
   const modeSceneFloor = explanationMode === 'visual_first'
-    ? 40
+    ? 20
     : explanationMode === 'step_by_step'
-      ? 28
+      ? 14
       : explanationMode === 'text_focus'
-        ? 32
-        : 30;
-  const minScenes = Math.max(modeSceneFloor, Math.ceil(durationSeconds / 5));
+        ? 16
+        : 15;
+  // Calculate based on duration but cap at reasonable density
+  const minScenes = Math.max(modeSceneFloor, Math.min(Math.ceil(durationSeconds / 10), 40));
   if (scenes.length < minScenes) {
     const lastTime = Math.max(...scenes.map((s) => Number(s.time) || 0), 1);
     const extra = buildDeepDivePages(concepts, relevantTopics, narrationSentences, lastTime + 4, minScenes - scenes.length, visualField, explanationMode);
@@ -4427,7 +4430,7 @@ function rebalanceSceneLayout(scenes) {
 
 function normalizeVisualSequence(visualSeq, duration) {
   const seenTextualScenes = new Set();
-  const scenes = rebalanceSceneLayout(visualSeq
+  const deduped = visualSeq
     .map((entry) => sanitizeSceneEntry(entry))
     .filter(Boolean)
     .filter((entry) => {
@@ -4449,8 +4452,32 @@ function normalizeVisualSequence(visualSeq, duration) {
 
       unseenSignatures.forEach((signature) => seenTextualScenes.add(signature));
       return true;
-    }));
+    });
 
+  // ── Board density limiter: max 5 non-clear elements per page ──
+  // RULE: "No more than 5 distinct concepts visible simultaneously without grouping"
+  // This prevents overlap and ensures the whiteboard teaches one idea at a time.
+  const MAX_PER_PAGE = 5;
+  const densityLimited = [];
+  let pageCount = 0;
+  for (const entry of deduped) {
+    if (entry.type === 'clear') {
+      densityLimited.push(entry);
+      pageCount = 0;
+      continue;
+    }
+    pageCount++;
+    if (pageCount <= MAX_PER_PAGE) {
+      densityLimited.push(entry);
+    } else if (pageCount === MAX_PER_PAGE + 1) {
+      // Insert a clear and start a new page with this element
+      densityLimited.push({ type: 'clear', time: entry.time });
+      densityLimited.push(entry);
+      pageCount = 1;
+    }
+  }
+
+  const scenes = rebalanceSceneLayout(densityLimited);
   return fitSceneTimeline(scenes, duration);
 }
 
@@ -4461,25 +4488,41 @@ const MARKERS = ['arr-blue', 'arr-green', 'arr-orange', 'arr-purple', 'arr-red',
 
 function detectVisualField(field, concepts, sentences, extraText = '') {
   const corpus = `${field} ${extraText} ${(concepts || []).join(' ')} ${(sentences || []).join(' ')}`.toLowerCase();
-  if (field === 'mathematics') {
+
+  // Explicit field from AI comprehension takes highest priority
+  if (field === 'mathematics') return 'mathematics';
+  if (field === 'physics') return 'physics';
+  if (field === 'economics') return 'economics';
+  if (field === 'biology') return 'biology';
+  if (field === 'history') return 'history';
+  if (field === 'business') return 'business';
+
+  // Regex-based detection with CORRECT priority:
+  // Physics before economics (prevents "force"/"motion" topics from becoming supply/demand charts)
+  if (PHYSICS_VISUAL_CUE_RE.test(corpus)) {
+    return 'physics';
+  }
+  if (MATHEMATICS_VISUAL_CUE_RE.test(corpus)) {
     return 'mathematics';
   }
-  if (field === 'history' || HISTORY_VISUAL_CUE_RE.test(corpus)) {
-    return 'history';
-  }
-  const economicsCue = ECONOMICS_VISUAL_CUE_RE.test(corpus)
-    || (ECONOMICS_MARKET_RE.test(corpus) && ECONOMICS_MARKET_CONTEXT_RE.test(corpus));
-  if (field === 'economics' || economicsCue) {
-    return 'economics';
-  }
-  if (field === 'business' || BUSINESS_VISUAL_CUE_RE.test(corpus)) {
-    return 'business';
-  }
-  if (field === 'biology' || BIOLOGY_VISUAL_CUE_RE.test(corpus)) {
+  if (BIOLOGY_VISUAL_CUE_RE.test(corpus)) {
     return 'biology';
   }
   if (CYCLE_VISUAL_CUE_RE.test(corpus)) {
     return 'cycle';
+  }
+  if (HISTORY_VISUAL_CUE_RE.test(corpus)) {
+    return 'history';
+  }
+  // Economics requires BOTH the economic term AND field context to avoid false positives
+  const economicsCue = ECONOMICS_VISUAL_CUE_RE.test(corpus)
+    && (field === 'economics' || field === 'business'
+      || (ECONOMICS_MARKET_RE.test(corpus) && ECONOMICS_MARKET_CONTEXT_RE.test(corpus)));
+  if (economicsCue) {
+    return 'economics';
+  }
+  if (BUSINESS_VISUAL_CUE_RE.test(corpus)) {
+    return 'business';
   }
   if (DIRECT_VISUAL_FIELDS.has(field)) {
     return field;
@@ -4487,13 +4530,7 @@ function detectVisualField(field, concepts, sentences, extraText = '') {
   if (SYSTEMS_VISUAL_CUE_RE.test(corpus)) {
     return 'systems';
   }
-  if (PHYSICS_VISUAL_CUE_RE.test(corpus)) {
-    return 'physics';
-  }
-  if (MATHEMATICS_VISUAL_CUE_RE.test(corpus)) {
-    return 'mathematics';
-  }
-  return field;
+  return field || 'general';
 }
 
 function resolveTopicObjectType(objectType, {
@@ -4719,76 +4756,54 @@ function buildTopicAnchorBoard(title, concepts, topics, sentences, startTime, fi
       ? (tokens.seed % 2 === 0 ? 'compass' : 'dialogue')
       : (tokens.seed % 2 === 0 ? 'compass' : 'checklist'),
   });
-  const cardLayouts = [
-    { x: 390, y: 138, width: 294, height: 78 },
-    { x: 390, y: 234, width: 294, height: 80 },
-  ];
-  const bottomCue = sanitizeSceneText(uniqueNormalizedStrings([
-    tokens.summaryCue,
-    tokens.detailCue,
-  ].filter(Boolean), 2).join('. '), 22);
 
+  // Clean layout: object on left, one or two explanation cards on right, one callout at bottom
   scenes.push(scene(t, 'draw_object', {
     object_type: objectType,
-    position: [54, 148],
-    size: [236, 170],
+    position: [54, 130],
+    size: [220, 160],
     label: tokens.label,
     annotations: [],
-  })); t += 4;
+  })); t += 5;
 
-  scenes.push(scene(t, 'draw_rect', {
-    x: 364,
-    y: 122,
-    width: 344,
-    height: 216,
-    style: { fill: '#ffffff', stroke: '#cbd5e1', strokeWidth: 1.4, rx: 24 },
-  })); t += 3;
-
-  scenes.push(scene(t, 'draw_line', {
-    from: [302, 233],
-    to: [360, 233],
-    style: { color: '#94a3b8', strokeWidth: 2, dashed: true },
-  })); t += 2;
-
-  cueCards.forEach((cue, index) => {
-    const layout = cardLayouts[index];
+  // Max 2 explanation cards on right side with clear spacing
+  cueCards.slice(0, 2).forEach((cue, index) => {
+    const y = 140 + index * 120;
     const color = COLORS[index % COLORS.length];
     const fill = FILLS[index % FILLS.length];
 
     scenes.push(scene(t, 'draw_rect', {
-      x: layout.x,
-      y: layout.y,
-      width: layout.width,
-      height: layout.height,
+      x: 340,
+      y,
+      width: 400,
+      height: 88,
       label: cue,
       style: { fill, stroke: color, strokeWidth: 1.5, rx: 16 },
-    })); t += 3;
-
-    scenes.push(scene(t, 'draw_arrow', {
-      from: [292, 186 + index * 44],
-      to: [layout.x, layout.y + layout.height / 2],
-      style: { color, strokeWidth: 2 },
-    })); t += 2;
+    })); t += 5;
   });
 
-  if (tokens.stripCue) {
-    scenes.push(scene(t, 'draw_rect', {
-      x: 364,
-      y: 352,
-      width: 344,
-      height: 52,
-      label: tokens.stripCue,
-      style: { fill: '#eff6ff', stroke: '#2563eb', strokeWidth: 1.5, rx: 16 },
+  // One connecting arrow from object to first card
+  if (cueCards.length > 0) {
+    scenes.push(scene(t, 'draw_arrow', {
+      from: [274, 210],
+      to: [340, 184],
+      style: { color: COLORS[0], strokeWidth: 2 },
     })); t += 3;
   }
+
+  // Bottom callout with key takeaway
+  const bottomCue = sanitizeSceneText(uniqueNormalizedStrings([
+    tokens.summaryCue,
+    tokens.detailCue,
+  ].filter(Boolean), 2).join('. '), 20);
 
   if (bottomCue) {
     scenes.push(scene(t, 'draw_callout', {
       content: bottomCue,
-      position: [44, 416],
-      width: 684,
+      position: [50, 400],
+      width: 700,
       style: { bg: '#f8fafc', stroke: '#64748b', color: '#334155' },
-    })); t += 4;
+    })); t += 5;
   }
 
   return scenes;
@@ -4806,59 +4821,38 @@ function buildTopicFrameworkBoard(title, concepts, topics, sentences, startTime,
     gearType: field === 'business' ? 'compass' : 'layers',
     lightbulbType: 'compass',
   });
-  const bottomCue = sanitizeSceneText(uniqueNormalizedStrings([
-    tokens.summaryCue,
-    tokens.detailCue,
-    tokens.stripCue,
-  ].filter(Boolean), 2).join('. '), 22);
 
-  scenes.push(scene(t, 'draw_badge', {
-    content: truncateWords(tokens.label, 4),
-    position: [614, 10],
-    style: { bg: '#0f766e', color: '#fff', fontSize: 13 },
-  })); t += 2;
+  // Clean layout: object on right, max 2 labeled rects on left, one arrow connecting them
+  scenes.push(scene(t, 'draw_object', {
+    object_type: objectType,
+    position: [500, 140],
+    size: [220, 166],
+    label: tokens.label,
+    annotations: [],
+  })); t += 5;
 
   stackLabels.forEach((entry, index) => {
-    const y = 140 + index * 94;
+    const y = 150 + index * 120;
     const color = COLORS[index % COLORS.length];
     const fill = FILLS[index % FILLS.length];
 
     scenes.push(scene(t, 'draw_rect', {
-      x: 56,
+      x: 50,
       y,
-      width: 294,
-      height: 78,
+      width: 340,
+      height: 88,
       label: entry,
       style: { fill, stroke: color, strokeWidth: 1.5, rx: 18 },
-    })); t += 3;
+    })); t += 5;
   });
 
-  scenes.push(scene(t, 'draw_object', {
-    object_type: objectType,
-    position: [486, 142],
-    size: [220, 166],
-    label: tokens.label,
-    annotations: [],
-  })); t += 4;
-
-  stackLabels.forEach((entry, index) => {
-    const y = 179 + index * 94;
-    const color = COLORS[index % COLORS.length];
-
+  // One arrow from object to first rect to show relationship
+  if (stackLabels.length > 0) {
     scenes.push(scene(t, 'draw_arrow', {
-      from: [486, 182 + index * 42],
-      to: [350, y],
-      style: { color, strokeWidth: 2 },
-    })); t += 2;
-  });
-
-  if (bottomCue) {
-    scenes.push(scene(t, 'draw_callout', {
-      content: bottomCue,
-      position: [50, 332],
-      width: 680,
-      style: { bg: '#f8fafc', stroke: '#64748b', color: '#334155' },
-    })); t += 4;
+      from: [500, 223],
+      to: [390, 194],
+      style: { color: COLORS[0], strokeWidth: 2 },
+    })); t += 3;
   }
 
   return scenes;
@@ -4871,85 +4865,52 @@ function buildTopicStoryBoard(title, concepts, topics, sentences, startTime, fie
   const cardLabels = uniqueNormalizedStrings([
     tokens.summaryCue,
     tokens.detailCue,
-    tokens.stripCue,
-    tokens.label,
-  ].filter(Boolean), 3);
+  ].filter(Boolean), 2);
   const objectType = resolveTopicObjectType(tokens.objectType, {
     gearType: 'dialogue',
     documentType: 'target',
   });
-  const cardLayouts = [
-    { x: 40, y: 132, width: 208, height: 88 },
-    { x: 296, y: 196, width: 208, height: 88 },
-    { x: 552, y: 132, width: 208, height: 88 },
-  ];
 
-  scenes.push(scene(t, 'draw_badge', {
-    content: truncateWords(tokens.label, 4),
-    position: [616, 10],
-    style: { bg: '#be123c', color: '#fff', fontSize: 13 },
-  })); t += 2;
+  // Clean sequential story layout: concept cards flowing left-to-right with one arrow
+  scenes.push(scene(t, 'draw_object', {
+    object_type: objectType,
+    position: [60, 130],
+    size: [200, 140],
+    label: tokens.label,
+    annotations: [],
+  })); t += 5;
 
+  // Max 2 explanation cards arranged vertically on the right
   cardLabels.forEach((label, index) => {
-    const layout = cardLayouts[index];
+    const y = 130 + index * 130;
     const color = COLORS[index % COLORS.length];
     const fill = FILLS[index % FILLS.length];
 
     scenes.push(scene(t, 'draw_rect', {
-      x: layout.x,
-      y: layout.y,
-      width: layout.width,
-      height: layout.height,
+      x: 340,
+      y,
+      width: 400,
+      height: 100,
       label,
       style: { fill, stroke: color, strokeWidth: 1.6, rx: 20 },
-    })); t += 3;
-
-    if (index < cardLabels.length - 1) {
-      const nextLayout = cardLayouts[index + 1];
-      scenes.push(scene(t, 'draw_arrow', {
-        from: [layout.x + layout.width, layout.y + layout.height / 2],
-        to: [nextLayout.x, nextLayout.y + nextLayout.height / 2],
-        style: { color, strokeWidth: 2 },
-      })); t += 2;
-    }
+    })); t += 5;
   });
 
-  scenes.push(scene(t, 'draw_object', {
-    object_type: objectType,
-    position: [74, 242],
-    size: [186, 118],
-    label: tokens.label,
-    annotations: [],
-  })); t += 4;
-
-  if (tokens.stripCue) {
-    scenes.push(scene(t, 'draw_rect', {
-      x: 300,
-      y: 308,
-      width: 420,
-      height: 74,
-      label: tokens.stripCue,
-      style: { fill: '#eff6ff', stroke: '#2563eb', strokeWidth: 1.5, rx: 18 },
+  // One arrow from object to first card (shows flow/causation)
+  if (cardLabels.length > 0) {
+    scenes.push(scene(t, 'draw_arrow', {
+      from: [260, 200],
+      to: [340, 180],
+      style: { color: COLORS[0], strokeWidth: 2 },
     })); t += 3;
   }
 
-  if (tokens.summaryCue) {
-    scenes.push(scene(t, 'draw_callout', {
-      content: tokens.summaryCue,
-      position: [60, 396],
-      width: 300,
-      style: { bg: '#f8fafc', stroke: '#64748b', color: '#334155' },
-    })); t += 4;
-  }
-
-  if (tokens.detailCue) {
-    scenes.push(scene(t, 'draw_rect', {
-      x: 392,
-      y: 396,
-      width: 316,
-      height: 80,
-      label: tokens.detailCue,
-      style: { fill: '#f0fdf4', stroke: '#16a34a', strokeWidth: 1.5, rx: 18 },
+  // Second arrow between cards (shows sequence) if two cards exist
+  if (cardLabels.length > 1) {
+    scenes.push(scene(t, 'draw_arrow', {
+      from: [540, 230],
+      to: [540, 260],
+      style: { color: COLORS[1], strokeWidth: 2 },
     })); t += 3;
   }
 
@@ -5030,11 +4991,12 @@ function buildBiologyVisualBoard(title, concepts, topics, sentences, startTime, 
     position: [50, 132],
     size: [250, 186],
     label,
-    annotations,
+    annotations: annotations.slice(0, 2),
   })); t += 5;
 
-  const badgePositions = [[372, 128], [590, 178], [400, 258]];
-  badgeCues.slice(0, 3).forEach((cue, index) => {
+  // Only 2 badges max with arrows to keep board clean
+  const badgePositions = [[380, 148], [380, 278]];
+  badgeCues.slice(0, 2).forEach((cue, index) => {
     const [x, y] = badgePositions[index];
     const color = COLORS[(index + 1) % COLORS.length];
 
@@ -5042,40 +5004,22 @@ function buildBiologyVisualBoard(title, concepts, topics, sentences, startTime, 
       content: cue,
       position: [x, y],
       style: { bg: color, color: '#fff', fontSize: 14 },
-    })); t += 2;
+    })); t += 3;
 
     scenes.push(scene(t, 'draw_arrow', {
-      from: [175, 225],
-      to: [x, y + 14],
+      from: [300, 200 + index * 50],
+      to: [x - 10, y + 14],
       style: { color, strokeWidth: 2 },
-    })); t += 2;
-
-    if (index > 0) {
-      const [prevX, prevY] = badgePositions[index - 1];
-      scenes.push(scene(t, 'draw_path', {
-        d: scurveH(prevX + 54, prevY + 14, x - 10, y + 14),
-        style: { stroke: color, strokeWidth: 2, fill: 'none' },
-        markerEnd: MARKERS[(index + 1) % MARKERS.length],
-      })); t += 2;
-    }
+    })); t += 3;
   });
 
   if (relationshipCue) {
     scenes.push(scene(t, 'draw_callout', {
       content: relationshipCue,
-      position: [40, 356],
-      width: 300,
+      position: [50, 370],
+      width: 700,
       style: { bg: '#f0fdf4', stroke: '#16a34a', color: '#166534' },
-    })); t += 4;
-  }
-
-  if (detailCue) {
-    scenes.push(scene(t, 'draw_callout', {
-      content: detailCue,
-      position: [360, 356],
-      width: 380,
-      style: { bg: '#eff6ff', stroke: '#2563eb', color: '#1e3a8a' },
-    })); t += 4;
+    })); t += 5;
   }
 
   return scenes;
@@ -5363,35 +5307,35 @@ function buildOverviewVisuals(title, concepts, topics, sentences, continuity, fi
     position: [400, 38], style: { fontSize: 22, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
   })); t += 3;
 
-  const defTopics = topics.slice(0, 4);
+  const defTopics = topics.slice(0, 2);
   if (defTopics.length) {
-    const rowH = 94;
+    const rowH = 140;
     for (let i = 0; i < defTopics.length; i++) {
       const tp = defTopics[i];
-      const y = 78 + i * rowH;
+      const y = 90 + i * rowH;
       const color = COLORS[i % COLORS.length];
       const fill = FILLS[i % FILLS.length];
 
       scenes.push(scene(t, 'draw_badge', {
-        content: truncateWords(tp.topic, 5),
+        content: truncateWords(tp.topic, 4),
         position: [40, y], style: { bg: color, color: '#fff', fontSize: 15 },
-      })); t += 2;
+      })); t += 4;
 
       scenes.push(scene(t, 'draw_rect', {
-        x: 40, y: y + 42, width: 720, height: 54,
-        label: truncateWords(tp.definition || tp.topic, 22),
+        x: 40, y: y + 44, width: 720, height: 64,
+        label: truncateWords(tp.definition || tp.topic, 18),
         style: { fill, stroke: color, strokeWidth: 1.5, rx: 8 },
-      })); t += 4;
+      })); t += 6;
     }
   } else {
-    // Use sentences from narration as definitions
-    for (let i = 0; i < Math.min(4, sentences.length); i++) {
-      const y = 75 + i * 100;
+    // Use sentences from narration as definitions — max 2
+    for (let i = 0; i < Math.min(2, sentences.length); i++) {
+      const y = 90 + i * 150;
       scenes.push(scene(t, 'draw_rect', {
-        x: 40, y, width: 720, height: 70,
-        label: truncateWords(sentences[i], 14),
+        x: 40, y, width: 720, height: 80,
+        label: truncateWords(sentences[i], 16),
         style: { fill: FILLS[i % FILLS.length], stroke: COLORS[i % COLORS.length], strokeWidth: 1.5, rx: 8 },
-      })); t += 5;
+      })); t += 7;
     }
   }
 
@@ -5402,10 +5346,11 @@ function buildOverviewVisuals(title, concepts, topics, sentences, continuity, fi
     position: [400, 38], style: { fontSize: 22, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
   })); t += 3;
 
-  if (concepts.length >= 3) {
-    const connectionCards = concepts.slice(0, 3).map((concept, index) => {
+  if (concepts.length >= 2) {
+    // Show relationship between two key concepts — clean and clear
+    const connectionCards = concepts.slice(0, 2).map((concept, index) => {
       const label = truncateWords(concept, 6);
-      const width = estimateContainerWidth(label, 8.1, 215, 320);
+      const width = estimateContainerWidth(label, 8.1, 250, 340);
       const height = estimateContainerHeight(label, width, 7.6, 18, 80, 118);
       const color = COLORS[index % COLORS.length];
       const fill = FILLS[index % FILLS.length];
@@ -5413,9 +5358,8 @@ function buildOverviewVisuals(title, concepts, topics, sentences, continuity, fi
     });
 
     const positions = [
-      { x: 40, y: 142 },
-      { x: 800 - 40 - connectionCards[1].width, y: 142 },
-      { x: clamp(Math.round((800 - connectionCards[2].width) / 2), 40, 800 - connectionCards[2].width - 40), y: 274 },
+      { x: 50, y: 160 },
+      { x: 800 - 50 - connectionCards[1].width, y: 160 },
     ];
 
     connectionCards.forEach((card, index) => {
@@ -5427,20 +5371,27 @@ function buildOverviewVisuals(title, concepts, topics, sentences, continuity, fi
         height: card.height,
         label: card.label,
         style: { fill: card.fill, stroke: card.color, strokeWidth: 2, rx: 12 },
-      })); t += 3;
+      })); t += 5;
     });
 
+    // One arrow showing the relationship between concepts
     scenes.push(scene(t, 'draw_arrow', {
       from: [positions[0].x + connectionCards[0].width + 14, positions[0].y + connectionCards[0].height / 2],
       to: [positions[1].x - 14, positions[1].y + connectionCards[1].height / 2],
       style: { color: COLORS[1], strokeWidth: 2 },
-    })); t += 3;
+    })); t += 4;
 
-    scenes.push(scene(t, 'draw_arrow', {
-      from: [positions[1].x + connectionCards[1].width / 2, positions[1].y + connectionCards[1].height + 14],
-      to: [positions[2].x + connectionCards[2].width / 2, positions[2].y - 14],
-      style: { color: COLORS[2], strokeWidth: 2 },
-    })); t += 3;
+    // Callout explaining the relationship
+    const relationExplanation = sentences.find((s) =>
+      concepts.slice(0, 2).some((c) => s.toLowerCase().includes(c.toLowerCase()))
+    ) || sentences[0] || '';
+    if (relationExplanation) {
+      scenes.push(scene(t, 'draw_callout', {
+        content: truncateWords(relationExplanation, 20),
+        position: [60, 340], width: 680,
+        style: { bg: '#f0fdf4', stroke: '#16a34a', color: '#166534' },
+      })); t += 5;
+    }
   }
 
   // End of overview — no generic badges, teacher moves on naturally
@@ -5536,42 +5487,33 @@ function buildDetailVisuals(lessonTitle, title, concepts, topics, sentences, con
     position: [400, 38], style: { fontSize: 22, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
   })); t += 3;
 
-  // Two-column comparison if we have enough concepts
+  // Two-column comparison if we have enough concepts — single row to keep board clean (max 5 elements)
   if (concepts.length >= 2) {
-    const colL = 30, colR = 410;
+    const colL = 40, colR = 420;
     scenes.push(scene(t, 'draw_badge', {
-      content: truncateWords(concepts[0], 5), position: [colL + 10, 70],
+      content: truncateWords(concepts[0], 4), position: [colL + 10, 80],
       style: { bg: '#2563eb', color: '#fff', fontSize: 15 },
-    })); t += 2;
+    })); t += 4;
     scenes.push(scene(t, 'draw_badge', {
-      content: truncateWords(concepts[1], 5), position: [colR + 10, 70],
+      content: truncateWords(concepts[1], 4), position: [colR + 10, 80],
       style: { bg: '#7c3aed', color: '#fff', fontSize: 15 },
-    })); t += 3;
+    })); t += 4;
 
-    // Draw comparison rows
-    const rows = Math.min(3, Math.max(topics.length, 2));
-    for (let i = 0; i < rows; i++) {
-      const y = 100 + i * 110;
-      const leftTopic = topics[i * 2] || topics[0];
-      const rightTopic = topics[i * 2 + 1] || topics[Math.min(1, topics.length - 1)];
+    // One comparison row — clear and readable
+    const leftTopic = topics[0];
+    const rightTopic = topics[1] || topics[0];
 
-      scenes.push(scene(t, 'draw_rect', {
-        x: colL, y, width: 360, height: 85,
-        label: truncateWords(leftTopic?.definition || sentences[i] || concepts[0], 18),
-        style: { fill: '#eff6ff', stroke: '#2563eb', strokeWidth: 1.5, rx: 8 },
-      })); t += 3;
+    scenes.push(scene(t, 'draw_rect', {
+      x: colL, y: 130, width: 350, height: 100,
+      label: truncateWords(leftTopic?.definition || sentences[0] || concepts[0], 16),
+      style: { fill: '#eff6ff', stroke: '#2563eb', strokeWidth: 1.5, rx: 8 },
+    })); t += 5;
 
-      scenes.push(scene(t, 'draw_rect', {
-        x: colR, y, width: 360, height: 85,
-        label: truncateWords(rightTopic?.definition || sentences[i + 1] || concepts[1], 18),
-        style: { fill: '#f5f3ff', stroke: '#7c3aed', strokeWidth: 1.5, rx: 8 },
-      })); t += 3;
-
-      scenes.push(scene(t, 'draw_path', {
-        d: scurveH(colL + 360, y + 42, colR, y + 42),
-        style: { stroke: '#94a3b8', strokeWidth: 1.5, fill: 'none' },
-      })); t += 2;
-    }
+    scenes.push(scene(t, 'draw_rect', {
+      x: colR, y: 130, width: 350, height: 100,
+      label: truncateWords(rightTopic?.definition || sentences[1] || concepts[1], 16),
+      style: { fill: '#f5f3ff', stroke: '#7c3aed', strokeWidth: 1.5, rx: 8 },
+    })); t += 5;
   }
 
   // Detail callout
@@ -5991,61 +5933,43 @@ function buildConceptMapBoard(pageConcepts, pageTopics, sentences, startTime) {
   const scenes = [];
   let t = startTime;
   const root = pageConcepts[0] || pageTopics[0]?.topic || 'Core Idea';
-  const relatedConcepts = pageConcepts.slice(1).filter(Boolean).slice(0, 3);
+  const relatedConcepts = pageConcepts.slice(1).filter(Boolean).slice(0, 2); // Max 2 branches
 
+  // Title
   scenes.push(scene(t, 'draw_text', {
-    content: `Concept Map: ${truncateWords(root, 5)}`,
+    content: `Concept Map: ${truncateWords(root, 4)}`,
     position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
   })); t += 3;
 
+  // Central concept
   scenes.push(scene(t, 'draw_rect', {
-    x: 285, y: 182, width: 230, height: 64,
+    x: 270, y: 120, width: 260, height: 70,
     label: truncateWords(root, 6),
     style: { fill: '#eff6ff', stroke: '#2563eb', strokeWidth: 2, rx: 12 },
-  })); t += 3;
+  })); t += 5;
 
+  // Two related concept nodes with arrows (max 5 elements: title + center + 2 arrows toward nodes handled as pairs)
   const nodes = [
-    { x: 34, y: 92, width: 200 },
-    { x: 566, y: 92, width: 200 },
-    { x: 300, y: 318, width: 200 },
+    { x: 60, y: 280, width: 280 },
+    { x: 460, y: 280, width: 280 },
   ];
 
   relatedConcepts.forEach((concept, index) => {
-    const topic = pageTopics.find((entry) => entry?.topic === concept) || pageTopics[index + 1];
     const color = COLORS[(index + 1) % COLORS.length];
     const fill = FILLS[(index + 1) % FILLS.length];
-    const node = nodes[index % nodes.length];
-    const nodeWidth = node.width || 200;
+    const node = nodes[index];
 
     scenes.push(scene(t, 'draw_arrow', {
-      from: [400, 214], to: [node.x + nodeWidth / 2, node.y + 30],
-      label: topic?.relationships?.[0] ? truncateWords(topic.relationships[0], 4) : '',
+      from: [400, 190], to: [node.x + node.width / 2, node.y - 10],
       style: { color, strokeWidth: 2 },
-    })); t += 2;
-
-    scenes.push(scene(t, 'draw_rect', {
-      x: node.x, y: node.y, width: nodeWidth, height: 60,
-      label: truncateWords(concept, 5),
-      style: { fill, stroke: color, strokeWidth: 1.5, rx: 10 },
     })); t += 3;
 
-    if (topic?.definition) {
-      scenes.push(scene(t, 'draw_text', {
-        content: truncateWords(topic.definition, 10),
-        position: [node.x + nodeWidth / 2, node.y + 78],
-        style: { fontSize: 14, color: '#475569', textAnchor: 'middle' },
-      })); t += 2;
-    }
+    scenes.push(scene(t, 'draw_rect', {
+      x: node.x, y: node.y, width: node.width, height: 80,
+      label: truncateWords(concept, 6),
+      style: { fill, stroke: color, strokeWidth: 1.5, rx: 10 },
+    })); t += 5;
   });
-
-  const anchorSentence = sentences.find((sentence) => sentence.toLowerCase().includes(root.toLowerCase())) || sentences[0];
-  if (anchorSentence) {
-    scenes.push(scene(t, 'draw_callout', {
-      content: truncateWords(anchorSentence, 18),
-      position: [70, 424], width: 660,
-      style: { bg: '#f8fafc', stroke: '#64748b', color: '#334155' },
-    })); t += 4;
-  }
 
   return scenes;
 }
@@ -6262,7 +6186,7 @@ function buildDeepDivePages(concepts, topics, sentences, startTime, count, field
       }
 
     } else if (pageType === 'code_display') {
-      // Display commands/code from the document
+      // Display commands/code from the document — limited to 3 lines to stay under 5 elements
       extra.push(scene(t, 'draw_text', {
         content: `Commands & Syntax`,
         position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
@@ -6272,8 +6196,8 @@ function buildDeepDivePages(concepts, topics, sentences, startTime, count, field
       const cmdSentences = sentences.filter((s) =>
         /\b(docker|npm|git|kubectl|sudo|apt|pip|curl|wget|ssh|cd|ls|mkdir|chmod|systemctl|nginx|node|python|java|go)\b/i.test(s)
         || /[a-z]+ [a-z-]+ [a-z-]+/i.test(s) && s.length < 80
-      ).slice(0, 5);
-      const useCmds = cmdSentences.length >= 2 ? cmdSentences : sentences.filter((s) => s.length < 60).slice(0, 5);
+      ).slice(0, 3);
+      const useCmds = cmdSentences.length >= 2 ? cmdSentences : sentences.filter((s) => s.length < 60).slice(0, 3);
 
       // Dark code background
       extra.push(scene(t, 'draw_rect', {
@@ -6281,29 +6205,14 @@ function buildDeepDivePages(concepts, topics, sentences, startTime, count, field
         style: { fill: '#1e293b', stroke: '#334155', strokeWidth: 2, rx: 12 },
       })); t += 3;
 
-      // Terminal badge
-      extra.push(scene(t, 'draw_badge', {
-        content: '$ terminal',
-        position: [45, 68], style: { bg: '#10b981', color: '#fff', fontSize: 10 },
-      })); t += 2;
-
-      for (let i = 0; i < Math.min(5, useCmds.length); i++) {
-        const y = 105 + i * 65;
-        // Command prompt
+      // Max 3 command lines to stay under 5 elements total
+      for (let i = 0; i < Math.min(3, useCmds.length); i++) {
+        const y = 115 + i * 100;
         extra.push(scene(t, 'show_equation', {
           latex: truncateWords(useCmds[i], 8),
           position: [400, y],
           style: { fontSize: 15, color: '#67e8f9' },
-        })); t += 4;
-
-        // Explanation below
-        const tp = pageTopics[i % Math.max(pageTopics.length, 1)];
-        if (tp?.importance) {
-          extra.push(scene(t, 'draw_text', {
-            content: `↳ ${truncateWords(tp.importance, 10)}`,
-            position: [70, y + 28], style: { fontSize: 15, color: '#94a3b8' },
-          })); t += 2;
-        }
+        })); t += 5;
       }
 
     } else if (pageType === 'comparison') {
@@ -6318,72 +6227,69 @@ function buildDeepDivePages(concepts, topics, sentences, startTime, count, field
         style: { color: '#e2e8f0', strokeWidth: 2, dashed: true },
       })); t += 3;
 
-      // Only 2 rows to prevent overlap (4 rects total + divider = 5 elements max)
-      for (let i = 0; i < 2; i++) {
-        const y = 80 + i * 170;
-        const leftTp = pageTopics[i * 2] || pageTopics[0];
-        const rightTp = pageTopics[i * 2 + 1] || pageTopics[Math.min(1, pageTopics.length - 1)];
+      // Single row comparison (title + divider + 2 rects = 4 elements)
+      const leftTp = pageTopics[0];
+      const rightTp = pageTopics[1] || pageTopics[0];
 
-        extra.push(scene(t, 'draw_rect', {
-          x: 25, y, width: 355, height: 130,
-          label: truncateWords(leftTp?.definition || pageConcepts[i * 2] || '', 14),
-          style: { fill: '#eff6ff', stroke: '#2563eb', strokeWidth: 1.5, rx: 8 },
-        })); t += 4;
+      extra.push(scene(t, 'draw_rect', {
+        x: 30, y: 100, width: 350, height: 200,
+        label: truncateWords(leftTp?.definition || pageConcepts[0] || '', 18),
+        style: { fill: '#eff6ff', stroke: '#2563eb', strokeWidth: 1.5, rx: 8 },
+      })); t += 5;
 
-        extra.push(scene(t, 'draw_rect', {
-          x: 420, y, width: 355, height: 130,
-          label: truncateWords(rightTp?.definition || pageConcepts[i * 2 + 1] || '', 14),
-          style: { fill: '#f5f3ff', stroke: '#7c3aed', strokeWidth: 1.5, rx: 8 },
-        })); t += 4;
-      }
+      extra.push(scene(t, 'draw_rect', {
+        x: 420, y: 100, width: 350, height: 200,
+        label: truncateWords(rightTp?.definition || pageConcepts[1] || '', 18),
+        style: { fill: '#f5f3ff', stroke: '#7c3aed', strokeWidth: 1.5, rx: 8 },
+      })); t += 5;
 
     } else if (pageType === 'explanation') {
-      // Teacher writes key sentences one at a time
+      // Teacher writes key sentences one at a time — max 2 per page
       extra.push(scene(t, 'draw_text', {
         content: truncateWords(pageConcepts[0], 5),
         position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
       })); t += 3;
 
-      // Use narration sentences that relate to current concepts — max 3 per page
+      // Use narration sentences that relate to current concepts
       const conceptLower = (pageConcepts[0] || '').toLowerCase();
-      const relevant = sentences.filter((s) => s.toLowerCase().includes(conceptLower)).slice(0, 3);
-      const useLines = relevant.length >= 2 ? relevant : sentences.slice(ci % Math.max(sentences.length, 1), ci % Math.max(sentences.length, 1) + 3);
+      const relevant = sentences.filter((s) => s.toLowerCase().includes(conceptLower)).slice(0, 2);
+      const useLines = relevant.length >= 1 ? relevant : sentences.slice(ci % Math.max(sentences.length, 1), ci % Math.max(sentences.length, 1) + 2);
 
-      for (let i = 0; i < Math.min(3, useLines.length); i++) {
-        const y = 80 + i * 120;
+      for (let i = 0; i < Math.min(2, useLines.length); i++) {
+        const y = 100 + i * 160;
 
-        extra.push(scene(t, 'draw_text', {
-          content: truncateWords(useLines[i], 14),
-          position: [55, y + 20], style: { fontSize: 16, color: '#1f2937' },
-        })); t += 5;
+        extra.push(scene(t, 'draw_callout', {
+          content: truncateWords(useLines[i], 18),
+          position: [50, y], width: 700,
+          style: { bg: FILLS[i % FILLS.length], stroke: COLORS[i % COLORS.length], color: '#1f2937' },
+        })); t += 7;
       }
 
     } else if (pageType === 'process_steps') {
-      // Teacher draws steps one at a time — max 3 per page
+      // Teacher draws steps one at a time — max 2 per page (title + 2 rects + 1 arrow = 4)
       extra.push(scene(t, 'draw_text', {
         content: truncateWords(pageConcepts[0], 5),
         position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
       })); t += 3;
 
-      const stepCount = Math.min(3, pageConcepts.length);
+      const stepCount = Math.min(2, pageConcepts.length);
       for (let i = 0; i < stepCount; i++) {
-        const y = 80 + i * 130;
+        const y = 90 + i * 170;
         const color = COLORS[i % COLORS.length];
         const fill = FILLS[i % FILLS.length];
         const tp = pageTopics[i];
-        const label = tp?.definition ? truncateWords(tp.definition, 14) : truncateWords(pageConcepts[i], 6);
+        const label = tp?.definition ? truncateWords(tp.definition, 16) : truncateWords(pageConcepts[i], 6);
 
-        // Step content box only (no separate badge — the box IS the step)
         extra.push(scene(t, 'draw_rect', {
-          x: 60, y, width: 680, height: 90,
+          x: 60, y, width: 680, height: 110,
           label,
           style: { fill, stroke: color, strokeWidth: 1.5, rx: 8 },
-        })); t += 5;
+        })); t += 6;
 
         // Arrow down to next step
         if (i < stepCount - 1) {
           extra.push(scene(t, 'draw_arrow', {
-            from: [400, y + 90], to: [400, y + 115],
+            from: [400, y + 110], to: [400, y + 150],
             style: { color: '#94a3b8', strokeWidth: 2 },
           })); t += 3;
         }
@@ -6876,31 +6782,32 @@ function fitSceneTimeline(scenes, durationSeconds) {
   if (!safeScenes.length) return [];
 
   const targetEnd = Math.max(12, Math.round(durationSeconds) - 4);
-  const count = safeScenes.length;
 
-  // Strategy: teacher-like pacing — each element gets time to be absorbed
-  // A real teacher writes one thing, pauses to explain, then writes the next
-  const MIN_GAP = 4;           // minimum seconds between any two scenes (teacher pause)
-  const CLEAR_PAUSE = 5;      // seconds to pause after a clear (let student absorb)
-  const POST_CLEAR_GAP = 3;   // extra gap before first element after clear
-
-  // First pass: assign ideal even spacing
-  const avgGap = targetEnd / Math.max(count - 1, 1);
-  const baseGap = Math.max(MIN_GAP, Math.min(avgGap, 5));
+  // Strategy: teacher-like pacing — each element must be visible long enough to absorb
+  // A real teacher writes one thing, pauses 5-8 seconds to let the student read, then continues
+  const MIN_GAP = 5;           // minimum seconds between any two scenes (teacher pause)
+  const CLEAR_PAUSE = 6;      // seconds to pause BEFORE a clear (let student absorb final state)
+  const POST_CLEAR_GAP = 3;   // gap before first element after clear (fresh board moment)
 
   // Count clears to budget time
   const clearCount = safeScenes.filter((s) => s.type === 'clear').length;
-  const extraClearTime = clearCount * (CLEAR_PAUSE + POST_CLEAR_GAP);
-  const availableTime = targetEnd - extraClearTime;
-  const nonClearGap = Math.max(MIN_GAP, availableTime / Math.max(count - clearCount - 1, 1));
+  const nonClearCount = safeScenes.length - clearCount;
 
-  // Second pass: assign times sequentially
+  // Budget: total time minus clear pauses = time available for content gaps
+  const clearBudget = clearCount * (CLEAR_PAUSE + POST_CLEAR_GAP);
+  const availableTime = Math.max(targetEnd - clearBudget, nonClearCount * MIN_GAP);
+  const contentGap = Math.max(MIN_GAP, availableTime / Math.max(nonClearCount - 1, 1));
+
+  // If we would overshoot with ideal spacing, cap number of visible scenes
+  const idealTotalTime = nonClearCount * contentGap + clearBudget;
+  const needsTruncation = idealTotalTime > targetEnd * 1.2;
+
+  // Assign times sequentially
   let t = 0;
   const result = safeScenes.map((entry, index) => {
     if (index === 0) {
-      const newEntry = { ...entry, time: 0 };
       t = 0;
-      return newEntry;
+      return { ...entry, time: 0 };
     }
 
     const prev = safeScenes[index - 1];
@@ -6912,20 +6819,39 @@ function fitSceneTimeline(scenes, durationSeconds) {
     } else if (afterClear) {
       t += POST_CLEAR_GAP;
     } else {
-      t += nonClearGap;
+      t += needsTruncation ? MIN_GAP : contentGap;
     }
 
-    // Clamp to not exceed target
-    t = Math.min(t, targetEnd);
     return { ...entry, time: Math.round(t * 10) / 10 };
   });
 
-  // If we overshot or undershot the target, do a final proportional adjustment
+  // Scale to fit within target duration while preserving relative gaps
   const lastAssigned = result[result.length - 1].time;
-  if (lastAssigned > 0 && Math.abs(lastAssigned - targetEnd) > 5) {
+  if (lastAssigned > 0 && lastAssigned > targetEnd) {
     const scale = targetEnd / lastAssigned;
-    for (let i = 1; i < result.length; i++) {
-      result[i] = { ...result[i], time: Math.round(result[i].time * scale * 10) / 10 };
+    // Only scale if it doesn't compress below MIN_GAP
+    const minScaledGap = MIN_GAP * scale;
+    if (minScaledGap >= 3) {
+      for (let i = 1; i < result.length; i++) {
+        result[i] = { ...result[i], time: Math.round(result[i].time * scale * 10) / 10 };
+      }
+    } else {
+      // Truncate scenes that don't fit rather than compressing to unreadable pace
+      const maxScenes = Math.floor(targetEnd / MIN_GAP) + clearCount;
+      if (result.length > maxScenes) {
+        result.length = maxScenes;
+      }
+      // Re-assign times for truncated list
+      let rt = 0;
+      for (let i = 0; i < result.length; i++) {
+        if (i === 0) { result[i] = { ...result[i], time: 0 }; continue; }
+        const prevEntry = result[i - 1];
+        if (result[i].type === 'clear') rt += CLEAR_PAUSE;
+        else if (prevEntry.type === 'clear') rt += POST_CLEAR_GAP;
+        else rt += MIN_GAP;
+        rt = Math.min(rt, targetEnd);
+        result[i] = { ...result[i], time: Math.round(rt * 10) / 10 };
+      }
     }
   }
 
