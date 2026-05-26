@@ -5334,7 +5334,6 @@ function buildOverviewVisuals(title, concepts, topics, sentences, continuity, fi
 
   if (continuity?.previous) {
     // Skip generic continuity badge — teacher just starts teaching
-    t += 0;
   }
 
   if (field === 'economics') {
