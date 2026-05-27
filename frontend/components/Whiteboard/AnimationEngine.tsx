@@ -3,10 +3,11 @@
  * AnimationEngine — drives the elapsed timer that the Whiteboard uses
  * to decide which scenes to show.
  *
- * It also manages audio playback for TTS narration if an audio_url is provided.
+ * Uses requestAnimationFrame + time delta for precise timing.
+ * Syncs audio playback for TTS narration if an audio_url is provided.
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useLessonStore } from "@/store/lessonStore";
 import type { LessonPart } from "@/lib/types";
 
@@ -17,9 +18,9 @@ interface AnimationEngineProps {
 
 export default function AnimationEngine({ part, onPartComplete }: AnimationEngineProps) {
   const { status, speed, setElapsed, setStatus } = useLessonStore();
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const rafRef = useRef<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  // Use a ref so the setInterval callback always reads the latest elapsed value
+  const lastFrameTimeRef = useRef<number | null>(null);
   const elapsedRef = useRef<number>(0);
 
   // Keep elapsedRef in sync with the store
@@ -28,13 +29,13 @@ export default function AnimationEngine({ part, onPartComplete }: AnimationEngin
     elapsedRef.current = storeElapsed;
   }, [storeElapsed]);
 
-  // Sync audio with play/pause
+  // Audio management
   useEffect(() => {
     if (part.audio_url) {
-      if (!audioRef.current) {
+      if (!audioRef.current || audioRef.current.src !== part.audio_url) {
+        audioRef.current?.pause();
         audioRef.current = new Audio(part.audio_url);
       }
-      audioRef.current.src = part.audio_url;
     }
     return () => {
       audioRef.current?.pause();
@@ -42,37 +43,67 @@ export default function AnimationEngine({ part, onPartComplete }: AnimationEngin
   }, [part.audio_url]);
 
   useEffect(() => {
-    if (!audioRef.current) return;
-    audioRef.current.playbackRate = speed;
+    if (audioRef.current) {
+      audioRef.current.playbackRate = speed;
+    }
   }, [speed]);
 
-  // Drive elapsed timer
+  // Animation frame callback using time delta for precision
+  const tick = useCallback((timestamp: number) => {
+    if (lastFrameTimeRef.current === null) {
+      lastFrameTimeRef.current = timestamp;
+      rafRef.current = requestAnimationFrame(tick);
+      return;
+    }
+
+    const deltaMs = timestamp - lastFrameTimeRef.current;
+    lastFrameTimeRef.current = timestamp;
+
+    // Convert to seconds and apply speed multiplier
+    const deltaSeconds = (deltaMs / 1000) * speed;
+    const next = elapsedRef.current + deltaSeconds;
+    elapsedRef.current = next;
+    setElapsed(next);
+
+    if (next >= part.duration_seconds) {
+      rafRef.current = null;
+      lastFrameTimeRef.current = null;
+      setStatus("idle");
+      onPartComplete();
+      return;
+    }
+
+    rafRef.current = requestAnimationFrame(tick);
+  }, [speed, part.duration_seconds, setElapsed, setStatus, onPartComplete]);
+
+  // Drive animation based on status
   useEffect(() => {
     if (status === "playing") {
-      audioRef.current?.play().catch(() => {});
-      timerRef.current = setInterval(() => {
-        const next = elapsedRef.current + 0.1 * speed;
-        elapsedRef.current = next;
-        setElapsed(next);
-        if (next >= part.duration_seconds) {
-          clearInterval(timerRef.current!);
-          timerRef.current = null;
-          setStatus("idle");
-          onPartComplete();
-        }
-      }, 100);
-    } else {
-      audioRef.current?.pause();
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
+      // Start audio
+      if (audioRef.current) {
+        audioRef.current.currentTime = elapsedRef.current;
+        audioRef.current.play().catch(() => {});
       }
+      // Start animation loop
+      lastFrameTimeRef.current = null;
+      rafRef.current = requestAnimationFrame(tick);
+    } else {
+      // Pause
+      audioRef.current?.pause();
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      lastFrameTimeRef.current = null;
     }
+
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, speed, part.duration_seconds]);
+  }, [status, tick]);
 
   return null; // headless driver
 }
