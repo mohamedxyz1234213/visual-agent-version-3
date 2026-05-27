@@ -601,7 +601,7 @@ export default function UploadZone({ onReady }: UploadZoneProps) {
         </span>
         {file && (
           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
-            &#128206; {file.name}
+            <IconPaperclip className="w-3 h-3" /> {file.name}
             <button onClick={() => setFile(null)} className="ml-0.5 text-emerald-400 hover:text-emerald-600">
               <IconX className="w-3 h-3" />
             </button>
