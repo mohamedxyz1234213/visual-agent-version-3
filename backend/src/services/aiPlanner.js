@@ -4165,6 +4165,15 @@ function buildQuizPart({ orderIndex, title, narration, lessonTitle, concepts, so
 // No static templates. Every visual decision is made dynamically by the AI.
 // =============================================================================
 
+// Visual generation tuning constants
+const SCENES_PER_SECOND = 10; // 1 scene every N seconds of duration
+const MIN_SCENE_COUNT = 12;   // minimum scenes regardless of duration
+const MAX_SCENE_COUNT = 40;   // maximum scenes to avoid overwhelming the board
+const MAX_REFINEMENT_PROMPT_CHARS = 60000; // truncate scene JSON to fit context window
+const MIN_REFINEMENT_RETENTION = 0.7; // accept refinement if at least 70% of scenes retained
+const MAX_TEXT_CONTENT_LENGTH = 80; // max chars for scene text (callouts excluded)
+const MAX_LABEL_LENGTH = 60; // max chars for scene labels
+
 const VISUAL_GENERATION_PROMPT = `You are an elite whiteboard animation director. Your job is to generate the EXACT drawing commands that a whiteboard rendering engine will execute to teach a concept visually.
 
 You are NOT generating descriptions or plans. You are generating the ACTUAL animation timeline — every shape, text, arrow, and clear command with precise coordinates and timing.
@@ -4312,7 +4321,7 @@ async function generateContentVisualsAI({ lessonTitle, part, contentIndex, compr
 CONTEXT FOR THIS PART:
 ${visualContext}
 
-Generate the complete visual timeline for this ${durationSeconds}-second part. Aim for ${Math.max(12, Math.min(Math.ceil(durationSeconds / 10), 40))} scenes.
+Generate the complete visual timeline for this ${durationSeconds}-second part. Aim for ${Math.max(MIN_SCENE_COUNT, Math.min(Math.ceil(durationSeconds / SCENES_PER_SECOND), MAX_SCENE_COUNT))} scenes.
 Remember: you are the TEACHER. Decide the best way to visualize this concept. Choose the right drawing types for the subject matter. Make it feel like a real classroom whiteboard.`;
 
     const result = await callAIRace(generationPrompt, limits.contentTok, limits.contentTimeout, aiProvider, analysisModel);
@@ -4340,12 +4349,12 @@ PART CONTEXT:
 - Canvas: 800x480 pixels
 
 CURRENT VISUAL SEQUENCE (${scenes.length} scenes):
-${JSON.stringify(scenes, null, 1).slice(0, 60000)}
+${JSON.stringify(scenes, null, 1).slice(0, MAX_REFINEMENT_PROMPT_CHARS)}
 
 Review and return the improved sequence.`;
 
       const refined = await callAIRace(refinementPrompt, limits.contentTok, Math.min(limits.contentTimeout, 180_000), aiProvider, analysisModel);
-      if (Array.isArray(refined) && refined.length >= scenes.length * 0.7) {
+      if (Array.isArray(refined) && refined.length >= scenes.length * MIN_REFINEMENT_RETENTION) {
         scenes = refined;
         console.log(`[aiPlanner] Visual Gen Pass 2 OK: refined to ${scenes.length} scenes`);
       }
@@ -4472,12 +4481,12 @@ function validateAIVisualOutput(scenes, durationSeconds) {
     }
     if (typeof s.x === 'number') s.x = clamp(s.x, 20, 700);
     if (typeof s.y === 'number') s.y = clamp(s.y, 20, 420);
-    // Clamp text content length
+    // Clamp text content length (callouts can be longer as they contain explanatory text)
     if (s.content && typeof s.content === 'string' && s.type !== 'draw_callout') {
-      s.content = s.content.slice(0, 80);
+      s.content = s.content.slice(0, MAX_TEXT_CONTENT_LENGTH);
     }
     if (s.label && typeof s.label === 'string') {
-      s.label = s.label.slice(0, 60);
+      s.label = s.label.slice(0, MAX_LABEL_LENGTH);
     }
   }
 

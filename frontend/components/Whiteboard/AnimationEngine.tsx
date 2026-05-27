@@ -33,12 +33,18 @@ export default function AnimationEngine({ part, onPartComplete }: AnimationEngin
   useEffect(() => {
     if (part.audio_url) {
       if (!audioRef.current || audioRef.current.src !== part.audio_url) {
-        audioRef.current?.pause();
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.src = '';
+        }
         audioRef.current = new Audio(part.audio_url);
       }
     }
     return () => {
-      audioRef.current?.pause();
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+      }
     };
   }, [part.audio_url]);
 
