@@ -1,6 +1,6 @@
 /**
  * Whiteboard Template System
- * 60 templates organized into 6 categories for AI-powered whiteboard lessons.
+ * 102 templates organized into 6 categories (17 each) for AI-powered whiteboard lessons.
  * Canvas: 800x480px, 30px margins
  * Colors: #2563eb, #16a34a, #d97706, #7c3aed, #be123c, #0891b2, #0f766e
  */
