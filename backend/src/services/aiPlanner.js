@@ -14,6 +14,7 @@
 
 import dagre from '@dagrejs/dagre';
 import { getBlazeConfig, resolveBlazeModel } from './blazeConfig.js';
+import { selectTemplate, applyTemplate, buildTemplateData } from '../templates/whiteboardTemplates.js';
 
 const STOPWORDS = new Set([
   'about', 'after', 'again', 'against', 'almost', 'also', 'although', 'always',
@@ -4363,10 +4364,22 @@ Review and return the improved sequence.`;
     }
   }
 
-  // ── Fallback: If AI fails completely, generate minimal teaching sequence ──
+  // ── Fallback: If AI fails completely, use rich template system ──
   if (!scenes?.length) {
-    console.warn(`[aiPlanner] Visual Gen: AI failed, using minimal fallback for "${part.title}"`);
-    scenes = buildMinimalFallbackVisuals(part, durationSeconds);
+    console.warn(`[aiPlanner] Visual Gen: AI failed, using template system for "${part.title}"`);
+    try {
+      const templateData = buildTemplateData(part, lessonTitle, comprehension);
+      const hasEquation = (part.visual_logic || []).some(v => v.type === 'equation' || v.semantic_role === 'equation');
+      const hasTable = (part.visual_logic || []).some(v => v.type === 'table' || v.semantic_role === 'table');
+      const hasGraph = (part.visual_logic || []).some(v => v.type === 'graph' || v.type === 'chart' || v.semantic_role === 'data');
+      const hasSteps = (part.visual_logic || []).some(v => v.type === 'process' || v.type === 'step' || v.semantic_role === 'sequence');
+      const template = selectTemplate(field, templateData.concepts, hasEquation, hasTable, hasGraph, hasSteps, contentIndex);
+      scenes = applyTemplate(template.id, templateData);
+      console.log(`[aiPlanner] Template applied: "${template.name}" (id=${template.id}, category=${template.category})`);
+    } catch (tmplErr) {
+      console.warn(`[aiPlanner] Template fallback also failed: ${tmplErr.message}`);
+      scenes = buildMinimalFallbackVisuals(part, durationSeconds);
+    }
   }
 
   // Validate and normalize the AI output
@@ -4495,25 +4508,31 @@ function validateAIVisualOutput(scenes, durationSeconds) {
 
 /**
  * Minimal fallback when AI visual generation completely fails.
- * Creates a basic but functional teaching sequence from part metadata.
+ * Now enhanced to use the template system for rich visuals.
  */
 function buildMinimalFallbackVisuals(part, durationSeconds) {
+  // Try template system first
+  try {
+    const templateData = buildTemplateData(part, part.title || 'Key Concepts', null);
+    const template = selectTemplate('general', templateData.concepts, false, false, false, false, 0);
+    const scenes = applyTemplate(template.id, templateData);
+    if (scenes && scenes.length > 0) return scenes;
+  } catch (e) { /* fall through to basic fallback */ }
+
+  // Ultra-basic fallback only if template system itself fails
   const concepts = (part.key_concepts || []).slice(0, 4);
   const title = truncateWords(part.title || 'Key Concepts', 6);
   const scenes = [];
   let t = 0;
 
-  // Title
   scenes.push({ time: t, type: 'draw_text', content: title, position: [400, 38], style: { fontSize: 24, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' } });
   t += 8;
 
-  // Scene goal as callout
   if (part.scene_goal) {
     scenes.push({ time: t, type: 'draw_callout', content: truncateWords(part.scene_goal, 20), position: [100, 80], width: 600, style: { bg: '#eff6ff', stroke: '#2563eb', color: '#1e3a5f' } });
     t += 10;
   }
 
-  // Key concepts as badges + boxes
   const colors = ['#2563eb', '#16a34a', '#d97706', '#7c3aed'];
   const fills = ['#eff6ff', '#f0fdf4', '#fef3c7', '#f5f3ff'];
   for (let i = 0; i < concepts.length; i++) {
