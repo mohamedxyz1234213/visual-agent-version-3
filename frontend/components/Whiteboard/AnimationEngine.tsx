@@ -87,7 +87,7 @@ export default function AnimationEngine({ part, onPartComplete }: AnimationEngin
     if (status === "playing") {
       // Start audio
       if (audioRef.current) {
-        audioRef.current.currentTime = elapsedRef.current;
+        audioRef.current.currentTime = Math.min(elapsedRef.current, audioRef.current.duration || 0);
         audioRef.current.play().catch(() => {});
       }
       // Start animation loop

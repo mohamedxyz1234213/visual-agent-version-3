@@ -4166,7 +4166,7 @@ function buildQuizPart({ orderIndex, title, narration, lessonTitle, concepts, so
 // =============================================================================
 
 // Visual generation tuning constants
-const SCENES_PER_SECOND = 10; // 1 scene every N seconds of duration
+const SECONDS_PER_SCENE = 10; // 1 scene every N seconds of duration
 const MIN_SCENE_COUNT = 12;   // minimum scenes regardless of duration
 const MAX_SCENE_COUNT = 40;   // maximum scenes to avoid overwhelming the board
 const MAX_REFINEMENT_PROMPT_CHARS = 60000; // truncate scene JSON to fit context window
@@ -4321,7 +4321,7 @@ async function generateContentVisualsAI({ lessonTitle, part, contentIndex, compr
 CONTEXT FOR THIS PART:
 ${visualContext}
 
-Generate the complete visual timeline for this ${durationSeconds}-second part. Aim for ${Math.max(MIN_SCENE_COUNT, Math.min(Math.ceil(durationSeconds / SCENES_PER_SECOND), MAX_SCENE_COUNT))} scenes.
+Generate the complete visual timeline for this ${durationSeconds}-second part. Aim for ${Math.max(MIN_SCENE_COUNT, Math.min(Math.ceil(durationSeconds / SECONDS_PER_SCENE), MAX_SCENE_COUNT))} scenes.
 Remember: you are the TEACHER. Decide the best way to visualize this concept. Choose the right drawing types for the subject matter. Make it feel like a real classroom whiteboard.`;
 
     const result = await callAIRace(generationPrompt, limits.contentTok, limits.contentTimeout, aiProvider, analysisModel);
@@ -5004,7 +5004,7 @@ function fitSceneTimeline(scenes, durationSeconds) {
 
   // If we would overshoot with ideal spacing, cap number of visible scenes
   const idealTotalTime = nonClearCount * contentGap + clearBudget;
-  const needsTruncation = idealTotalTime > targetEnd * 1.2;
+  const useMinimumSpacing = idealTotalTime > targetEnd * 1.2;
 
   // Assign times sequentially
   let t = 0;
@@ -5023,7 +5023,7 @@ function fitSceneTimeline(scenes, durationSeconds) {
     } else if (afterClear) {
       t += POST_CLEAR_GAP;
     } else {
-      t += needsTruncation ? MIN_GAP : contentGap;
+      t += useMinimumSpacing ? MIN_GAP : contentGap;
     }
 
     return { ...entry, time: Math.round(t * 10) / 10 };
