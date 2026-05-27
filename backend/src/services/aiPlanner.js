@@ -1356,12 +1356,13 @@ MATERIAL:\n${(lessonSpec.section_text || '').slice(0, refineSourceLimit)}`;
     finalPlan = buildFallbackLesson(lessonSpec);
   }
 
-  // Ensure every content part has visual sequences
+  // ── AI-DRIVEN VISUAL GENERATION ──
+  // Each part gets its own AI call for visual generation (multi-request for quality)
   const contentParts = finalPlan.parts.filter((p) => p.part_type === 'content');
   for (let i = 0; i < contentParts.length; i++) {
     await report(`planning_visuals_${i + 1}`);
     const part = contentParts[i];
-    part.visual_sequence = generateContentVisuals({
+    part.visual_sequence = await generateContentVisualsAI({
       lessonTitle: finalPlan.title,
       part,
       contentIndex: i,
@@ -1371,13 +1372,13 @@ MATERIAL:\n${(lessonSpec.section_text || '').slice(0, refineSourceLimit)}`;
         previous: lessonSpec.previous_lesson_title,
         next: lessonSpec.next_lesson_title,
       },
-    });
+    }, aiProvider, analysisModel);
   }
 
-  // Ensure quiz parts have visuals
+  // AI-driven quiz visuals
   for (const part of finalPlan.parts) {
     if (part.part_type === 'quiz' && !part.visual_sequence?.length) {
-      part.visual_sequence = generateQuizVisuals(finalPlan.title, part);
+      part.visual_sequence = await generateQuizVisualsAI(finalPlan.title, part, aiProvider, analysisModel);
     }
   }
 
@@ -2025,12 +2026,12 @@ function estimateContainerHeight(text, width, pxPerChar = 7.6, lineHeight = 18, 
   return clamp(24 + lines * lineHeight, minHeight, maxHeight);
 }
 
-function clampBoxX(x, width, padding = 24) {
+function clampBoxX(x, width, padding = 40) {
   if (!Number.isFinite(Number(x)) || !Number.isFinite(Number(width))) return x;
   return clamp(Number(x), padding, 800 - Number(width) - padding);
 }
 
-function clampBoxY(y, height, padding = 24) {
+function clampBoxY(y, height, padding = 40) {
   if (!Number.isFinite(Number(y)) || !Number.isFinite(Number(height))) return y;
   return clamp(Number(y), 56, 500 - Number(height) - padding);
 }
@@ -2183,7 +2184,7 @@ function estimateSceneLayoutBox(scene) {
 }
 
 // Minimum spacing between whiteboard elements to prevent visual clutter
-const SCENE_ELEMENT_GAP = 28;
+const SCENE_ELEMENT_GAP = 40; // Minimum 40px between unrelated elements (pedagogical requirement)
 const SCENE_OVERLAP_PADDING = 24;
 
 function sceneBoxesOverlap(left, right, padding = SCENE_OVERLAP_PADDING) {
@@ -3515,7 +3516,7 @@ function validateAndFixPlan(aiPlan, lessonSpec) {
       learning_objective: pedagogicalPlan.learning_objective,
       visual_logic: pedagogicalPlan.visual_logic,
       animation_sequence: pedagogicalPlan.animation_sequence,
-      visual_sequence: normalizeVisualSequence(Array.isArray(part.visual_sequence) ? part.visual_sequence : [], clamp(Number(part.duration_seconds) || 300, 55, 600)),
+      visual_sequence: validateAIVisualOutput(Array.isArray(part.visual_sequence) ? part.visual_sequence : [], clamp(Number(part.duration_seconds) || 300, 55, 600)),
     };
 
     if (part.part_type === 'quiz') {
@@ -4153,16 +4154,405 @@ function buildQuizPart({ orderIndex, title, narration, lessonTitle, concepts, so
     duration_seconds: 55,
     narration,
     key_concepts: [],
-    visual_sequence: generateQuizVisuals(lessonTitle, { title, duration_seconds: 55, narration, quiz_questions: quizQuestions }),
+    visual_sequence: buildMinimalQuizFallback(lessonTitle, { title, duration_seconds: 55, narration, quiz_questions: quizQuestions }, 55),
     quiz_questions: quizQuestions,
   };
 }
 
 // =============================================================================
-// VISUAL GENERATION ENGINE
-// Every visual element must teach something from the document
+// AI-DRIVEN VISUAL GENERATION ENGINE
+// The AI decides EVERYTHING: what to draw, when, how, pacing, layout, style.
+// No static templates. Every visual decision is made dynamically by the AI.
 // =============================================================================
 
+// Visual generation tuning constants
+const SECONDS_PER_SCENE = 10; // 1 scene every N seconds of duration
+const MIN_SCENE_COUNT = 12;   // minimum scenes regardless of duration
+const MAX_SCENE_COUNT = 40;   // maximum scenes to avoid overwhelming the board
+const MAX_REFINEMENT_PROMPT_CHARS = 60000; // truncate scene JSON to fit context window
+const MIN_REFINEMENT_RETENTION = 0.7; // accept refinement if at least 70% of scenes retained
+const MAX_TEXT_CONTENT_LENGTH = 80; // max chars for scene text (callouts excluded)
+const MAX_LABEL_LENGTH = 60; // max chars for scene labels
+
+const VISUAL_GENERATION_PROMPT = `You are an elite whiteboard animation director. Your job is to generate the EXACT drawing commands that a whiteboard rendering engine will execute to teach a concept visually.
+
+You are NOT generating descriptions or plans. You are generating the ACTUAL animation timeline — every shape, text, arrow, and clear command with precise coordinates and timing.
+
+AVAILABLE DRAWING PRIMITIVES (use ONLY these):
+
+1. draw_text: Write text on the board
+   { "time": N, "type": "draw_text", "content": "short text 3-12 words", "position": [x, y], "style": { "fontSize": 14-28, "color": "#hex", "fontWeight": "bold|normal", "textAnchor": "start|middle|end" } }
+
+2. draw_rect: Draw a labeled box
+   { "time": N, "type": "draw_rect", "x": N, "y": N, "width": N, "height": N, "label": "short label", "style": { "fill": "#hex", "stroke": "#hex", "strokeWidth": 1-3, "rx": 0-16 } }
+
+3. draw_circle: Draw a labeled circle
+   { "time": N, "type": "draw_circle", "center": [x, y], "radius": N, "label": "short", "style": { "fill": "#hex", "stroke": "#hex", "strokeWidth": 1-3 } }
+
+4. draw_arrow: Draw a directional arrow (cause→effect, flow, dependency)
+   { "time": N, "type": "draw_arrow", "from": [x, y], "to": [x, y], "label": "relationship", "style": { "color": "#hex", "strokeWidth": 1-3 } }
+
+5. draw_line: Draw a simple line
+   { "time": N, "type": "draw_line", "from": [x, y], "to": [x, y], "style": { "color": "#hex", "strokeWidth": 1-3, "dashed": true|false } }
+
+6. draw_badge: Small colored label chip
+   { "time": N, "type": "draw_badge", "content": "1-4 words", "position": [x, y], "style": { "bg": "#hex", "color": "#fff", "fontSize": 13-16 } }
+
+7. draw_callout: Explanation box with background
+   { "time": N, "type": "draw_callout", "content": "explanation sentence max 25 words", "position": [x, y], "width": 200-600, "style": { "bg": "#hex", "stroke": "#hex", "color": "#hex" } }
+
+8. draw_path: SVG path for custom shapes/curves
+   { "time": N, "type": "draw_path", "d": "M x y C ...", "style": { "fill": "none", "stroke": "#hex", "strokeWidth": 1-3 } }
+
+9. show_equation: Display a math formula
+   { "time": N, "type": "show_equation", "latex": "E = mc^2", "position": [x, y], "style": { "fontSize": 18-26, "color": "#hex" } }
+
+10. draw_table: Data comparison table
+    { "time": N, "type": "draw_table", "headers": ["Col1", "Col2"], "rows": [["val1", "val2"]], "position": [x, y], "cell_width": 100-200, "cell_height": 30-40 }
+
+11. draw_graph: Bar or line chart
+    { "time": N, "type": "draw_graph", "graph_type": "bar|line", "title": "short", "position": [x, y], "size": [w, h], "data": { "values": [N, ...], "labels": ["...", ...] } }
+
+12. draw_coordinate_system: Mathematical coordinate plane with plotted points
+    { "time": N, "type": "draw_coordinate_system", "origin": [x, y], "size": [w, h], "x_label": "X axis", "y_label": "Y axis", "plot_points": [[x,y], ...] }
+
+13. draw_object: Pre-built illustrative objects
+    { "time": N, "type": "draw_object", "object_type": "cell|network|blockchain|cycle|gear|document|checklist|triangle|leaf|flask|lightbulb|target|book|dialogue|layers|compass", "position": [x, y], "size": [w, h], "label": "short", "annotations": ["label1", "label2"] }
+
+14. draw_physics_shape: Physics diagrams
+    { "time": N, "type": "draw_physics_shape", "shape_type": "spring|pendulum|inclined_plane|pulley|free_body|wave|box_on_surface|bottle", "position": [x, y], "size": [w, h], "label": "short", "annotations": ["force1", "force2"] }
+
+15. highlight: Highlight existing text
+    { "time": N, "type": "highlight", "target": "text to highlight", "style": { "color": "#hex" } }
+
+16. clear: Erase the board (like a teacher wiping the whiteboard)
+    { "time": N, "type": "clear" }
+
+CANVAS: 800 x 480 pixels. Keep all elements within bounds with 30px margins.
+
+TEACHER-LIKE ANIMATION RULES:
+- Start with a title/hook at the top (y: 30-50)
+- Reveal ONE element at a time with 5-8 second gaps between elements
+- Use "clear" between major concept shifts (like erasing the board)
+- Maximum 5 elements visible at once before clearing
+- Build complexity: simple keyword → explanation → relationship → example
+- Every arrow must show a REAL relationship (cause→effect, input→output, before→after)
+- Use varied visual types across the timeline — never repeat the same pattern
+- Total scenes should be proportional to duration: aim for 1 new element every 8-12 seconds
+- Titles at top (y: 30-50), main content in middle (y: 80-380), summary at bottom (y: 400-460)
+
+COLOR PALETTE (use these for visual consistency):
+- Primary: #2563eb (blue), #16a34a (green), #d97706 (amber), #7c3aed (purple)
+- Accent: #be123c (red), #0891b2 (cyan), #ca8a04 (gold), #0f766e (teal)
+- Fills: #eff6ff, #f0fdf4, #fef3c7, #f5f3ff, #fff1f2, #ecfeff
+- Text: #1e3a5f (dark blue), #374151 (dark gray), #1f2937 (near black)
+
+RETURN FORMAT:
+Return ONLY a JSON array of scene objects. No markdown. No explanation. Just the array.
+[
+  { "time": 0, "type": "draw_text", ... },
+  { "time": 6, "type": "draw_rect", ... },
+  ...
+]`;
+
+const VISUAL_REFINEMENT_PROMPT = `You are a whiteboard animation quality controller. Review the visual sequence below and IMPROVE it.
+
+CHECK FOR AND FIX:
+1. OVERLAP: Elements placed too close together (need 60px+ between elements)
+2. PACING: Gaps between elements should be 5-10 seconds (not too fast, not too slow)
+3. VARIETY: No two consecutive elements should be the same type
+4. CLARITY: Text must be short (3-12 words). Labels must be meaningful.
+5. TEACHING FLOW: Does it build understanding progressively? Hook → Concept → Relationship → Example → Summary
+6. DENSITY: Maximum 5 elements per page before a "clear". If more, add clear commands.
+7. BOUNDS: All elements must fit within 800x480 canvas with 30px margins
+8. ARROWS: Every arrow must connect TWO meaningful concepts. No decorative arrows.
+9. TIMING: Total timeline must fit within the specified duration.
+10. UNIQUENESS: Each page (between clears) must look visually distinct from others.
+
+If the sequence is good (scores 9/10+ on all criteria), return it unchanged.
+If it needs fixes, return the IMPROVED version.
+
+Return ONLY the JSON array. No markdown. No explanation.`;
+
+/**
+ * AI-driven visual generation: The AI decides what to draw, how, and when.
+ * Uses multiple AI requests for quality:
+ *   1. Generation pass: AI creates the visual timeline
+ *   2. Refinement pass: AI reviews and improves its own output
+ */
+async function generateContentVisualsAI({ lessonTitle, part, contentIndex, comprehension, continuity, explanationMode = 'full_lesson' }, aiProvider, analysisModel) {
+  const limits = PROVIDER_LIMITS[aiProvider] || PROVIDER_LIMITS.blaze;
+  const durationSeconds = Number(part.duration_seconds) || 300;
+  const field = comprehension?.field || 'general';
+
+  // Build rich context for the AI to make visual decisions
+  const visualContext = [
+    `LESSON: "${lessonTitle}"`,
+    `PART TITLE: "${part.title || 'Untitled'}"`,
+    `PART INDEX: ${contentIndex + 1} (of the lesson)`,
+    `DURATION: ${durationSeconds} seconds`,
+    `FIELD/SUBJECT: ${field}`,
+    `EXPLANATION MODE: ${explanationMode}`,
+    `SCENE GOAL: ${part.scene_goal || 'Teach the concept clearly'}`,
+    `LEARNING OBJECTIVE: ${part.learning_objective || 'Understand the main idea'}`,
+    `KEY CONCEPTS: ${(part.key_concepts || []).join(', ')}`,
+    part.visual_logic?.length ? `AI VISUAL SUGGESTIONS: ${JSON.stringify(part.visual_logic)}` : '',
+    `NARRATION (what the teacher is saying): ${(part.narration || '').slice(0, 2000)}`,
+    continuity?.previous ? `PREVIOUS PART: "${continuity.previous}"` : '',
+    continuity?.next ? `NEXT PART: "${continuity.next}"` : '',
+    comprehension?.teaching_approach ? `TEACHING APPROACH: ${comprehension.teaching_approach}` : '',
+  ].filter(Boolean).join('\n');
+
+  const modeGuidance = explanationMode === 'visual_first'
+    ? '\nMODE OVERRIDE: VISUAL FIRST — Use MORE visual elements (25-40 scenes). Prioritize diagrams, objects, and graphs over text. Keep text minimal.'
+    : explanationMode === 'step_by_step'
+      ? '\nMODE OVERRIDE: STEP BY STEP — Number each concept visually. Use frequent clears. Show one step per page.'
+      : explanationMode === 'text_focus'
+        ? '\nMODE OVERRIDE: TEXT FOCUS — Use callouts and labeled diagrams. Build dense, information-rich pages. Fewer clears.'
+        : '';
+
+  // ── Pass 1: AI generates the visual timeline ──
+  console.log(`[aiPlanner] Visual Gen Pass 1: AI generating visuals for "${part.title}" (duration=${durationSeconds}s, field=${field})`);
+  let scenes = null;
+
+  try {
+    const generationPrompt = `${VISUAL_GENERATION_PROMPT}${modeGuidance}
+
+CONTEXT FOR THIS PART:
+${visualContext}
+
+Generate the complete visual timeline for this ${durationSeconds}-second part. Aim for ${Math.max(MIN_SCENE_COUNT, Math.min(Math.ceil(durationSeconds / SECONDS_PER_SCENE), MAX_SCENE_COUNT))} scenes.
+Remember: you are the TEACHER. Decide the best way to visualize this concept. Choose the right drawing types for the subject matter. Make it feel like a real classroom whiteboard.`;
+
+    const result = await callAIRace(generationPrompt, limits.contentTok, limits.contentTimeout, aiProvider, analysisModel);
+    if (Array.isArray(result) && result.length > 0) {
+      scenes = result;
+      console.log(`[aiPlanner] Visual Gen Pass 1 OK: ${scenes.length} scenes generated`);
+    } else if (result?.visual_sequence && Array.isArray(result.visual_sequence)) {
+      scenes = result.visual_sequence;
+      console.log(`[aiPlanner] Visual Gen Pass 1 OK (wrapped): ${scenes.length} scenes`);
+    }
+  } catch (error) {
+    console.warn(`[aiPlanner] Visual Gen Pass 1 failed: ${error.message}`);
+  }
+
+  // ── Pass 2: AI refines the visual timeline ──
+  if (scenes?.length) {
+    try {
+      console.log(`[aiPlanner] Visual Gen Pass 2: AI refining ${scenes.length} scenes...`);
+      const refinementPrompt = `${VISUAL_REFINEMENT_PROMPT}
+
+PART CONTEXT:
+- Title: "${part.title}"
+- Duration: ${durationSeconds} seconds
+- Field: ${field}
+- Canvas: 800x480 pixels
+
+CURRENT VISUAL SEQUENCE (${scenes.length} scenes):
+${JSON.stringify(scenes, null, 1).slice(0, MAX_REFINEMENT_PROMPT_CHARS)}
+
+Review and return the improved sequence.`;
+
+      const refined = await callAIRace(refinementPrompt, limits.contentTok, Math.min(limits.contentTimeout, 180_000), aiProvider, analysisModel);
+      if (Array.isArray(refined) && refined.length >= scenes.length * MIN_REFINEMENT_RETENTION) {
+        scenes = refined;
+        console.log(`[aiPlanner] Visual Gen Pass 2 OK: refined to ${scenes.length} scenes`);
+      }
+    } catch (refineErr) {
+      console.warn(`[aiPlanner] Visual Gen Pass 2 skipped: ${refineErr.message}`);
+    }
+  }
+
+  // ── Fallback: If AI fails completely, generate minimal teaching sequence ──
+  if (!scenes?.length) {
+    console.warn(`[aiPlanner] Visual Gen: AI failed, using minimal fallback for "${part.title}"`);
+    scenes = buildMinimalFallbackVisuals(part, durationSeconds);
+  }
+
+  // Validate and normalize the AI output
+  scenes = validateAIVisualOutput(scenes, durationSeconds);
+  return scenes;
+}
+
+/**
+ * AI-driven quiz visual generation.
+ */
+async function generateQuizVisualsAI(lessonTitle, part, aiProvider, analysisModel) {
+  const limits = PROVIDER_LIMITS[aiProvider] || PROVIDER_LIMITS.blaze;
+  const durationSeconds = Number(part.duration_seconds) || 55;
+
+  const quizContext = [
+    `LESSON: "${lessonTitle}"`,
+    `QUIZ TITLE: "${part.title || 'Knowledge Check'}"`,
+    `DURATION: ${durationSeconds} seconds`,
+    `QUESTIONS:`,
+    ...(part.quiz_questions || []).map((q, i) => `  Q${i + 1} (${q.question_type}): ${q.question_text}${q.options?.choices ? '\n    Options: ' + q.options.choices.join(', ') : ''}`),
+  ].join('\n');
+
+  try {
+    const prompt = `${VISUAL_GENERATION_PROMPT}
+
+SPECIAL MODE: QUIZ VISUALIZATION
+Generate a visual sequence that presents quiz questions on the whiteboard like a teacher would:
+- Show each question clearly with its options
+- Use draw_rect for multiple choice options (2x2 grid layout)
+- Use draw_callout for question text
+- Use draw_badge for question numbers
+- Use clear between different questions
+- Make it interactive and engaging
+
+CONTEXT:
+${quizContext}
+
+Generate the visual timeline for this ${durationSeconds}-second quiz.`;
+
+    const result = await callAIRace(prompt, limits.contentTok, Math.min(limits.contentTimeout, 120_000), aiProvider, analysisModel);
+    if (Array.isArray(result) && result.length > 0) {
+      return validateAIVisualOutput(result, durationSeconds);
+    }
+  } catch (error) {
+    console.warn(`[aiPlanner] Quiz Visual Gen failed: ${error.message}`);
+  }
+
+  // Fallback for quiz visuals
+  return buildMinimalQuizFallback(lessonTitle, part, durationSeconds);
+}
+
+/**
+ * Validate and fix AI-generated visual output to ensure it renders correctly.
+ */
+function validateAIVisualOutput(scenes, durationSeconds) {
+  if (!Array.isArray(scenes)) return [];
+
+  const VALID_TYPES = new Set([
+    'draw_text', 'draw_rect', 'draw_circle', 'draw_arrow', 'draw_path',
+    'draw_badge', 'draw_callout', 'draw_line', 'show_equation',
+    'draw_table', 'draw_graph', 'draw_coordinate_system',
+    'draw_object', 'draw_physics_shape', 'highlight', 'clear',
+  ]);
+
+  // Filter out invalid scenes and normalize
+  let validated = scenes
+    .filter((s) => s && typeof s === 'object' && VALID_TYPES.has(s.type))
+    .map((s) => ({
+      ...s,
+      time: Math.max(0, Number(s.time) || 0),
+    }));
+
+  // Sort by time
+  validated.sort((a, b) => a.time - b.time);
+
+  // Enforce density limit: max 5 non-clear elements per page
+  const densityLimited = [];
+  let pageCount = 0;
+  for (const entry of validated) {
+    if (entry.type === 'clear') {
+      densityLimited.push(entry);
+      pageCount = 0;
+      continue;
+    }
+    pageCount++;
+    if (pageCount <= 5) {
+      densityLimited.push(entry);
+    } else if (pageCount === 6) {
+      densityLimited.push({ type: 'clear', time: entry.time });
+      densityLimited.push(entry);
+      pageCount = 1;
+    }
+  }
+
+  // Clamp positions within canvas bounds
+  for (const s of densityLimited) {
+    if (s.position) {
+      s.position = [
+        clamp(Number(s.position[0]) || 0, 30, 770),
+        clamp(Number(s.position[1]) || 0, 20, 460),
+      ];
+    }
+    if (s.center) {
+      s.center = [
+        clamp(Number(s.center[0]) || 0, 60, 740),
+        clamp(Number(s.center[1]) || 0, 60, 420),
+      ];
+    }
+    if (s.from && s.to) {
+      s.from = [clamp(Number(s.from[0]) || 0, 20, 780), clamp(Number(s.from[1]) || 0, 20, 460)];
+      s.to = [clamp(Number(s.to[0]) || 0, 20, 780), clamp(Number(s.to[1]) || 0, 20, 460)];
+    }
+    if (typeof s.x === 'number') s.x = clamp(s.x, 20, 700);
+    if (typeof s.y === 'number') s.y = clamp(s.y, 20, 420);
+    // Clamp text content length (callouts can be longer as they contain explanatory text)
+    if (s.content && typeof s.content === 'string' && s.type !== 'draw_callout') {
+      s.content = s.content.slice(0, MAX_TEXT_CONTENT_LENGTH);
+    }
+    if (s.label && typeof s.label === 'string') {
+      s.label = s.label.slice(0, MAX_LABEL_LENGTH);
+    }
+  }
+
+  return fitSceneTimeline(densityLimited, durationSeconds);
+}
+
+/**
+ * Minimal fallback when AI visual generation completely fails.
+ * Creates a basic but functional teaching sequence from part metadata.
+ */
+function buildMinimalFallbackVisuals(part, durationSeconds) {
+  const concepts = (part.key_concepts || []).slice(0, 4);
+  const title = truncateWords(part.title || 'Key Concepts', 6);
+  const scenes = [];
+  let t = 0;
+
+  // Title
+  scenes.push({ time: t, type: 'draw_text', content: title, position: [400, 38], style: { fontSize: 24, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' } });
+  t += 8;
+
+  // Scene goal as callout
+  if (part.scene_goal) {
+    scenes.push({ time: t, type: 'draw_callout', content: truncateWords(part.scene_goal, 20), position: [100, 80], width: 600, style: { bg: '#eff6ff', stroke: '#2563eb', color: '#1e3a5f' } });
+    t += 10;
+  }
+
+  // Key concepts as badges + boxes
+  const colors = ['#2563eb', '#16a34a', '#d97706', '#7c3aed'];
+  const fills = ['#eff6ff', '#f0fdf4', '#fef3c7', '#f5f3ff'];
+  for (let i = 0; i < concepts.length; i++) {
+    if (i > 0 && i % 2 === 0) {
+      scenes.push({ time: t, type: 'clear' });
+      t += 6;
+      scenes.push({ time: t, type: 'draw_text', content: title, position: [400, 38], style: { fontSize: 22, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' } });
+      t += 6;
+    }
+    const y = 140 + (i % 2) * 130;
+    scenes.push({ time: t, type: 'draw_badge', content: `${i + 1}`, position: [50, y], style: { bg: colors[i % 4], color: '#fff', fontSize: 15 } });
+    t += 4;
+    scenes.push({ time: t, type: 'draw_rect', x: 80, y: y + 10, width: 640, height: 80, label: truncateWords(concepts[i], 10), style: { fill: fills[i % 4], stroke: colors[i % 4], strokeWidth: 2, rx: 10 } });
+    t += 8;
+  }
+
+  return scenes;
+}
+
+/**
+ * Minimal quiz fallback when AI fails.
+ */
+function buildMinimalQuizFallback(lessonTitle, part, durationSeconds) {
+  const q1 = part.quiz_questions?.[0];
+  const options = (q1?.options?.choices || []).slice(0, 4);
+  const scenes = [
+    { time: 0, type: 'draw_text', content: truncateWords(part.title || 'Knowledge Check', 5), position: [400, 42], style: { fontSize: 24, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' } },
+    { time: 4, type: 'draw_badge', content: 'Quiz', position: [42, 24], style: { bg: '#0f766e', color: '#fff', fontSize: 15 } },
+    { time: 8, type: 'draw_callout', content: clampText(q1?.question_text || `Which idea best captures ${lessonTitle}?`, 140), position: [110, 96], width: 580, style: { bg: '#eff6ff', stroke: '#60a5fa', color: '#1e3a8a' } },
+  ];
+  const choicePositions = [[70, 206], [430, 206], [70, 302], [430, 302]];
+  const choiceColors = ['#2563eb', '#16a34a', '#d97706', '#7c3aed'];
+  for (let i = 0; i < Math.min(options.length, 4); i++) {
+    scenes.push({ time: 14 + i * 5, type: 'draw_rect', x: choicePositions[i][0], y: choicePositions[i][1], width: 300, height: 74, label: `${String.fromCharCode(65 + i)}. ${clampText(options[i], 28)}`, style: { fill: '#f8fafc', stroke: choiceColors[i], strokeWidth: 2, rx: 12 } });
+  }
+  return fitSceneTimeline(scenes, durationSeconds);
+}
+
+// Legacy helper kept for backward compat in buildFallbackLesson
 function selectPedagogicalStrategy(part, contentIndex, explanationMode) {
   const goalText = normalizePlannerPhrase(`${part.scene_goal || ''} ${part.learning_objective || ''} ${part.title || ''}`);
   const relationships = (Array.isArray(part.visual_logic) ? part.visual_logic : [])
@@ -4200,2289 +4590,9 @@ function selectPedagogicalStrategy(part, contentIndex, explanationMode) {
     return contentIndex === 0 ? 'overview' : 'detail';
   }
 
-  // Dynamic strategy rotation — prevents same visual pattern across parts
+  // Dynamic strategy rotation
   const strategies = ['overview', 'detail', 'application'];
-  const seed = hashVisualSeed(`${part.title || ''}|${contentIndex}|${part.scene_goal || ''}`);
-  return strategies[(contentIndex + seed) % strategies.length];
-}
-
-function buildPedagogicalTopicEntry(entry, part) {
-  const topic = normalizeText(entry?.content || '');
-  if (!topic) return null;
-
-  const roleText = String(entry.semantic_role || 'supporting_point').replace(/_/g, ' ');
-  const relationshipText = String(entry.relationship || 'association').replace(/_/g, ' ');
-  const typeText = String(entry.type || 'callout').replace(/_/g, ' ');
-  const goalText = normalizeText(part.scene_goal || part.title || 'this lesson');
-
-  return {
-    topic,
-    definition: `${topic} is the ${roleText} used to teach ${goalText}.`,
-    importance: relationshipText === 'example'
-      ? `${topic} grounds the explanation in a concrete case.`
-      : relationshipText === 'sequence'
-        ? `${topic} marks one visible step in the teaching flow.`
-        : `${topic} supports the main explanation with a purposeful visual role.`,
-    details: uniqueNormalizedStrings([
-      part.learning_objective || '',
-      `${topic} should appear as a ${typeText}.`,
-    ], 2),
-    relationships: [`${topic} connects through ${relationshipText}.`],
-  };
-}
-
-function buildPedagogicalTopicPool(part, topics, concepts) {
-  const matchedTopics = (Array.isArray(topics) ? topics : []).filter((topic) =>
-    concepts.some((concept) => topic.topic.toLowerCase().includes(concept.toLowerCase()) || concept.toLowerCase().includes(topic.topic.toLowerCase()))
-  );
-
-  const mergedTopics = [...matchedTopics];
-  const seen = new Set(matchedTopics.map((topic) => normalizeText(topic.topic).toLowerCase()));
-
-  for (const entry of Array.isArray(part.visual_logic) ? part.visual_logic : []) {
-    const topicEntry = buildPedagogicalTopicEntry(entry, part);
-    if (!topicEntry) continue;
-
-    const signature = normalizeText(topicEntry.topic).toLowerCase();
-    if (!signature || seen.has(signature)) continue;
-
-    seen.add(signature);
-    mergedTopics.push(topicEntry);
-    if (mergedTopics.length >= 6) break;
-  }
-
-  if (!mergedTopics.length) {
-    return concepts.slice(0, 4).map((concept) => ({
-      topic: concept,
-      definition: `${concept} is a central idea in this part of the lesson.`,
-      importance: `${concept} helps the learner understand the part's main goal.`,
-      details: uniqueNormalizedStrings([part.learning_objective || '', part.scene_goal || ''], 2),
-      relationships: [],
-    }));
-  }
-
-  return mergedTopics.slice(0, 6);
-}
-
-function generateContentVisuals({ lessonTitle, part, contentIndex, comprehension, continuity, explanationMode = 'full_lesson' }) {
-  const concepts = sanitizeConceptList([
-    ...(Array.isArray(part.key_concepts) ? part.key_concepts : []),
-    part.scene_goal,
-    part.learning_objective,
-    ...(Array.isArray(part.visual_logic) ? part.visual_logic.map((entry) => entry?.content) : []),
-  ], `${lessonTitle}\n${part.title || ''}\n${part.narration || ''}`, 10);
-  const topics = comprehension?.key_topics || [];
-  const field = comprehension?.field || detectField(`${lessonTitle} ${part.narration || ''}`);
-  const narrationSentences = extractSentences(part.narration || '');
-  const durationSeconds = Number(part.duration_seconds) || 300;
-  const visualField = detectVisualField(field, concepts, narrationSentences, `${lessonTitle} ${part.title || ''}`);
-
-  const relevantTopics = buildPedagogicalTopicPool(part, topics, concepts);
-  const strategy = selectPedagogicalStrategy(part, contentIndex, explanationMode);
-
-  console.log(`[aiPlanner] Generating visuals: strategy=${strategy}, field=${visualField}, concepts=${concepts.length}, topics=${relevantTopics.length}, semantic=${Array.isArray(part.visual_logic) ? part.visual_logic.length : 0}`);
-
-  let scenes = [];
-
-  if (strategy === 'overview') {
-    scenes = buildOverviewVisuals(part.title, concepts, relevantTopics, narrationSentences, continuity, visualField, explanationMode);
-  } else if (strategy === 'detail') {
-    scenes = buildDetailVisuals(lessonTitle, part.title, concepts, relevantTopics, narrationSentences, continuity, visualField, explanationMode, contentIndex);
-  } else {
-    scenes = buildApplicationVisuals(part.title, concepts, relevantTopics, narrationSentences, continuity, visualField, explanationMode);
-  }
-
-  // A teacher reveals one idea at a time — aim for 1 new element every 4-5 seconds
-  // Keep boards clean: fewer elements per page, more frequent clears
-  const modeSceneFloor = explanationMode === 'visual_first'
-    ? 40
-    : explanationMode === 'step_by_step'
-      ? 28
-      : explanationMode === 'text_focus'
-        ? 32
-        : 30;
-  const minScenes = Math.max(modeSceneFloor, Math.ceil(durationSeconds / 5));
-  if (scenes.length < minScenes) {
-    const lastTime = Math.max(...scenes.map((s) => Number(s.time) || 0), 1);
-    const extra = buildDeepDivePages(concepts, relevantTopics, narrationSentences, lastTime + 4, minScenes - scenes.length, visualField, explanationMode);
-    scenes = [...scenes, ...extra];
-  }
-
-  return normalizeVisualSequence(scenes, durationSeconds);
-}
-
-function rebalanceSceneLayout(scenes) {
-  const laidOutScenes = scenes.map((scene) => ({ ...scene }));
-  const titleScene = laidOutScenes.find(
-    (scene) => scene.type === 'draw_text'
-      && Array.isArray(scene.position)
-      && scene.position[1] <= 48,
-  );
-  const subtitleScene = laidOutScenes.find(
-    (scene) => scene.type === 'draw_text'
-      && Array.isArray(scene.position)
-      && scene.position[1] > 48
-      && scene.position[1] <= 96,
-  );
-
-  const longTitle = wordCount(titleScene?.content || '') > 5 || String(titleScene?.content || '').length > 42;
-  if (titleScene) {
-    titleScene.style = {
-      ...(titleScene.style || {}),
-      fontSize: Math.min(Number(titleScene.style?.fontSize) || 24, longTitle ? 22 : 24),
-    };
-  }
-
-  if (subtitleScene?.content) {
-    subtitleScene.content = compactVisualPhrase(subtitleScene.content, 8);
-    subtitleScene.position = [subtitleScene.position[0], longTitle ? 96 : 72];
-    subtitleScene.style = {
-      ...(subtitleScene.style || {}),
-      fontSize: Math.min(Number(subtitleScene.style?.fontSize) || 17, 16),
-    };
-  }
-
-  const headerFloor = subtitleScene ? (longTitle ? 156 : 128) : titleScene ? (longTitle ? 132 : 112) : 92;
-  let badgeLane = 0;
-
-  for (const scene of laidOutScenes) {
-    if (scene.type === 'draw_badge' && Array.isArray(scene.position)) {
-      const isCornerBadge = scene.position[0] <= 80 && scene.position[1] <= 30;
-      const isTopRightHeaderBadge = scene.position[0] >= 560 && scene.position[1] <= 20;
-      scene.fixedHeaderBadge = isTopRightHeaderBadge;
-      if (!isCornerBadge && !isTopRightHeaderBadge && scene.position[1] < headerFloor) {
-        scene.position = [Math.max(scene.position[0], 390), headerFloor + badgeLane * 54];
-        badgeLane += 1;
-      }
-      continue;
-    }
-
-    if ((scene.type === 'draw_object' || scene.type === 'draw_physics_shape') && Array.isArray(scene.position)) {
-      if (scene.position[1] < headerFloor - 12) {
-        scene.position = [scene.position[0], headerFloor + 10];
-      }
-      continue;
-    }
-
-    if (scene.type === 'draw_rect') {
-      if (!normalizeText(scene.label || '')) continue;
-      const height = Number(scene.height) || 90;
-      if (Number(scene.y) < headerFloor - 12) {
-        scene.y = clampBoxY(headerFloor + 6, height);
-      }
-      continue;
-    }
-
-    if (scene.type === 'draw_circle' && Array.isArray(scene.center)) {
-      const radius = Number(scene.radius) || 48;
-      if (scene.center[1] - radius < headerFloor - 10) {
-        scene.center = [scene.center[0], headerFloor + radius];
-      }
-      continue;
-    }
-
-    if (scene.type === 'draw_table' && Array.isArray(scene.position)) {
-      const rowCount = Array.isArray(scene.rows) ? scene.rows.length : 0;
-      const tableHeight = (rowCount + 1) * (Number(scene.cell_height) || 34);
-      scene.position = [scene.position[0], clampBoxY(scene.position[1], tableHeight)];
-    }
-  }
-
-  const movableTypes = new Set(['draw_badge', 'draw_callout', 'draw_table', 'draw_rect', 'show_equation']);
-  const resolveSegmentHeuristically = (segmentScenes) => {
-    const occupiedBoxes = segmentScenes
-      .map((scene) => ({ scene, box: estimateSceneLayoutBox(scene) }))
-      .filter(({ scene, box }) => box && (!movableTypes.has(scene.type) || scene.fixedHeaderBadge))
-      .map(({ box }) => box);
-
-    for (const scene of segmentScenes) {
-      if (!movableTypes.has(scene.type) || scene.fixedHeaderBadge) continue;
-
-      const initialBox = estimateSceneLayoutBox(scene);
-      if (!initialBox) continue;
-
-      const resolvedBox = resolveSceneLayoutBox(initialBox, occupiedBoxes);
-      applySceneLayoutBox(scene, resolvedBox);
-      occupiedBoxes.push(resolvedBox);
-    }
-  };
-
-  let currentSegment = [];
-  for (const scene of laidOutScenes) {
-    if (scene.type === 'clear') {
-      if (currentSegment.length && !layoutSceneSegmentWithGraph(currentSegment, headerFloor)) {
-        resolveSegmentHeuristically(currentSegment);
-      }
-      currentSegment = [];
-      continue;
-    }
-    currentSegment.push(scene);
-  }
-  if (currentSegment.length && !layoutSceneSegmentWithGraph(currentSegment, headerFloor)) {
-    resolveSegmentHeuristically(currentSegment);
-  }
-
-  return laidOutScenes;
-}
-
-function normalizeVisualSequence(visualSeq, duration) {
-  const seenTextualScenes = new Set();
-  const scenes = rebalanceSceneLayout(visualSeq
-    .map((entry) => sanitizeSceneEntry(entry))
-    .filter(Boolean)
-    .filter((entry) => {
-      if (entry.type === 'clear') {
-        seenTextualScenes.clear();
-        return true;
-      }
-
-      if (STRUCTURAL_SCENE_TYPES.has(entry.type)) return true;
-
-      const signatures = collectSceneTextFragments(entry)
-        .map((fragment) => buildSceneTextSignature(fragment))
-        .filter(Boolean);
-
-      if (!signatures.length) return true;
-
-      const unseenSignatures = signatures.filter((signature) => !seenTextualScenes.has(signature));
-      if (!unseenSignatures.length) return false;
-
-      unseenSignatures.forEach((signature) => seenTextualScenes.add(signature));
-      return true;
-    }));
-
-  return fitSceneTimeline(scenes, duration);
-}
-
-// ── Color palette ────────────────────────────────────────────────────────────
-const COLORS = ['#2563eb', '#16a34a', '#d97706', '#7c3aed', '#be123c', '#0891b2', '#ca8a04', '#0f766e'];
-const FILLS = ['#eff6ff', '#f0fdf4', '#fef3c7', '#f5f3ff', '#fff1f2', '#ecfeff', '#fefce8', '#f0fdfa'];
-const MARKERS = ['arr-blue', 'arr-green', 'arr-orange', 'arr-purple', 'arr-red', 'arr-blue', 'arr-orange', 'arr-green'];
-
-function detectVisualField(field, concepts, sentences, extraText = '') {
-  const corpus = `${field} ${extraText} ${(concepts || []).join(' ')} ${(sentences || []).join(' ')}`.toLowerCase();
-  if (field === 'mathematics') {
-    return 'mathematics';
-  }
-  if (field === 'history' || HISTORY_VISUAL_CUE_RE.test(corpus)) {
-    return 'history';
-  }
-  const economicsCue = ECONOMICS_VISUAL_CUE_RE.test(corpus)
-    || (ECONOMICS_MARKET_RE.test(corpus) && ECONOMICS_MARKET_CONTEXT_RE.test(corpus));
-  if (field === 'economics' || economicsCue) {
-    return 'economics';
-  }
-  if (field === 'business' || BUSINESS_VISUAL_CUE_RE.test(corpus)) {
-    return 'business';
-  }
-  if (field === 'biology' || BIOLOGY_VISUAL_CUE_RE.test(corpus)) {
-    return 'biology';
-  }
-  if (CYCLE_VISUAL_CUE_RE.test(corpus)) {
-    return 'cycle';
-  }
-  if (DIRECT_VISUAL_FIELDS.has(field)) {
-    return field;
-  }
-  if (SYSTEMS_VISUAL_CUE_RE.test(corpus)) {
-    return 'systems';
-  }
-  if (PHYSICS_VISUAL_CUE_RE.test(corpus)) {
-    return 'physics';
-  }
-  if (MATHEMATICS_VISUAL_CUE_RE.test(corpus)) {
-    return 'mathematics';
-  }
-  return field;
-}
-
-function resolveTopicObjectType(objectType, {
-  gearType = 'gear',
-  documentType = 'book',
-  lightbulbType = 'lightbulb',
-} = {}) {
-  if (objectType === 'gear') return gearType;
-  if (objectType === 'document') return documentType;
-  if (objectType === 'lightbulb') return lightbulbType;
-  return objectType;
-}
-
-function buildPlotPoints(text) {
-  const n = String(text || '').toLowerCase();
-  if (/\bcos|cosine\b/.test(n)) {
-    return [[-5, 0.28], [-4, -0.65], [-3, -0.99], [-2, -0.42], [-1, 0.54], [0, 1], [1, 0.54], [2, -0.42], [3, -0.99], [4, -0.65], [5, 0.28]];
-  }
-  if (/\bsin|sine\b/.test(n)) {
-    return [[-5, 0.96], [-4, 0.76], [-3, -0.14], [-2, -0.91], [-1, -0.84], [0, 0], [1, 0.84], [2, 0.91], [3, 0.14], [4, -0.76], [5, -0.96]];
-  }
-  if (/\bquadratic|parabola|polynomial\b/.test(n)) {
-    return [[-5, 5], [-4, 3.2], [-3, 1.8], [-2, 0.8], [-1, 0.2], [0, 0], [1, 0.2], [2, 0.8], [3, 1.8], [4, 3.2], [5, 5]];
-  }
-  if (/\blinear|line|slope\b/.test(n)) {
-    return [[-5, -4], [-3, -2], [-1, 0], [1, 2], [3, 4], [5, 5]];
-  }
-  return [[-4, -2], [-2, -1], [0, 0], [2, 1], [4, 2]];
-}
-
-function detectPhysicsShapeType(text) {
-  const n = String(text || '').toLowerCase();
-  if (/\bpendulum\b/.test(n)) return 'pendulum';
-  if (/\bspring|oscillation|hooke\b/.test(n)) return 'spring';
-  if (/\binclined plane|ramp|slope\b/.test(n)) return 'inclined_plane';
-  if (/\bwave|frequency|amplitude\b/.test(n)) return 'wave';
-  if (/\bforce|friction|normal force|gravity\b/.test(n)) return 'free_body';
-  return 'box_on_surface';
-}
-
-function detectObjectType(text, field) {
-  const n = stripVisualPhrasePreamble(String(text || '')).toLowerCase();
-  if (/\b(step|steps|procedure|checklist|how to|workflow|task|safely|process)\b/.test(n)) {
-    return 'checklist';
-  }
-  if (/\b(communication|conversation|dialogue|debate|discussion|feedback|negotiation|interview|meeting|collaboration)\b/.test(n)) {
-    return 'dialogue';
-  }
-  if (/\b(layer|layers|stack|hierarchy|framework|architecture|tier|foundation|levels|model)\b/.test(n)) {
-    return 'layers';
-  }
-  if (/\b(strategy|leadership|vision|direction|values|ethics|decision|navigation|roadmap|guiding principle)\b/.test(n)) {
-    return 'compass';
-  }
-  if (/\b(book|reading|literature|chapter|curriculum|study|learning|knowledge base)\b/.test(n)) {
-    return 'book';
-  }
-  if (/\b(notes?|summary|outline|resume|cv|document|essay|report|study guide)\b/.test(n)) {
-    return 'document';
-  }
-  if (/\b(cos|cosine|sine|triangle|trigonometry|angle|hypotenuse|adjacent)\b/.test(n)) {
-    return 'triangle';
-  }
-  if (/\b(photosynthesis|plant|leaf|chlorophyll|sunlight|stomata)\b/.test(n)) {
-    return 'leaf';
-  }
-  if (/\b(chemistry|reaction|molecule|atom|experiment|laboratory|lab|solution|acid|base|compound)\b/.test(n)) {
-    return 'flask';
-  }
-  if (/\b(goal|target|objective|application|practice|accuracy|outcome)\b/.test(n)) {
-    return 'target';
-  }
-  if (/\b(idea|concept|principle|insight|explain|understand)\b/.test(n)) {
-    return 'lightbulb';
-  }
-  if (field === 'biology' || /\b(cell|mitosis|meiosis|chromosome|spindle|dna|rna|gene|membrane|nucleus|organelle|enzyme|chloroplast)\b/.test(n)) {
-    return 'cell';
-  }
-  if (/\b(blockchain|validator|ledger|consensus|distributed|transaction|block)\b/.test(n)) {
-    return 'blockchain';
-  }
-  if (/\b(network|server|client|api|database|service|cache|router|protocol|pipeline|queue)\b/.test(n)) {
-    return 'network';
-  }
-  if (/\b(cycle|phase|loop|feedback|iteration|sequence)\b/.test(n)) {
-    return 'cycle';
-  }
-  return 'gear';
-}
-
-function hashVisualSeed(value) {
-  const normalized = normalizeText(value);
-  let hash = 0;
-
-  for (let index = 0; index < normalized.length; index += 1) {
-    hash = (hash * 31 + normalized.charCodeAt(index)) >>> 0;
-  }
-
-  return hash;
-}
-
-function buildTopicBoardTokens(title, concepts, topics, sentences, field, boardRole = 'overview') {
-  const safeConcepts = Array.isArray(concepts) ? concepts.filter(Boolean) : [];
-  const safeTopics = Array.isArray(topics) ? topics.filter(Boolean) : [];
-  const safeSentences = Array.isArray(sentences) ? sentences.filter(Boolean) : [];
-  const factualSentences = filterInstructionalMetaEntries(safeSentences);
-  const factualTopicLines = safeTopics.flatMap((entry) => filterInstructionalMetaEntries([
-    entry?.definition || '',
-    entry?.importance || '',
-    ...uniqueNormalizedStrings(entry?.details, 3),
-    ...uniqueNormalizedStrings(entry?.relationships, 2),
-  ]));
-  const corpus = `${field} ${title} ${safeConcepts.join(' ')} ${factualSentences.join(' ')}`;
-  const cueContext = [
-    title,
-    ...safeConcepts,
-    ...safeTopics.map((entry) => entry?.topic || ''),
-    ...factualTopicLines,
-    ...factualSentences,
-  ].filter(Boolean);
-  const labelSource = safeConcepts[0] || safeTopics[0]?.topic || title || 'Core Idea';
-  const label = compactBoardLabel(labelSource, 4)
-    || normalizeVisualCueWithContext(labelSource, cueContext, 4)
-    || normalizeVisualCue(labelSource, 4)
-    || truncateWords(labelSource, 4);
-  const cueCandidates = preferSpecificVisualCues([
-    ...extractTitleCueSegments(title, 3),
-    ...safeConcepts.slice(1, 6),
-    ...safeTopics.map((entry) => entry?.topic || ''),
-    ...extractKeyConcepts(factualSentences.join(' '), safeConcepts, 8).map((cue) => expandVisualCueFromContext(cue, cueContext, 4)),
-  ], cueContext, 5, 4)
-    .map((cue) => compactBoardLabel(cue, 4)
-      || normalizeVisualCueWithContext(cue, cueContext, 4)
-      || normalizeVisualCue(cue, 4)
-      || truncateWords(cue, 4))
-    .filter(Boolean);
-  const cues = uniqueNormalizedStrings([label, ...cueCandidates], 5).slice(0, 5);
-  const rows = safeConcepts.slice(0, 4).map((concept, index) => {
-    const topic = safeTopics.find((entry) => entry?.topic === concept) || safeTopics[index];
-    const explanation = firstMeaningfulEntry([
-      topic?.definition || '',
-      topic?.importance || '',
-      ...uniqueNormalizedStrings(topic?.details, 2),
-    ], factualSentences[index], concept);
-    return [truncateWords(concept, 3), truncateWords(explanation, 6)];
-  }).filter((row) => row[0] && row[1] && row[0].toLowerCase() !== row[1].toLowerCase());
-  const summaryCue = sanitizeSceneText(
-    firstMeaningfulEntry([
-      safeTopics[0]?.importance || '',
-      safeTopics[0]?.definition || '',
-      ...uniqueNormalizedStrings(safeTopics[0]?.details, 2),
-    ], factualSentences[0], factualTopicLines[0], `${label} links the main idea to its working parts.`),
-    16,
-  );
-  let detailCue = sanitizeSceneText(
-    firstMeaningfulEntry([
-      safeTopics[1]?.definition || '',
-      safeTopics[1]?.importance || '',
-      ...uniqueNormalizedStrings(safeTopics[1]?.details, 2),
-      ...uniqueNormalizedStrings(safeTopics[1]?.relationships, 1),
-    ], factualSentences[1], factualSentences[2], factualTopicLines[1]),
-    14,
-  );
-  let stripCue = sanitizeSceneText(
-    firstMeaningfulEntry(
-      rows.slice(0, 2).map(([concept, meaning]) => `${concept}: ${meaning}`),
-      factualSentences[2],
-      factualTopicLines[2],
-    ),
-    12,
-  );
-
-  if (detailCue && detailCue.toLowerCase() === summaryCue.toLowerCase()) {
-    detailCue = '';
-  }
-  if (stripCue && [summaryCue, detailCue].some((entry) => entry && entry.toLowerCase() === stripCue.toLowerCase())) {
-    stripCue = '';
-  }
-
-  return {
-    seed: hashVisualSeed(`${field}|${boardRole}|${title}|${safeConcepts.slice(0, 4).join('|')}`),
-    label,
-    objectType: detectObjectType(corpus, field),
-    cues,
-    summaryCue,
-    detailCue,
-    stripCue,
-  };
-}
-
-function pickTopicBoardVariant(title, concepts, field, boardRole = 'overview') {
-  const seed = hashVisualSeed(`${field}|${boardRole}|${title}|${(concepts || []).join('|')}`);
-  let variants = ['anchor', 'framework', 'story'];
-
-  if (boardRole === 'application') {
-    variants = ['story', 'framework', 'anchor'];
-  } else if (boardRole === 'detail') {
-    variants = ['framework', 'story', 'anchor'];
-  } else if (String(boardRole).startsWith('deep_dive')) {
-    variants = ['story', 'anchor', 'framework'];
-  }
-
-  if (field === 'systems') {
-    variants = boardRole === 'application'
-      ? ['framework', 'anchor', 'story']
-      : ['anchor', 'framework', 'story'];
-  }
-
-  if (field === 'cycle') {
-    variants = ['story', 'anchor', 'framework'];
-  }
-
-  return variants[seed % variants.length];
-}
-
-function buildTopicAnchorBoard(title, concepts, topics, sentences, startTime, field, boardRole = 'overview') {
-  const scenes = [];
-  let t = startTime;
-  const tokens = buildTopicBoardTokens(title, concepts, topics, sentences, field, boardRole);
-  const cueCards = uniqueNormalizedStrings([tokens.summaryCue, tokens.detailCue].filter(Boolean), 2);
-  const objectType = resolveTopicObjectType(tokens.objectType, {
-    gearType: field === 'business'
-      ? (tokens.seed % 2 === 0 ? 'compass' : 'dialogue')
-      : (tokens.seed % 2 === 0 ? 'compass' : 'checklist'),
-  });
-  const cardLayouts = [
-    { x: 390, y: 138, width: 294, height: 78 },
-    { x: 390, y: 234, width: 294, height: 80 },
-  ];
-  const bottomCue = sanitizeSceneText(uniqueNormalizedStrings([
-    tokens.summaryCue,
-    tokens.detailCue,
-  ].filter(Boolean), 2).join('. '), 22);
-
-  scenes.push(scene(t, 'draw_object', {
-    object_type: objectType,
-    position: [54, 148],
-    size: [236, 170],
-    label: tokens.label,
-    annotations: [],
-  })); t += 4;
-
-  scenes.push(scene(t, 'draw_rect', {
-    x: 364,
-    y: 122,
-    width: 344,
-    height: 216,
-    style: { fill: '#ffffff', stroke: '#cbd5e1', strokeWidth: 1.4, rx: 24 },
-  })); t += 3;
-
-  scenes.push(scene(t, 'draw_line', {
-    from: [302, 233],
-    to: [360, 233],
-    style: { color: '#94a3b8', strokeWidth: 2, dashed: true },
-  })); t += 2;
-
-  cueCards.forEach((cue, index) => {
-    const layout = cardLayouts[index];
-    const color = COLORS[index % COLORS.length];
-    const fill = FILLS[index % FILLS.length];
-
-    scenes.push(scene(t, 'draw_rect', {
-      x: layout.x,
-      y: layout.y,
-      width: layout.width,
-      height: layout.height,
-      label: cue,
-      style: { fill, stroke: color, strokeWidth: 1.5, rx: 16 },
-    })); t += 3;
-
-    scenes.push(scene(t, 'draw_arrow', {
-      from: [292, 186 + index * 44],
-      to: [layout.x, layout.y + layout.height / 2],
-      style: { color, strokeWidth: 2 },
-    })); t += 2;
-  });
-
-  if (tokens.stripCue) {
-    scenes.push(scene(t, 'draw_rect', {
-      x: 364,
-      y: 352,
-      width: 344,
-      height: 52,
-      label: tokens.stripCue,
-      style: { fill: '#eff6ff', stroke: '#2563eb', strokeWidth: 1.5, rx: 16 },
-    })); t += 3;
-  }
-
-  if (bottomCue) {
-    scenes.push(scene(t, 'draw_callout', {
-      content: bottomCue,
-      position: [44, 416],
-      width: 684,
-      style: { bg: '#f8fafc', stroke: '#64748b', color: '#334155' },
-    })); t += 4;
-  }
-
-  return scenes;
-}
-
-function buildTopicFrameworkBoard(title, concepts, topics, sentences, startTime, field, boardRole = 'overview') {
-  const scenes = [];
-  let t = startTime;
-  const tokens = buildTopicBoardTokens(title, concepts, topics, sentences, field, boardRole);
-  const stackLabels = uniqueNormalizedStrings([
-    tokens.summaryCue,
-    tokens.detailCue,
-  ].filter(Boolean), 2);
-  const objectType = resolveTopicObjectType(tokens.objectType, {
-    gearType: field === 'business' ? 'compass' : 'layers',
-    lightbulbType: 'compass',
-  });
-  const bottomCue = sanitizeSceneText(uniqueNormalizedStrings([
-    tokens.summaryCue,
-    tokens.detailCue,
-    tokens.stripCue,
-  ].filter(Boolean), 2).join('. '), 22);
-
-  scenes.push(scene(t, 'draw_badge', {
-    content: truncateWords(tokens.label, 4),
-    position: [614, 10],
-    style: { bg: '#0f766e', color: '#fff', fontSize: 13 },
-  })); t += 2;
-
-  stackLabels.forEach((entry, index) => {
-    const y = 140 + index * 94;
-    const color = COLORS[index % COLORS.length];
-    const fill = FILLS[index % FILLS.length];
-
-    scenes.push(scene(t, 'draw_rect', {
-      x: 56,
-      y,
-      width: 294,
-      height: 78,
-      label: entry,
-      style: { fill, stroke: color, strokeWidth: 1.5, rx: 18 },
-    })); t += 3;
-  });
-
-  scenes.push(scene(t, 'draw_object', {
-    object_type: objectType,
-    position: [486, 142],
-    size: [220, 166],
-    label: tokens.label,
-    annotations: [],
-  })); t += 4;
-
-  stackLabels.forEach((entry, index) => {
-    const y = 179 + index * 94;
-    const color = COLORS[index % COLORS.length];
-
-    scenes.push(scene(t, 'draw_arrow', {
-      from: [486, 182 + index * 42],
-      to: [350, y],
-      style: { color, strokeWidth: 2 },
-    })); t += 2;
-  });
-
-  if (bottomCue) {
-    scenes.push(scene(t, 'draw_callout', {
-      content: bottomCue,
-      position: [50, 332],
-      width: 680,
-      style: { bg: '#f8fafc', stroke: '#64748b', color: '#334155' },
-    })); t += 4;
-  }
-
-  return scenes;
-}
-
-function buildTopicStoryBoard(title, concepts, topics, sentences, startTime, field, boardRole = 'overview') {
-  const scenes = [];
-  let t = startTime;
-  const tokens = buildTopicBoardTokens(title, concepts, topics, sentences, field, boardRole);
-  const cardLabels = uniqueNormalizedStrings([
-    tokens.summaryCue,
-    tokens.detailCue,
-    tokens.stripCue,
-    tokens.label,
-  ].filter(Boolean), 3);
-  const objectType = resolveTopicObjectType(tokens.objectType, {
-    gearType: 'dialogue',
-    documentType: 'target',
-  });
-  const cardLayouts = [
-    { x: 40, y: 132, width: 208, height: 88 },
-    { x: 296, y: 196, width: 208, height: 88 },
-    { x: 552, y: 132, width: 208, height: 88 },
-  ];
-
-  scenes.push(scene(t, 'draw_badge', {
-    content: truncateWords(tokens.label, 4),
-    position: [616, 10],
-    style: { bg: '#be123c', color: '#fff', fontSize: 13 },
-  })); t += 2;
-
-  cardLabels.forEach((label, index) => {
-    const layout = cardLayouts[index];
-    const color = COLORS[index % COLORS.length];
-    const fill = FILLS[index % FILLS.length];
-
-    scenes.push(scene(t, 'draw_rect', {
-      x: layout.x,
-      y: layout.y,
-      width: layout.width,
-      height: layout.height,
-      label,
-      style: { fill, stroke: color, strokeWidth: 1.6, rx: 20 },
-    })); t += 3;
-
-    if (index < cardLabels.length - 1) {
-      const nextLayout = cardLayouts[index + 1];
-      scenes.push(scene(t, 'draw_arrow', {
-        from: [layout.x + layout.width, layout.y + layout.height / 2],
-        to: [nextLayout.x, nextLayout.y + nextLayout.height / 2],
-        style: { color, strokeWidth: 2 },
-      })); t += 2;
-    }
-  });
-
-  scenes.push(scene(t, 'draw_object', {
-    object_type: objectType,
-    position: [74, 242],
-    size: [186, 118],
-    label: tokens.label,
-    annotations: [],
-  })); t += 4;
-
-  if (tokens.stripCue) {
-    scenes.push(scene(t, 'draw_rect', {
-      x: 300,
-      y: 308,
-      width: 420,
-      height: 74,
-      label: tokens.stripCue,
-      style: { fill: '#eff6ff', stroke: '#2563eb', strokeWidth: 1.5, rx: 18 },
-    })); t += 3;
-  }
-
-  if (tokens.summaryCue) {
-    scenes.push(scene(t, 'draw_callout', {
-      content: tokens.summaryCue,
-      position: [60, 396],
-      width: 300,
-      style: { bg: '#f8fafc', stroke: '#64748b', color: '#334155' },
-    })); t += 4;
-  }
-
-  if (tokens.detailCue) {
-    scenes.push(scene(t, 'draw_rect', {
-      x: 392,
-      y: 396,
-      width: 316,
-      height: 80,
-      label: tokens.detailCue,
-      style: { fill: '#f0fdf4', stroke: '#16a34a', strokeWidth: 1.5, rx: 18 },
-    })); t += 3;
-  }
-
-  return scenes;
-}
-
-function buildTopicObjectVisualBoard(title, concepts, topics, sentences, startTime, field, boardRole = 'overview') {
-  const variant = pickTopicBoardVariant(title, concepts, field, boardRole);
-
-  if (variant === 'framework') {
-    return buildTopicFrameworkBoard(title, concepts, topics, sentences, startTime, field, boardRole);
-  }
-
-  if (variant === 'story') {
-    return buildTopicStoryBoard(title, concepts, topics, sentences, startTime, field, boardRole);
-  }
-
-  return buildTopicAnchorBoard(title, concepts, topics, sentences, startTime, field, boardRole);
-}
-
-function buildBiologyVisualBoard(title, concepts, topics, sentences, startTime, field = 'biology') {
-  const scenes = [];
-  let t = startTime;
-  const corpus = `${field} ${title} ${(concepts || []).join(' ')} ${(sentences || []).join(' ')}`;
-  const cueContext = [
-    title,
-    ...(concepts || []),
-    ...((topics || []).flatMap((entry) => [entry?.topic || '', entry?.definition || '', ...(entry?.details || [])])),
-    ...(sentences || []),
-  ].filter(Boolean);
-  const normalizedCorpus = corpus.toLowerCase();
-  const objectType = /\b(chloroplast|thylakoid|photosystem|stroma|grana|photosynthesis)\b/.test(normalizedCorpus)
-    ? 'leaf'
-    : /\b(cell|organelle|membrane|nucleus|chromosome|mitosis|meiosis|enzyme|protein|dna|rna|tissue)\b/.test(normalizedCorpus)
-      ? 'cell'
-      : /\b(chemistry|molecule|compound|acid|base|solution|atom|apparatus|reaction|laboratory|lab)\b/.test(normalizedCorpus)
-        ? 'flask'
-        : detectObjectType(corpus, field);
-
-  const labelSource = concepts[0] || title || 'Biology System';
-  const label = compactBoardLabel(labelSource, 4)
-    || normalizeVisualCueWithContext(labelSource, [title], 4)
-    || normalizeVisualCue(labelSource, 4)
-    || truncateWords(labelSource, 4);
-
-  const badgeCues = preferSpecificVisualCues([
-    ...extractTitleCueSegments(title, 3),
-    ...topics.map((entry) => compactBoardLabel(entry?.topic || '', 3)
-      || normalizeVisualCueWithContext(entry?.topic || '', cueContext, 3)
-      || normalizeVisualCue(entry?.topic || '', 3)),
-    ...extractKeyConcepts(sentences.join(' '), concepts, 6)
-      .map((cue) => expandVisualCueFromContext(cue, cueContext, 3)),
-  ], cueContext, 3, 3);
-
-  if (!badgeCues.length && label) {
-    badgeCues.push(label);
-  }
-
-  const annotations = preferSpecificVisualCues([
-    ...badgeCues,
-    ...(topics[0]?.details || []),
-    topics[0]?.definition || '',
-    sentences[0] || '',
-    sentences[1] || '',
-  ], cueContext, 3, 5);
-
-  const relationshipCue = sanitizeSceneText(
-    topics[0]?.importance || sentences[0] || `Focus on how ${label} supports ${badgeCues[0] || 'the process'}.`,
-    20,
-  );
-  const detailCue = sanitizeSceneText(
-    topics[1]?.definition || topics[1]?.importance || sentences[1] || sentences[2] || topics[0]?.definition || '',
-    18,
-  );
-
-  scenes.push(scene(t, 'draw_object', {
-    object_type: objectType,
-    position: [50, 132],
-    size: [250, 186],
-    label,
-    annotations,
-  })); t += 5;
-
-  const badgePositions = [[372, 128], [590, 178], [400, 258]];
-  badgeCues.slice(0, 3).forEach((cue, index) => {
-    const [x, y] = badgePositions[index];
-    const color = COLORS[(index + 1) % COLORS.length];
-
-    scenes.push(scene(t, 'draw_badge', {
-      content: cue,
-      position: [x, y],
-      style: { bg: color, color: '#fff', fontSize: 14 },
-    })); t += 2;
-
-    scenes.push(scene(t, 'draw_arrow', {
-      from: [175, 225],
-      to: [x, y + 14],
-      style: { color, strokeWidth: 2 },
-    })); t += 2;
-
-    if (index > 0) {
-      const [prevX, prevY] = badgePositions[index - 1];
-      scenes.push(scene(t, 'draw_path', {
-        d: scurveH(prevX + 54, prevY + 14, x - 10, y + 14),
-        style: { stroke: color, strokeWidth: 2, fill: 'none' },
-        markerEnd: MARKERS[(index + 1) % MARKERS.length],
-      })); t += 2;
-    }
-  });
-
-  if (relationshipCue) {
-    scenes.push(scene(t, 'draw_callout', {
-      content: relationshipCue,
-      position: [40, 356],
-      width: 300,
-      style: { bg: '#f0fdf4', stroke: '#16a34a', color: '#166534' },
-    })); t += 4;
-  }
-
-  if (detailCue) {
-    scenes.push(scene(t, 'draw_callout', {
-      content: detailCue,
-      position: [360, 356],
-      width: 380,
-      style: { bg: '#eff6ff', stroke: '#2563eb', color: '#1e3a8a' },
-    })); t += 4;
-  }
-
-  return scenes;
-}
-
-function buildEconomicsVisualBoard(title, concepts, topics, sentences, startTime) {
-  const scenes = [];
-  let t = startTime;
-  const rows = concepts.slice(0, 3).map((concept, index) => {
-    const topic = topics.find((entry) => entry?.topic === concept) || topics[index];
-    return [truncateWords(concept, 3), truncateWords(topic?.definition || sentences[index] || concept, 6)];
-  }).filter((row) => row[0] && row[1]);
-
-  scenes.push(scene(t, 'draw_line', {
-    from: [110, 340],
-    to: [110, 120],
-    style: { color: '#64748b', strokeWidth: 2 },
-  })); t += 2;
-  scenes.push(scene(t, 'draw_line', {
-    from: [110, 340],
-    to: [420, 340],
-    style: { color: '#64748b', strokeWidth: 2 },
-  })); t += 2;
-  scenes.push(scene(t, 'draw_text', {
-    content: 'Price',
-    position: [88, 110],
-    style: { fontSize: 16, color: '#475569', fontWeight: 'bold' },
-  })); t += 2;
-  scenes.push(scene(t, 'draw_text', {
-    content: 'Quantity',
-    position: [430, 352],
-    style: { fontSize: 16, color: '#475569', fontWeight: 'bold' },
-  })); t += 2;
-
-  scenes.push(scene(t, 'draw_path', {
-    d: 'M 145,150 C 225,190 292,245 390,310',
-    style: { stroke: '#2563eb', strokeWidth: 3, fill: 'none' },
-  })); t += 3;
-  scenes.push(scene(t, 'draw_badge', {
-    content: truncateWords(concepts.find((concept) => /demand/i.test(concept)) || 'Demand', 4),
-    position: [248, 152],
-    style: { bg: '#2563eb', color: '#fff', fontSize: 14 },
-  })); t += 2;
-
-  scenes.push(scene(t, 'draw_path', {
-    d: 'M 145,305 C 225,248 300,198 392,145',
-    style: { stroke: '#16a34a', strokeWidth: 3, fill: 'none' },
-  })); t += 3;
-  scenes.push(scene(t, 'draw_badge', {
-    content: truncateWords(concepts.find((concept) => /supply/i.test(concept)) || 'Supply', 4),
-    position: [285, 96],
-    style: { bg: '#16a34a', color: '#fff', fontSize: 14 },
-  })); t += 2;
-
-  scenes.push(scene(t, 'draw_circle', {
-    center: [272, 228],
-    radius: 20,
-    label: /equilibrium/i.test((concepts || []).join(' ')) ? 'Eq' : 'E',
-    style: { fill: '#fff7ed', stroke: '#ea580c', strokeWidth: 2.5 },
-  })); t += 3;
-  scenes.push(scene(t, 'draw_badge', {
-    content: truncateWords(concepts.find((concept) => /equilibrium/i.test(concept)) || 'Equilibrium', 4),
-    position: [300, 214],
-    style: { bg: '#ea580c', color: '#fff', fontSize: 13 },
-  })); t += 2;
-
-  if (rows.length) {
-    scenes.push(scene(t, 'draw_table', {
-      headers: ['Idea', 'Meaning'],
-      rows,
-      position: [470, 120],
-      cell_width: 140,
-      cell_height: 38,
-    })); t += 5;
-  }
-
-  const takeaway = topics[0]?.importance || sentences[0] || `Track where the main curves meet and what happens when they do not balance.`;
-  scenes.push(scene(t, 'draw_callout', {
-    content: truncateWords(takeaway, 18),
-    position: [60, 404],
-    width: 680,
-    style: { bg: '#fef3c7', stroke: '#d97706', color: '#713f12' },
-  })); t += 4;
-
-  return scenes;
-}
-
-function detectMathEquation(title, concepts, sentences) {
-  const corpus = `${title} ${(concepts || []).join(' ')} ${(sentences || []).join(' ')}`.toLowerCase();
-  if (/\bcos|cosine\b/.test(corpus)) return 'y = cos(x)';
-  if (/\bsin|sine\b/.test(corpus)) return 'y = sin(x)';
-  if (/\btan|tangent\b/.test(corpus)) return 'y = tan(x)';
-  if (/\bquadratic|parabola\b/.test(corpus)) return 'y = x^2';
-  if (/\blinear|slope\b/.test(corpus)) return 'y = mx + b';
-  return concepts.find((concept) => /[=()^]/.test(concept)) || 'f(x)';
-}
-
-function buildConceptMeaningRows(concepts, topics, sentences, limit = 4) {
-  const rows = [];
-  const seen = new Set();
-
-  for (let index = 0; index < Math.min(limit, concepts.length || limit); index += 1) {
-    const concept = concepts[index] || '';
-    const topic = topics.find((entry) => entry?.topic === concept) || topics[index];
-    const conceptTerms = normalizePlannerPhrase(concept).split(/\s+/).filter((term) => term.length > 3);
-    const matchingSentence = sentences.find((sentence) => conceptTerms.some((term) => sentence.toLowerCase().includes(term)));
-    const label = normalizeVisualCue(concept, 4) || truncateWords(concept, 4);
-    const meaning = sanitizeSceneText(firstMeaningfulEntry([
-      topic?.definition || '',
-      topic?.importance || '',
-      ...uniqueNormalizedStrings(topic?.details, 2),
-    ], matchingSentence, sentences[index], concept), 10);
-    if (!label || !meaning) continue;
-    if (meaning.toLowerCase() === label.toLowerCase()) continue;
-
-    const key = `${label.toLowerCase()}|${meaning.toLowerCase()}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    rows.push([label, meaning]);
-  }
-
-  return rows;
-}
-
-function buildMathVisualBoard(title, concepts, topics, sentences, startTime) {
-  const scenes = [];
-  let t = startTime;
-  const corpus = `${title} ${(concepts || []).join(' ')} ${(sentences || []).join(' ')}`;
-  const equation = detectMathEquation(title, concepts, sentences);
-  const highlightCues = buildVisualCueList([
-    ...concepts.slice(1, 5),
-    ...topics.map((entry) => entry?.topic || ''),
-    sentences[0] || '',
-  ], 3, 4).map((cue) => expandVisualCueFromContext(cue, [title, ...concepts, ...sentences], 4));
-  const rows = buildConceptMeaningRows(concepts, topics, sentences, 4);
-
-  scenes.push(scene(t, 'show_equation', {
-    latex: truncateWords(equation, 5),
-    position: [210, 88],
-    style: { fontSize: 24, color: '#1d4ed8' },
-  })); t += 4;
-
-  scenes.push(scene(t, 'draw_arrow', {
-    from: [210, 110],
-    to: [210, 140],
-    label: 'plot',
-    style: { color: '#2563eb', strokeWidth: 2 },
-  })); t += 2;
-
-  scenes.push(scene(t, 'draw_coordinate_system', {
-    origin: [210, 340],
-    size: [250, 220],
-    x_label: 'x',
-    y_label: 'y',
-    plot_points: buildPlotPoints(corpus),
-  })); t += 5;
-
-  const badgePositions = [[500, 96], [620, 136], [500, 182]];
-  highlightCues.slice(0, 3).forEach((cue, index) => {
-    scenes.push(scene(t, 'draw_badge', {
-      content: cue,
-      position: badgePositions[index],
-      style: { bg: COLORS[index % COLORS.length], color: '#fff', fontSize: 14 },
-    })); t += 2;
-  });
-
-  if (rows.length) {
-    scenes.push(scene(t, 'draw_table', {
-      headers: ['Idea', 'Meaning'],
-      rows,
-      position: [430, 250],
-      cell_width: 155,
-      cell_height: 38,
-    })); t += 5;
-  }
-
-  const takeaway = topics[0]?.importance || sentences[0] || `Track how ${equation} changes as x moves across the graph.`;
-  scenes.push(scene(t, 'draw_callout', {
-    content: truncateWords(takeaway, 16),
-    position: [60, 392],
-    width: 320,
-    style: { bg: '#eff6ff', stroke: '#3b82f6', color: '#1e3a8a' },
-  })); t += 4;
-
-  return scenes;
-}
-
-function buildPhysicsVisualBoard(title, concepts, topics, sentences, startTime) {
-  const scenes = [];
-  let t = startTime;
-  const corpus = `${title} ${(concepts || []).join(' ')} ${(sentences || []).join(' ')}`;
-  const shapeType = detectPhysicsShapeType(corpus);
-  const annotations = uniqueNormalizedStrings([
-    ...(topics[0]?.details || []),
-    ...(sentences || []).slice(0, 2),
-  ], 3).map((line) => truncateWords(line, 5));
-  const rows = concepts.slice(0, 4).map((concept, index) => {
-    const explanation = topics[index]?.definition || sentences[index] || concept;
-    return [truncateWords(concept, 3), truncateWords(explanation, 6)];
-  }).filter((row) => row[0] && row[1]);
-
-  scenes.push(scene(t, 'draw_physics_shape', {
-    shape_type: shapeType,
-    position: [70, 105],
-    size: [240, 180],
-    label: truncateWords(concepts[0] || title || 'Physics System', 4),
-    annotations,
-  })); t += 5;
-
-  if (rows.length) {
-    scenes.push(scene(t, 'draw_table', {
-      headers: ['Quantity', 'Meaning'],
-      rows,
-      position: [410, 105],
-      cell_width: 165,
-      cell_height: 42,
-    })); t += 5;
-  }
-
-  const takeaway = topics[0]?.importance || sentences[0] || `Focus on how ${concepts[0] || 'the system'} changes under the forces shown.`;
-  scenes.push(scene(t, 'draw_callout', {
-    content: truncateWords(takeaway, 16),
-    position: [60, 384],
-    width: 680,
-    style: { bg: '#fef3c7', stroke: '#f59e0b', color: '#713f12' },
-  })); t += 4;
-
-  return scenes;
-}
-
-function qbez(ax, ay, bx, by, curve = 28) {
-  const dx = bx - ax, dy = by - ay, len = Math.sqrt(dx * dx + dy * dy) || 1;
-  const mx = (ax + bx) / 2 + (-dy / len) * curve;
-  const my = (ay + by) / 2 + (dx / len) * curve;
-  return `M ${ax},${ay} Q ${mx},${my} ${bx},${by}`;
-}
-
-function scurveH(ax, ay, bx, by) {
-  const mx = (ax + bx) / 2;
-  return `M ${ax},${ay} C ${mx},${ay} ${mx},${by} ${bx},${by}`;
-}
-
-// ── Overview visuals: concept map + definitions ──────────────────────────────
-
-function buildOverviewVisuals(title, concepts, topics, sentences, continuity, field, explanationMode = 'full_lesson') {
-  const scenes = [];
-  let t = 0;
-
-  const displayTitle = truncateWords(title, 6);
-
-  // PAGE 1: Title + Concept Map
-  scenes.push(scene(t, 'draw_text', {
-    content: displayTitle,
-    position: [400, 38], style: { fontSize: 24, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-  })); t += 3;
-
-  if (continuity?.previous) {
-    // Skip generic continuity badge — teacher just starts teaching
-  }
-
-  if (field === 'economics') {
-    scenes.push(...buildEconomicsVisualBoard(title, concepts, topics, sentences, t));
-    t = Math.max(...scenes.map((entry) => entry.time)) + 4;
-  } else if (field === 'history') {
-    scenes.push(...buildTimeline(concepts, topics, sentences, t));
-    t = Math.max(...scenes.map((entry) => entry.time)) + 4;
-  } else if (field === 'cycle') {
-    scenes.push(...buildTopicObjectVisualBoard(title, concepts, topics, sentences, t, field, 'overview'));
-    t = Math.max(...scenes.map((entry) => entry.time)) + 4;
-  } else if (field === 'biology') {
-    scenes.push(...buildBiologyVisualBoard(title, concepts, topics, sentences, t, field));
-    t = Math.max(...scenes.map((entry) => entry.time)) + 4;
-  } else if (field === 'systems') {
-    scenes.push(...buildTopicObjectVisualBoard(title, concepts, topics, sentences, t, field, 'overview'));
-    t = Math.max(...scenes.map((entry) => entry.time)) + 4;
-  } else {
-    scenes.push(...buildTopicObjectVisualBoard(title, concepts, topics, sentences, t, field || 'general', 'overview'));
-    t = Math.max(...scenes.map((entry) => entry.time)) + 4;
-  }
-
-  // PAGE 2: Definitions page
-  scenes.push(scene(t, 'clear', {})); t += 2;
-  scenes.push(scene(t, 'draw_text', {
-    content: buildOverviewPageTitle(explanationMode),
-    position: [400, 38], style: { fontSize: 22, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-  })); t += 3;
-
-  const defTopics = topics.slice(0, 4);
-  if (defTopics.length) {
-    const rowH = 94;
-    for (let i = 0; i < defTopics.length; i++) {
-      const tp = defTopics[i];
-      const y = 78 + i * rowH;
-      const color = COLORS[i % COLORS.length];
-      const fill = FILLS[i % FILLS.length];
-
-      scenes.push(scene(t, 'draw_badge', {
-        content: truncateWords(tp.topic, 5),
-        position: [40, y], style: { bg: color, color: '#fff', fontSize: 15 },
-      })); t += 2;
-
-      scenes.push(scene(t, 'draw_rect', {
-        x: 40, y: y + 42, width: 720, height: 54,
-        label: truncateWords(tp.definition || tp.topic, 22),
-        style: { fill, stroke: color, strokeWidth: 1.5, rx: 8 },
-      })); t += 4;
-    }
-  } else {
-    // Use sentences from narration as definitions
-    for (let i = 0; i < Math.min(4, sentences.length); i++) {
-      const y = 75 + i * 100;
-      scenes.push(scene(t, 'draw_rect', {
-        x: 40, y, width: 720, height: 70,
-        label: truncateWords(sentences[i], 14),
-        style: { fill: FILLS[i % FILLS.length], stroke: COLORS[i % COLORS.length], strokeWidth: 1.5, rx: 8 },
-      })); t += 5;
-    }
-  }
-
-  // PAGE 3: Relationships
-  scenes.push(scene(t, 'clear', {})); t += 2;
-  scenes.push(scene(t, 'draw_text', {
-    content: buildOverviewConnectionsTitle(explanationMode),
-    position: [400, 38], style: { fontSize: 22, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-  })); t += 3;
-
-  if (concepts.length >= 3) {
-    const connectionCards = concepts.slice(0, 3).map((concept, index) => {
-      const label = truncateWords(concept, 6);
-      const width = estimateContainerWidth(label, 8.1, 215, 320);
-      const height = estimateContainerHeight(label, width, 7.6, 18, 80, 118);
-      const color = COLORS[index % COLORS.length];
-      const fill = FILLS[index % FILLS.length];
-      return { label, width, height, color, fill };
-    });
-
-    const positions = [
-      { x: 40, y: 142 },
-      { x: 800 - 40 - connectionCards[1].width, y: 142 },
-      { x: clamp(Math.round((800 - connectionCards[2].width) / 2), 40, 800 - connectionCards[2].width - 40), y: 274 },
-    ];
-
-    connectionCards.forEach((card, index) => {
-      const pos = positions[index];
-      scenes.push(scene(t, 'draw_rect', {
-        x: pos.x,
-        y: pos.y,
-        width: card.width,
-        height: card.height,
-        label: card.label,
-        style: { fill: card.fill, stroke: card.color, strokeWidth: 2, rx: 12 },
-      })); t += 3;
-    });
-
-    scenes.push(scene(t, 'draw_arrow', {
-      from: [positions[0].x + connectionCards[0].width + 14, positions[0].y + connectionCards[0].height / 2],
-      to: [positions[1].x - 14, positions[1].y + connectionCards[1].height / 2],
-      style: { color: COLORS[1], strokeWidth: 2 },
-    })); t += 3;
-
-    scenes.push(scene(t, 'draw_arrow', {
-      from: [positions[1].x + connectionCards[1].width / 2, positions[1].y + connectionCards[1].height + 14],
-      to: [positions[2].x + connectionCards[2].width / 2, positions[2].y - 14],
-      style: { color: COLORS[2], strokeWidth: 2 },
-    })); t += 3;
-  }
-
-  // End of overview — no generic badges, teacher moves on naturally
-
-  return scenes;
-}
-
-function buildAdaptiveGenericDetailBoard(title, concepts, topics, sentences, startTime, field, explanationMode = 'full_lesson', contentIndex = 0) {
-  const seed = hashVisualSeed(`${field}|detail|${explanationMode}|${title}|${(concepts || []).join('|')}|${contentIndex}`);
-  const variants = explanationMode === 'text_focus'
-    ? ['note_stack', 'concept_map', 'topic_object', 'process_flow', 'question_ladder']
-    : explanationMode === 'step_by_step'
-      ? ['process_flow', 'topic_object', 'concept_map', 'question_ladder', 'note_stack']
-      : ['process_flow', 'concept_map', 'question_ladder', 'topic_object', 'note_stack'];
-  // Use both seed and contentIndex to ensure consecutive parts always get different visuals
-  const variant = variants[(seed + contentIndex * 2 + 1) % variants.length];
-
-  if (variant === 'note_stack') {
-    return buildNoteStackBoard(concepts, topics, sentences, startTime);
-  }
-
-  if (variant === 'concept_map') {
-    return buildConceptMapBoard(concepts, topics, sentences, startTime);
-  }
-
-  if (variant === 'question_ladder') {
-    return buildQuestionLadderBoard(concepts, topics, sentences, startTime);
-  }
-
-  if (variant === 'topic_object') {
-    return buildTopicObjectVisualBoard(title, concepts, topics, sentences, startTime, field || 'general', 'detail');
-  }
-
-  return buildProcessFlow(concepts, topics, sentences, startTime);
-}
-
-// ── Detail visuals: deep dive with specific diagrams ─────────────────────────
-
-function buildDetailVisuals(lessonTitle, title, concepts, topics, sentences, continuity, field, explanationMode = 'full_lesson', contentIndex = 0) {
-  let scenes = [];
-  let t = 0;
-  const visualField = detectVisualField(field, concepts, sentences, `${lessonTitle} ${title}`);
-
-  const displayTitle = truncateWords(title, 6);
-
-  // PAGE 1: Detailed breakdown of primary concept
-  scenes.push(scene(t, 'draw_text', {
-    content: displayTitle,
-    position: [400, 38], style: { fontSize: 24, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-  })); t += 3;
-
-  // No generic badge — the title speaks for itself
-
-  // Process/flow diagram based on field
-  if (visualField === 'physics') {
-    scenes = scenes.concat(buildPhysicsVisualBoard(title, concepts, topics, sentences, t));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'economics') {
-    scenes = scenes.concat(buildEconomicsVisualBoard(title, concepts, topics, sentences, t));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'history') {
-    scenes = scenes.concat(buildTimeline(concepts, topics, sentences, t));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'cycle') {
-    scenes = scenes.concat(buildTopicObjectVisualBoard(title, concepts, topics, sentences, t, visualField, 'detail'));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'biology') {
-    scenes = scenes.concat(buildBiologyVisualBoard(title, concepts, topics, sentences, t, visualField));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'systems') {
-    scenes = scenes.concat(buildTopicObjectVisualBoard(title, concepts, topics, sentences, t, visualField, 'detail'));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'medical' || visualField === 'science') {
-    scenes = scenes.concat(buildBiologyVisualBoard(title, concepts, topics, sentences, t, visualField));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (field === 'programming') {
-    // Flowchart
-    scenes = scenes.concat(buildFlowchart(concepts, topics, sentences, t));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'mathematics') {
-    // Equation breakdown
-    scenes = scenes.concat(buildMathVisualBoard(title, concepts, topics, sentences, t));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else {
-    scenes = scenes.concat(buildAdaptiveGenericDetailBoard(title, concepts, topics, sentences, t, visualField || field || 'general', explanationMode, contentIndex));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  }
-
-  // PAGE 2: Comparison or breakdown
-  scenes.push(scene(t, 'clear', {})); t += 2;
-  scenes.push(scene(t, 'draw_text', {
-    content: buildDetailPageTitle(explanationMode, concepts[0] || title),
-    position: [400, 38], style: { fontSize: 22, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-  })); t += 3;
-
-  // Two-column comparison if we have enough concepts
-  if (concepts.length >= 2) {
-    const colL = 30, colR = 410;
-    scenes.push(scene(t, 'draw_badge', {
-      content: truncateWords(concepts[0], 5), position: [colL + 10, 70],
-      style: { bg: '#2563eb', color: '#fff', fontSize: 15 },
-    })); t += 2;
-    scenes.push(scene(t, 'draw_badge', {
-      content: truncateWords(concepts[1], 5), position: [colR + 10, 70],
-      style: { bg: '#7c3aed', color: '#fff', fontSize: 15 },
-    })); t += 3;
-
-    // Draw comparison rows
-    const rows = Math.min(3, Math.max(topics.length, 2));
-    for (let i = 0; i < rows; i++) {
-      const y = 100 + i * 110;
-      const leftTopic = topics[i * 2] || topics[0];
-      const rightTopic = topics[i * 2 + 1] || topics[Math.min(1, topics.length - 1)];
-
-      scenes.push(scene(t, 'draw_rect', {
-        x: colL, y, width: 360, height: 85,
-        label: truncateWords(leftTopic?.definition || sentences[i] || concepts[0], 18),
-        style: { fill: '#eff6ff', stroke: '#2563eb', strokeWidth: 1.5, rx: 8 },
-      })); t += 3;
-
-      scenes.push(scene(t, 'draw_rect', {
-        x: colR, y, width: 360, height: 85,
-        label: truncateWords(rightTopic?.definition || sentences[i + 1] || concepts[1], 18),
-        style: { fill: '#f5f3ff', stroke: '#7c3aed', strokeWidth: 1.5, rx: 8 },
-      })); t += 3;
-
-      scenes.push(scene(t, 'draw_path', {
-        d: scurveH(colL + 360, y + 42, colR, y + 42),
-        style: { stroke: '#94a3b8', strokeWidth: 1.5, fill: 'none' },
-      })); t += 2;
-    }
-  }
-
-  // Detail callout
-  const detailSentence = sentences.find((s) =>
-    concepts.some((c) => s.toLowerCase().includes(c.toLowerCase()))
-  ) || sentences[3] || '';
-  if (detailSentence) {
-    scenes.push(scene(t, 'draw_callout', {
-      content: truncateWords(detailSentence, 18),
-      position: [100, 420], width: 600,
-      style: { bg: '#f0fdf4', stroke: '#16a34a', color: '#166534' },
-    })); t += 4;
-  }
-
-  return scenes;
-}
-
-// ── Application visuals: real-world examples ─────────────────────────────────
-
-function buildApplicationVisuals(title, concepts, topics, sentences, continuity, field, explanationMode = 'full_lesson') {
-  const scenes = [];
-  let t = 0;
-  const visualField = detectVisualField(field, concepts, sentences, title);
-  let usedGenericBoard = false;
-
-  // PAGE 1: Application scenarios
-  scenes.push(scene(t, 'draw_text', {
-    content: truncateWords(title, 6),
-    position: [400, 38], style: { fontSize: 24, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-  })); t += 3;
-
-  // No generic badge — teacher starts drawing directly
-
-  if (visualField === 'mathematics') {
-    scenes.push(...buildMathVisualBoard(title, concepts, topics, sentences, t));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'physics') {
-    scenes.push(...buildPhysicsVisualBoard(title, concepts, topics, sentences, t));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'economics') {
-    scenes.push(...buildEconomicsVisualBoard(title, concepts, topics, sentences, t));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'history') {
-    scenes.push(...buildTimeline(concepts, topics, sentences, t));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'cycle') {
-    scenes.push(...buildTopicObjectVisualBoard(title, concepts, topics, sentences, t, visualField, 'application'));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'biology') {
-    scenes.push(...buildBiologyVisualBoard(title, concepts, topics, sentences, t, visualField));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'systems') {
-    scenes.push(...buildTopicObjectVisualBoard(title, concepts, topics, sentences, t, visualField, 'application'));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else {
-    scenes.push(...buildTopicObjectVisualBoard(title, concepts, topics, sentences, t, visualField || field || 'general', 'application'));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-    usedGenericBoard = true;
-  }
-
-  // Insight callout
-  const insightSentence = sentences.find((s) =>
-    /\b(example|apply|practice|result|outcome|use|important|because)\b/i.test(s)
-  ) || sentences[sentences.length - 2] || '';
-
-  if (insightSentence && !usedGenericBoard) {
-    scenes.push(scene(t, 'draw_callout', {
-      content: truncateWords(insightSentence, 18),
-      position: [60, 380], width: 680,
-      style: { bg: '#fef3c7', stroke: '#d97706', color: '#713f12' },
-    })); t += 5;
-  }
-
-  // PAGE 2: Summary / takeaway
-  scenes.push(scene(t, 'clear', {})); t += 2;
-  scenes.push(scene(t, 'draw_text', {
-    content: buildApplicationTakeawayTitle(explanationMode),
-    position: [400, 38], style: { fontSize: 22, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-  })); t += 3;
-
-  // Takeaway cards — show the actual concepts, no generic numbering
-  for (let i = 0; i < Math.min(3, concepts.length); i++) {
-    const x = 30 + i * 255;
-    const topic = topics[i];
-    const label = topic
-      ? truncateWords(`${topic.topic}: ${topic.importance || topic.definition}`, 16)
-      : truncateWords(concepts[i], 6);
-
-    scenes.push(scene(t, 'draw_rect', {
-      x, y: 104, width: 240, height: 132,
-      label,
-      style: { fill: FILLS[i % FILLS.length], stroke: COLORS[i % COLORS.length], strokeWidth: 2, rx: 12 },
-    })); t += 5;
-  }
-
-  return scenes;
-}
-
-// ── Field-specific diagram builders ──────────────────────────────────────────
-
-function buildLabeledDiagram(concepts, topics, sentences, startTime) {
-  const scenes = [];
-  let t = startTime;
-
-  // Central structure
-  scenes.push(scene(t, 'draw_rect', {
-    x: 230, y: 85, width: 340, height: 210,
-    label: truncateWords(concepts[0] || 'Main Structure', 6),
-    style: { fill: '#eff6ff', stroke: '#2563eb', strokeWidth: 2.5, rx: 16 },
-  })); t += 4;
-
-  // Labels pointing to parts
-  const labelPositions = [
-    { from: [250, 140], to: [120, 120], anchor: 'end' },
-    { from: [550, 140], to: [680, 120], anchor: 'start' },
-    { from: [250, 220], to: [120, 240], anchor: 'end' },
-    { from: [550, 220], to: [680, 240], anchor: 'start' },
-    { from: [400, 290], to: [400, 340], anchor: 'middle' },
-  ];
-
-  for (let i = 0; i < Math.min(5, concepts.length - 1); i++) {
-    const lp = labelPositions[i];
-    const color = COLORS[(i + 1) % COLORS.length];
-    const topic = topics.find((tp) => tp.topic === concepts[i + 1]);
-
-    scenes.push(scene(t, 'draw_line', {
-      from: lp.from, to: lp.to,
-      style: { color, strokeWidth: 1.5 },
-    })); t += 2;
-
-    scenes.push(scene(t, 'draw_text', {
-      content: truncateWords(concepts[i + 1], 5),
-      position: lp.to,
-      style: { fontSize: 14, color, fontWeight: 'bold', textAnchor: lp.anchor },
-    })); t += 2;
-
-    if (topic?.details?.[0]) {
-      scenes.push(scene(t, 'draw_text', {
-        content: truncateWords(topic.details[0], 12),
-        position: [lp.to[0], lp.to[1] + 18],
-        style: { fontSize: 14, color: '#64748b', textAnchor: lp.anchor },
-      })); t += 2;
-    }
-  }
-
-  return scenes;
-}
-
-function buildFlowchart(concepts, topics, sentences, startTime) {
-  const scenes = [];
-  let t = startTime;
-  const stepCount = Math.min(4, concepts.length);
-  const boxW = 170, boxH = 70;
-  const gap = 25;
-  const totalW = stepCount * boxW + (stepCount - 1) * gap;
-  const startX = Math.max(20, (800 - totalW) / 2);
-
-  for (let i = 0; i < stepCount; i++) {
-    const x = startX + i * (boxW + gap);
-    const y = 130;
-    const color = COLORS[i % COLORS.length];
-    const fill = FILLS[i % FILLS.length];
-    const topic = topics.find((tp) => tp.topic === concepts[i]);
-
-    scenes.push(scene(t, 'draw_rect', {
-      x, y, width: boxW, height: boxH,
-      label: truncateWords(concepts[i], 5),
-      style: { fill, stroke: color, strokeWidth: 2, rx: 10 },
-    })); t += 3;
-
-    if (topic?.definition) {
-      scenes.push(scene(t, 'draw_text', {
-        content: truncateWords(topic.definition, 10),
-        position: [x + boxW / 2, y + boxH + 20],
-        style: { fontSize: 14, color: '#475569', textAnchor: 'middle' },
-      })); t += 2;
-    }
-
-    if (i < stepCount - 1) {
-      scenes.push(scene(t, 'draw_arrow', {
-        from: [x + boxW, y + boxH / 2],
-        to: [x + boxW + gap, y + boxH / 2],
-        style: { color: COLORS[(i + 1) % COLORS.length], strokeWidth: 2 },
-      })); t += 2;
-    }
-  }
-
-  return scenes;
-}
-
-function buildTimeline(concepts, topics, sentences, startTime) {
-  const scenes = [];
-  let t = startTime;
-
-  // Horizontal timeline
-  scenes.push(scene(t, 'draw_path', {
-    d: 'M 60,240 L 740,240',
-    markerEnd: 'arr-blue',
-    style: { stroke: '#2563eb', strokeWidth: 3, fill: 'none' },
-  })); t += 3;
-
-  const count = Math.min(5, concepts.length);
-  const spacing = 680 / (count + 0.5);
-
-  for (let i = 0; i < count; i++) {
-    const x = Math.round(60 + spacing * (i + 0.7));
-    const above = i % 2 === 0;
-    const boxY = above ? 110 : 270;
-    const color = COLORS[i % COLORS.length];
-    const fill = FILLS[i % FILLS.length];
-
-    scenes.push(scene(t, 'draw_circle', {
-      center: [x, 240], radius: 6,
-      style: { fill: color, stroke: '#fff', strokeWidth: 2 },
-    })); t += 2;
-
-    scenes.push(scene(t, 'draw_path', {
-      d: qbez(x, 240, x, above ? boxY + 55 : boxY, 10),
-      style: { stroke: color, strokeWidth: 1.5, fill: 'none' },
-    })); t += 2;
-
-    scenes.push(scene(t, 'draw_rect', {
-      x: x - 75, y: boxY, width: 150, height: 60,
-      label: truncateWords(concepts[i], 5),
-      style: { fill, stroke: color, strokeWidth: 1.5, rx: 8 },
-    })); t += 3;
-  }
-
-  return scenes;
-}
-
-function buildEquationBreakdown(concepts, topics, sentences, startTime) {
-  const scenes = [];
-  let t = startTime;
-
-  // Show equation or formula relationships
-  for (let i = 0; i < Math.min(3, concepts.length); i++) {
-    const y = 100 + i * 120;
-    const topic = topics.find((tp) => tp.topic === concepts[i]);
-
-    scenes.push(scene(t, 'show_equation', {
-      latex: truncateWords(concepts[i], 4),
-      position: [400, y],
-      style: { fontSize: 22, color: COLORS[i % COLORS.length] },
-    })); t += 4;
-
-    if (topic?.definition) {
-      scenes.push(scene(t, 'draw_text', {
-        content: truncateWords(topic.definition, 12),
-        position: [400, y + 35],
-        style: { fontSize: 16, color: '#475569', textAnchor: 'middle' },
-      })); t += 3;
-    }
-
-    if (i < Math.min(2, concepts.length - 1)) {
-      scenes.push(scene(t, 'draw_arrow', {
-        from: [400, y + 50], to: [400, y + 70],
-        label: 'therefore',
-        style: { color: '#7c3aed', strokeWidth: 2 },
-      })); t += 2;
-    }
-  }
-
-  return scenes;
-}
-
-function buildProcessFlow(concepts, topics, sentences, startTime) {
-  const scenes = [];
-  let t = startTime;
-
-  const stepCount = Math.min(4, concepts.length);
-  const boxW = 175, boxH = 75;
-  const gap = 18;
-  const totalW = stepCount * boxW + (stepCount - 1) * gap;
-  const startX = Math.max(30, (800 - totalW) / 2);
-  const y = 130;
-
-  for (let i = 0; i < stepCount; i++) {
-    const x = startX + i * (boxW + gap);
-    const color = COLORS[i % COLORS.length];
-    const fill = FILLS[i % FILLS.length];
-    const topic = topics.find((tp) => tp.topic === concepts[i]);
-
-    scenes.push(scene(t, 'draw_rect', {
-      x, y, width: boxW, height: boxH,
-      label: truncateWords(concepts[i], 5),
-      style: { fill, stroke: color, strokeWidth: 2, rx: 10 },
-    })); t += 3;
-
-    scenes.push(scene(t, 'draw_badge', {
-      content: `Step ${i + 1}`,
-      position: [x + 4, y - 14],
-      style: { bg: color, color: '#fff', fontSize: 14 },
-    })); t += 2;
-
-    if (i < stepCount - 1) {
-      const archY = y + boxH / 2 - 30;
-      scenes.push(scene(t, 'draw_path', {
-        d: `M ${x + boxW},${y + boxH / 2} C ${x + boxW + 8},${archY} ${x + boxW + gap - 8},${archY} ${x + boxW + gap},${y + boxH / 2}`,
-        markerEnd: MARKERS[(i + 1) % MARKERS.length],
-        style: { stroke: COLORS[(i + 1) % COLORS.length], strokeWidth: 2.5, fill: 'none' },
-      })); t += 3;
-    }
-
-    // Detail below
-    if (topic?.definition) {
-      scenes.push(scene(t, 'draw_text', {
-        content: truncateWords(topic.definition, 6),
-        position: [x + boxW / 2, y + boxH + 18],
-        style: { fontSize: 15, color: '#475569', textAnchor: 'middle' },
-      })); t += 2;
-    }
-  }
-
-  // Summary callout
-  const summSentence = sentences.find((s) =>
-    /\b(result|outcome|therefore|conclusion|means)\b/i.test(s)
-  ) || sentences[sentences.length - 1] || '';
-
-  if (summSentence) {
-    scenes.push(scene(t, 'draw_callout', {
-      content: truncateWords(summSentence, 16),
-      position: [80, 320], width: 640,
-      style: { bg: '#f0fdf4', stroke: '#16a34a', color: '#166534' },
-    })); t += 4;
-  }
-
-  return scenes;
-}
-
-// ── Deep dive pages (for extending visual timelines) ─────────────────────────
-
-function hasExampleSentences(sentences) {
-  return (sentences || []).some((sentence) => /\b(example|instance|such as|like|consider|case|scenario)\b/i.test(sentence));
-}
-
-function getDeepDivePageTypes(field, explanationMode, sentences) {
-  if (field === 'biology') {
-    if (explanationMode === 'visual_first') {
-      return ['topic_object', 'detail_cards', 'hierarchy', 'comparison', 'summary_grid'];
-    }
-    if (explanationMode === 'step_by_step') {
-      return ['topic_object', 'process_steps', 'detail_cards', 'concept_map', 'summary_grid'];
-    }
-    return ['topic_object', 'detail_cards', 'hierarchy', 'comparison', 'summary_grid'];
-  }
-
-  if (field === 'economics') {
-    if (explanationMode === 'step_by_step') {
-      return ['economics_graph', 'process_steps', 'comparison', 'summary_grid'];
-    }
-    return ['economics_graph', 'comparison', 'detail_cards', 'summary_grid'];
-  }
-
-  if (field === 'history') {
-    if (explanationMode === 'step_by_step') {
-      return ['timeline', 'detail_cards', 'comparison', 'summary_grid'];
-    }
-    return ['timeline', 'comparison', 'detail_cards', 'summary_grid'];
-  }
-
-  if (field === 'cycle') {
-    if (explanationMode === 'step_by_step') {
-      return ['topic_object', 'process_steps', 'comparison', 'summary_grid'];
-    }
-    return ['topic_object', 'comparison', 'detail_cards', 'summary_grid'];
-  }
-
-  if (field === 'systems') {
-    if (explanationMode === 'visual_first') {
-      return ['topic_object', 'concept_map', 'comparison', 'summary_grid'];
-    }
-    return ['topic_object', 'process_steps', 'comparison', 'summary_grid'];
-  }
-
-  if (field === 'mathematics') {
-    if (explanationMode === 'step_by_step') {
-      return ['math_plot', 'process_steps', 'explanation', 'detail_cards', 'summary_grid'];
-    }
-    return ['math_plot', 'detail_cards', 'explanation', 'comparison', 'process_steps', 'summary_grid'];
-  }
-
-  if (field === 'physics') {
-    if (explanationMode === 'visual_first') {
-      return ['physics_diagram', 'concept_map', 'detail_cards', 'comparison', 'summary_grid'];
-    }
-    if (explanationMode === 'step_by_step') {
-      return ['physics_diagram', 'process_steps', 'explanation', 'detail_cards', 'summary_grid'];
-    }
-    return ['physics_diagram', 'detail_cards', 'process_steps', 'comparison', 'summary_grid'];
-  }
-
-  if (explanationMode === 'visual_first') {
-    return ['topic_object', 'concept_map', 'detail_cards', 'hierarchy', 'comparison', 'summary_grid'];
-  }
-  if (explanationMode === 'step_by_step') {
-    return ['topic_object', 'process_steps', 'detail_cards', 'explanation', 'concept_map', 'summary_grid'];
-  }
-  if (explanationMode === 'qa_mode') {
-    return ['question_ladder', 'topic_object', 'detail_cards', 'comparison', 'summary_grid'];
-  }
-  if (explanationMode === 'text_focus') {
-    return ['topic_object', 'note_stack', 'concept_map', 'explanation', 'detail_cards', 'comparison', 'summary_grid'];
-  }
-
-  const baseTypes = ['topic_object', 'detail_cards', 'concept_map', 'hierarchy', 'explanation', 'comparison', 'process_steps', 'summary_grid'];
-  if (field === 'programming' || field === 'computer_science') {
-    baseTypes.splice(5, 0, 'code_display');
-  }
-  if (hasExampleSentences(sentences)) {
-    baseTypes.splice(6, 0, 'question_ladder');
-  }
-  return baseTypes;
-}
-
-function buildConceptMapBoard(pageConcepts, pageTopics, sentences, startTime) {
-  const scenes = [];
-  let t = startTime;
-  const root = pageConcepts[0] || pageTopics[0]?.topic || 'Core Idea';
-  const relatedConcepts = pageConcepts.slice(1).filter(Boolean).slice(0, 3);
-
-  scenes.push(scene(t, 'draw_text', {
-    content: `Concept Map: ${truncateWords(root, 5)}`,
-    position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-  })); t += 3;
-
-  scenes.push(scene(t, 'draw_rect', {
-    x: 285, y: 182, width: 230, height: 64,
-    label: truncateWords(root, 6),
-    style: { fill: '#eff6ff', stroke: '#2563eb', strokeWidth: 2, rx: 12 },
-  })); t += 3;
-
-  const nodes = [
-    { x: 34, y: 92, width: 200 },
-    { x: 566, y: 92, width: 200 },
-    { x: 300, y: 318, width: 200 },
-  ];
-
-  relatedConcepts.forEach((concept, index) => {
-    const topic = pageTopics.find((entry) => entry?.topic === concept) || pageTopics[index + 1];
-    const color = COLORS[(index + 1) % COLORS.length];
-    const fill = FILLS[(index + 1) % FILLS.length];
-    const node = nodes[index % nodes.length];
-    const nodeWidth = node.width || 200;
-
-    scenes.push(scene(t, 'draw_arrow', {
-      from: [400, 214], to: [node.x + nodeWidth / 2, node.y + 30],
-      label: topic?.relationships?.[0] ? truncateWords(topic.relationships[0], 4) : '',
-      style: { color, strokeWidth: 2 },
-    })); t += 2;
-
-    scenes.push(scene(t, 'draw_rect', {
-      x: node.x, y: node.y, width: nodeWidth, height: 60,
-      label: truncateWords(concept, 5),
-      style: { fill, stroke: color, strokeWidth: 1.5, rx: 10 },
-    })); t += 3;
-
-    if (topic?.definition) {
-      scenes.push(scene(t, 'draw_text', {
-        content: truncateWords(topic.definition, 10),
-        position: [node.x + nodeWidth / 2, node.y + 78],
-        style: { fontSize: 14, color: '#475569', textAnchor: 'middle' },
-      })); t += 2;
-    }
-  });
-
-  const anchorSentence = sentences.find((sentence) => sentence.toLowerCase().includes(root.toLowerCase())) || sentences[0];
-  if (anchorSentence) {
-    scenes.push(scene(t, 'draw_callout', {
-      content: truncateWords(anchorSentence, 18),
-      position: [70, 424], width: 660,
-      style: { bg: '#f8fafc', stroke: '#64748b', color: '#334155' },
-    })); t += 4;
-  }
-
-  return scenes;
-}
-
-function buildQuestionLadderBoard(pageConcepts, pageTopics, sentences, startTime) {
-  const scenes = [];
-  let t = startTime;
-  const prompts = [];
-
-  for (const topic of pageTopics) {
-    if (!topic) continue;
-    if (topic.definition) {
-      prompts.push({
-        question: `What is ${truncateWords(topic.topic || pageConcepts[0] || 'this idea', 4)}?`,
-        answer: truncateWords(topic.definition, 14),
-      });
-    }
-    if (topic.importance) {
-      prompts.push({
-        question: `Why does ${truncateWords(topic.topic || pageConcepts[0] || 'it', 4)} matter?`,
-        answer: truncateWords(topic.importance, 14),
-      });
-    }
-    if (prompts.length >= 3) break;
-  }
-
-  if (!prompts.length) {
-    const backup = (sentences || []).slice(0, 3);
-    backup.forEach((sentence, index) => {
-      prompts.push({
-        question: `Question ${index + 1}`,
-        answer: truncateWords(sentence, 14),
-      });
-    });
-  }
-
-  scenes.push(scene(t, 'draw_text', {
-    content: `Guided Questions`,
-    position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-  })); t += 3;
-
-  prompts.slice(0, 3).forEach((prompt, index) => {
-    const y = 80 + index * 120;
-    const color = COLORS[index % COLORS.length];
-    const fill = FILLS[index % FILLS.length];
-
-    scenes.push(scene(t, 'draw_badge', {
-      content: `Q${index + 1}`,
-      position: [45, y], style: { bg: color, color: '#fff', fontSize: 14 },
-    })); t += 2;
-
-    scenes.push(scene(t, 'draw_rect', {
-      x: 100, y: y - 6, width: 640, height: 52,
-      label: truncateWords(prompt.question, 12),
-      style: { fill: '#ffffff', stroke: color, strokeWidth: 1.5, rx: 10 },
-    })); t += 3;
-
-    scenes.push(scene(t, 'draw_callout', {
-      content: prompt.answer,
-      position: [120, y + 56], width: 600,
-      style: { bg: fill, stroke: color, color: '#334155' },
-    })); t += 4;
-  });
-
-  return scenes;
-}
-
-function buildNoteStackBoard(pageConcepts, pageTopics, sentences, startTime) {
-  const scenes = [];
-  let t = startTime;
-  scenes.push(scene(t, 'draw_text', {
-    content: `Study Notes`,
-    position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-  })); t += 3;
-
-  const noteSources = pageTopics.length
-    ? pageTopics.map((topic, index) => ({
-        heading: topic?.topic || pageConcepts[index] || `Note ${index + 1}`,
-        body: topic?.definition || topic?.importance || sentences[index] || pageConcepts[index],
-      }))
-    : (sentences || []).slice(0, 4).map((sentence, index) => ({
-        heading: pageConcepts[index] || `Note ${index + 1}`,
-        body: sentence,
-      }));
-
-  noteSources.slice(0, 4).forEach((note, index) => {
-    const y = 76 + index * 92;
-    const color = COLORS[index % COLORS.length];
-    const fill = FILLS[index % FILLS.length];
-
-    scenes.push(scene(t, 'draw_badge', {
-      content: truncateWords(note.heading, 4),
-      position: [48, y], style: { bg: color, color: '#fff', fontSize: 13 },
-    })); t += 2;
-
-    scenes.push(scene(t, 'draw_rect', {
-      x: 40, y: y + 16, width: 720, height: 64,
-      label: truncateWords(note.body, 20),
-      style: { fill, stroke: color, strokeWidth: 1.5, rx: 10 },
-    })); t += 3;
-  });
-
-  return scenes;
-}
-
-function buildDeepDivePages(concepts, topics, sentences, startTime, count, field, explanationMode = 'full_lesson') {
-  const extra = [];
-  let t = startTime;
-  let ci = 0;
-
-  const PAGE_TYPES = getDeepDivePageTypes(field, explanationMode, sentences);
-  let pageIdx = 0;
-
-  while (extra.length < count) {
-    const pageType = PAGE_TYPES[pageIdx % PAGE_TYPES.length];
-    pageIdx++;
-
-    extra.push(scene(t, 'clear', {})); t += 2;
-
-    const pageConcepts = [];
-    const pageTopics = [];
-    for (let k = 0; k < 6; k++) {
-      pageConcepts.push(concepts[(ci + k) % Math.max(concepts.length, 1)]);
-      pageTopics.push(topics[(ci + k) % Math.max(topics.length, 1)]);
-    }
-    ci = (ci + 3) % Math.max(concepts.length, 1);
-
-    if (pageType === 'math_plot') {
-      extra.push(...buildMathVisualBoard(pageConcepts[0] || 'Math Concept', pageConcepts, pageTopics, sentences, t));
-      t = Math.max(...extra.map((s) => s.time)) + 4;
-
-    } else if (pageType === 'physics_diagram') {
-      extra.push(...buildPhysicsVisualBoard(pageConcepts[0] || 'Physics System', pageConcepts, pageTopics, sentences, t));
-      t = Math.max(...extra.map((s) => s.time)) + 4;
-
-    } else if (pageType === 'topic_object') {
-      extra.push(...buildTopicObjectVisualBoard(pageConcepts[0] || 'Core Idea', pageConcepts, pageTopics, sentences, t, field, `deep_dive_${pageIdx}`));
-      t = Math.max(...extra.map((s) => s.time)) + 4;
-
-    } else if (pageType === 'economics_graph') {
-      extra.push(...buildEconomicsVisualBoard(pageConcepts[0] || 'Market Model', pageConcepts, pageTopics, sentences, t));
-      t = Math.max(...extra.map((s) => s.time)) + 4;
-
-    } else if (pageType === 'timeline') {
-      extra.push(...buildTimeline(pageConcepts, pageTopics, sentences, t));
-      t = Math.max(...extra.map((s) => s.time)) + 4;
-
-    } else if (pageType === 'concept_map') {
-      extra.push(...buildConceptMapBoard(pageConcepts, pageTopics, sentences, t));
-      t = Math.max(...extra.map((s) => s.time)) + 4;
-
-    } else if (pageType === 'question_ladder') {
-      extra.push(...buildQuestionLadderBoard(pageConcepts, pageTopics, sentences, t));
-      t = Math.max(...extra.map((s) => s.time)) + 4;
-
-    } else if (pageType === 'note_stack') {
-      extra.push(...buildNoteStackBoard(pageConcepts, pageTopics, sentences, t));
-      t = Math.max(...extra.map((s) => s.time)) + 4;
-
-    } else if (pageType === 'detail_cards') {
-      extra.push(scene(t, 'draw_text', {
-        content: truncateWords(pageConcepts[0], 5),
-        position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-      })); t += 3;
-
-      // Only 2 cards per page to prevent overlap — teacher explains one, then the next
-      for (let i = 0; i < Math.min(2, pageConcepts.length); i++) {
-        const x = 40;
-        const y = 80 + i * 190;
-        const tp = pageTopics[i];
-        const color = COLORS[i % COLORS.length];
-        const fill = FILLS[i % FILLS.length];
-
-        extra.push(scene(t, 'draw_rect', {
-          x, y, width: 720, height: 140,
-          label: truncateWords(tp?.definition || sentences[i] || pageConcepts[i], 20),
-          style: { fill, stroke: color, strokeWidth: 1.5, rx: 10 },
-        })); t += 5;
-      }
-
-    } else if (pageType === 'hierarchy') {
-      extra.push(scene(t, 'draw_text', {
-        content: truncateWords(pageConcepts[0], 5),
-        position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-      })); t += 3;
-
-      // Root
-      extra.push(scene(t, 'draw_rect', {
-        x: 280, y: 80, width: 240, height: 55,
-        label: truncateWords(pageConcepts[0], 5),
-        style: { fill: '#eff6ff', stroke: '#2563eb', strokeWidth: 2, rx: 10 },
-      })); t += 4;
-
-      // Only 2 children max to prevent overlap
-      const childCount = Math.min(2, pageConcepts.length - 1);
-      const childWidth = 280;
-      const childStartX = 400 - (childCount * (childWidth + 40)) / 2;
-
-      for (let i = 0; i < childCount; i++) {
-        const cx = childStartX + i * (childWidth + 40);
-        const color = COLORS[(i + 1) % COLORS.length];
-        const fill = FILLS[(i + 1) % FILLS.length];
-
-        extra.push(scene(t, 'draw_arrow', {
-          from: [400, 130], to: [cx + childWidth / 2, 180],
-          style: { color, strokeWidth: 2 },
-        })); t += 3;
-
-        extra.push(scene(t, 'draw_rect', {
-          x: cx, y: 180, width: childWidth, height: 60,
-          label: truncateWords(pageConcepts[i + 1], 5),
-          style: { fill, stroke: color, strokeWidth: 1.5, rx: 8 },
-        })); t += 4;
-      }
-
-    } else if (pageType === 'code_display') {
-      // Display commands/code from the document
-      extra.push(scene(t, 'draw_text', {
-        content: `Commands & Syntax`,
-        position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-      })); t += 3;
-
-      // Find command-like sentences from the text
-      const cmdSentences = sentences.filter((s) =>
-        /\b(docker|npm|git|kubectl|sudo|apt|pip|curl|wget|ssh|cd|ls|mkdir|chmod|systemctl|nginx|node|python|java|go)\b/i.test(s)
-        || /[a-z]+ [a-z-]+ [a-z-]+/i.test(s) && s.length < 80
-      ).slice(0, 5);
-      const useCmds = cmdSentences.length >= 2 ? cmdSentences : sentences.filter((s) => s.length < 60).slice(0, 5);
-
-      // Dark code background
-      extra.push(scene(t, 'draw_rect', {
-        x: 30, y: 60, width: 740, height: 380,
-        style: { fill: '#1e293b', stroke: '#334155', strokeWidth: 2, rx: 12 },
-      })); t += 3;
-
-      // Terminal badge
-      extra.push(scene(t, 'draw_badge', {
-        content: '$ terminal',
-        position: [45, 68], style: { bg: '#10b981', color: '#fff', fontSize: 10 },
-      })); t += 2;
-
-      for (let i = 0; i < Math.min(5, useCmds.length); i++) {
-        const y = 105 + i * 65;
-        // Command prompt
-        extra.push(scene(t, 'show_equation', {
-          latex: truncateWords(useCmds[i], 8),
-          position: [400, y],
-          style: { fontSize: 15, color: '#67e8f9' },
-        })); t += 4;
-
-        // Explanation below
-        const tp = pageTopics[i % Math.max(pageTopics.length, 1)];
-        if (tp?.importance) {
-          extra.push(scene(t, 'draw_text', {
-            content: `↳ ${truncateWords(tp.importance, 10)}`,
-            position: [70, y + 28], style: { fontSize: 15, color: '#94a3b8' },
-          })); t += 2;
-        }
-      }
-
-    } else if (pageType === 'comparison') {
-      extra.push(scene(t, 'draw_text', {
-        content: `${truncateWords(pageConcepts[0], 4)} vs ${truncateWords(pageConcepts[1] || pageConcepts[0], 4)}`,
-        position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-      })); t += 3;
-
-      // Vertical divider
-      extra.push(scene(t, 'draw_line', {
-        from: [400, 65], to: [400, 440],
-        style: { color: '#e2e8f0', strokeWidth: 2, dashed: true },
-      })); t += 3;
-
-      // Only 2 rows to prevent overlap (4 rects total + divider = 5 elements max)
-      for (let i = 0; i < 2; i++) {
-        const y = 80 + i * 170;
-        const leftTp = pageTopics[i * 2] || pageTopics[0];
-        const rightTp = pageTopics[i * 2 + 1] || pageTopics[Math.min(1, pageTopics.length - 1)];
-
-        extra.push(scene(t, 'draw_rect', {
-          x: 25, y, width: 355, height: 130,
-          label: truncateWords(leftTp?.definition || pageConcepts[i * 2] || '', 14),
-          style: { fill: '#eff6ff', stroke: '#2563eb', strokeWidth: 1.5, rx: 8 },
-        })); t += 4;
-
-        extra.push(scene(t, 'draw_rect', {
-          x: 420, y, width: 355, height: 130,
-          label: truncateWords(rightTp?.definition || pageConcepts[i * 2 + 1] || '', 14),
-          style: { fill: '#f5f3ff', stroke: '#7c3aed', strokeWidth: 1.5, rx: 8 },
-        })); t += 4;
-      }
-
-    } else if (pageType === 'explanation') {
-      // Teacher writes key sentences one at a time
-      extra.push(scene(t, 'draw_text', {
-        content: truncateWords(pageConcepts[0], 5),
-        position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-      })); t += 3;
-
-      // Use narration sentences that relate to current concepts — max 3 per page
-      const conceptLower = (pageConcepts[0] || '').toLowerCase();
-      const relevant = sentences.filter((s) => s.toLowerCase().includes(conceptLower)).slice(0, 3);
-      const useLines = relevant.length >= 2 ? relevant : sentences.slice(ci % Math.max(sentences.length, 1), ci % Math.max(sentences.length, 1) + 3);
-
-      for (let i = 0; i < Math.min(3, useLines.length); i++) {
-        const y = 80 + i * 120;
-
-        extra.push(scene(t, 'draw_text', {
-          content: truncateWords(useLines[i], 14),
-          position: [55, y + 20], style: { fontSize: 16, color: '#1f2937' },
-        })); t += 5;
-      }
-
-    } else if (pageType === 'process_steps') {
-      // Teacher draws steps one at a time — max 3 per page
-      extra.push(scene(t, 'draw_text', {
-        content: truncateWords(pageConcepts[0], 5),
-        position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-      })); t += 3;
-
-      const stepCount = Math.min(3, pageConcepts.length);
-      for (let i = 0; i < stepCount; i++) {
-        const y = 80 + i * 130;
-        const color = COLORS[i % COLORS.length];
-        const fill = FILLS[i % FILLS.length];
-        const tp = pageTopics[i];
-        const label = tp?.definition ? truncateWords(tp.definition, 14) : truncateWords(pageConcepts[i], 6);
-
-        // Step content box only (no separate badge — the box IS the step)
-        extra.push(scene(t, 'draw_rect', {
-          x: 60, y, width: 680, height: 90,
-          label,
-          style: { fill, stroke: color, strokeWidth: 1.5, rx: 8 },
-        })); t += 5;
-
-        // Arrow down to next step
-        if (i < stepCount - 1) {
-          extra.push(scene(t, 'draw_arrow', {
-            from: [400, y + 90], to: [400, y + 115],
-            style: { color: '#94a3b8', strokeWidth: 2 },
-          })); t += 3;
-        }
-      }
-
-    } else { // summary_grid — reduced to 2 items
-      extra.push(scene(t, 'draw_text', {
-        content: truncateWords(pageConcepts[0], 5),
-        position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-      })); t += 3;
-
-      for (let i = 0; i < Math.min(2, pageConcepts.length); i++) {
-        const x = 48 + i * 384;
-        const y = 110;
-        const color = COLORS[i % COLORS.length];
-        const fill = FILLS[i % FILLS.length];
-        const tp = pageTopics[i];
-
-        extra.push(scene(t, 'draw_rect', {
-          x, y, width: 340, height: 150,
-          label: truncateWords(tp?.definition || sentences[i] || pageConcepts[i], 16),
-          style: { fill, stroke: color, strokeWidth: 2, rx: 12 },
-        })); t += 5;
-      }
-    }
-
-    if (extra.length >= count) break;
-  }
-
-  return extra;
-}
-
-// ── Quiz visuals ─────────────────────────────────────────────────────────────
-
-function generateQuizVisuals(lessonTitle, part) {
-  const q1 = part.quiz_questions?.[0];
-  const q2 = part.quiz_questions?.[1];
-  const options = (q1?.options?.choices || []).slice(0, 4);
-  const choiceLabels = options.map((choice, i) => `${String.fromCharCode(65 + i)}. ${clampText(choice, 28)}`);
-
-  const scenes = [
-    scene(0, 'draw_text', {
-      content: truncateWords(part.title || 'Knowledge Check', 5),
-      position: [400, 42],
-      style: { fontSize: 24, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-    }),
-    scene(4, 'draw_badge', {
-      content: 'Quiz', position: [42, 24],
-      style: { bg: '#0f766e', color: '#fff', fontSize: 15 },
-    }),
-    scene(8, 'draw_callout', {
-      content: clampText(q1?.question_text || `Which idea best captures ${lessonTitle}?`, 140),
-      position: [110, 96], width: 580,
-      style: { bg: '#eff6ff', stroke: '#60a5fa', color: '#1e3a8a' },
-    }),
-    scene(14, 'draw_rect', {
-      x: 70, y: 206, width: 300, height: 74,
-      label: choiceLabels[0] || 'A. First option',
-      style: { fill: '#f8fafc', stroke: '#2563eb', strokeWidth: 2, rx: 12 },
-    }),
-    scene(19, 'draw_rect', {
-      x: 430, y: 206, width: 300, height: 74,
-      label: choiceLabels[1] || 'B. Second option',
-      style: { fill: '#f8fafc', stroke: '#16a34a', strokeWidth: 2, rx: 12 },
-    }),
-    scene(24, 'draw_rect', {
-      x: 70, y: 302, width: 300, height: 74,
-      label: choiceLabels[2] || 'C. Third option',
-      style: { fill: '#f8fafc', stroke: '#d97706', strokeWidth: 2, rx: 12 },
-    }),
-    scene(29, 'draw_rect', {
-      x: 430, y: 302, width: 300, height: 74,
-      label: choiceLabels[3] || 'D. Fourth option',
-      style: { fill: '#f8fafc', stroke: '#7c3aed', strokeWidth: 2, rx: 12 },
-    }),
-    scene(34, 'clear', {}),
-    scene(38, 'draw_text', {
-      content: 'Fill in the blank',
-      position: [400, 42],
-      style: { fontSize: 24, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-    }),
-    scene(42, 'draw_callout', {
-      content: clampText(q2?.question_text || 'Complete using the key concept from the lesson.', 150),
-      position: [96, 114], width: 608,
-      style: { bg: '#fff7ed', stroke: '#fb923c', color: '#7c2d12' },
-    }),
-    scene(47, 'draw_badge', {
-      content: `Hint: ${truncateWords(part.title || lessonTitle, 3)}`,
-      position: [316, 232],
-      style: { bg: '#2563eb', color: '#fff', fontSize: 15 },
-    }),
-    scene(51, 'draw_callout', {
-      content: clampText(q2?.explanation || 'Think about the core concept and how it connects to the lesson.', 150),
-      position: [130, 286], width: 540,
-      style: { bg: '#f0fdf4', stroke: '#4ade80', color: '#14532d' },
-    }),
-  ];
-
-  return fitSceneTimeline(scenes, Number(part.duration_seconds) || 55);
+  return strategies[contentIndex % strategies.length];
 }
 
 // ── AI caller ────────────────────────────────────────────────────────────────
@@ -6876,31 +4986,32 @@ function fitSceneTimeline(scenes, durationSeconds) {
   if (!safeScenes.length) return [];
 
   const targetEnd = Math.max(12, Math.round(durationSeconds) - 4);
-  const count = safeScenes.length;
 
-  // Strategy: teacher-like pacing — each element gets time to be absorbed
-  // A real teacher writes one thing, pauses to explain, then writes the next
-  const MIN_GAP = 4;           // minimum seconds between any two scenes (teacher pause)
-  const CLEAR_PAUSE = 5;      // seconds to pause after a clear (let student absorb)
-  const POST_CLEAR_GAP = 3;   // extra gap before first element after clear
-
-  // First pass: assign ideal even spacing
-  const avgGap = targetEnd / Math.max(count - 1, 1);
-  const baseGap = Math.max(MIN_GAP, Math.min(avgGap, 5));
+  // Strategy: teacher-like pacing — each element must be visible long enough to absorb
+  // A real teacher writes one thing, pauses 5-8 seconds to let the student read, then continues
+  const MIN_GAP = 5;           // minimum seconds between any two scenes (teacher pause)
+  const CLEAR_PAUSE = 6;      // seconds to pause BEFORE a clear (let student absorb final state)
+  const POST_CLEAR_GAP = 3;   // gap before first element after clear (fresh board moment)
 
   // Count clears to budget time
   const clearCount = safeScenes.filter((s) => s.type === 'clear').length;
-  const extraClearTime = clearCount * (CLEAR_PAUSE + POST_CLEAR_GAP);
-  const availableTime = targetEnd - extraClearTime;
-  const nonClearGap = Math.max(MIN_GAP, availableTime / Math.max(count - clearCount - 1, 1));
+  const nonClearCount = safeScenes.length - clearCount;
 
-  // Second pass: assign times sequentially
+  // Budget: total time minus clear pauses = time available for content gaps
+  const clearBudget = clearCount * (CLEAR_PAUSE + POST_CLEAR_GAP);
+  const availableTime = Math.max(targetEnd - clearBudget, nonClearCount * MIN_GAP);
+  const contentGap = Math.max(MIN_GAP, availableTime / Math.max(nonClearCount - 1, 1));
+
+  // If we would overshoot with ideal spacing, cap number of visible scenes
+  const idealTotalTime = nonClearCount * contentGap + clearBudget;
+  const useMinimumSpacing = idealTotalTime > targetEnd * 1.2;
+
+  // Assign times sequentially
   let t = 0;
   const result = safeScenes.map((entry, index) => {
     if (index === 0) {
-      const newEntry = { ...entry, time: 0 };
       t = 0;
-      return newEntry;
+      return { ...entry, time: 0 };
     }
 
     const prev = safeScenes[index - 1];
@@ -6912,20 +5023,39 @@ function fitSceneTimeline(scenes, durationSeconds) {
     } else if (afterClear) {
       t += POST_CLEAR_GAP;
     } else {
-      t += nonClearGap;
+      t += useMinimumSpacing ? MIN_GAP : contentGap;
     }
 
-    // Clamp to not exceed target
-    t = Math.min(t, targetEnd);
     return { ...entry, time: Math.round(t * 10) / 10 };
   });
 
-  // If we overshot or undershot the target, do a final proportional adjustment
+  // Scale to fit within target duration while preserving relative gaps
   const lastAssigned = result[result.length - 1].time;
-  if (lastAssigned > 0 && Math.abs(lastAssigned - targetEnd) > 5) {
+  if (lastAssigned > 0 && lastAssigned > targetEnd) {
     const scale = targetEnd / lastAssigned;
-    for (let i = 1; i < result.length; i++) {
-      result[i] = { ...result[i], time: Math.round(result[i].time * scale * 10) / 10 };
+    // Only scale if it doesn't compress below MIN_GAP
+    const minScaledGap = MIN_GAP * scale;
+    if (minScaledGap >= 3) {
+      for (let i = 1; i < result.length; i++) {
+        result[i] = { ...result[i], time: Math.round(result[i].time * scale * 10) / 10 };
+      }
+    } else {
+      // Truncate scenes that don't fit rather than compressing to unreadable pace
+      const maxScenes = Math.floor(targetEnd / MIN_GAP) + clearCount;
+      if (result.length > maxScenes) {
+        result.length = maxScenes;
+      }
+      // Re-assign times for truncated list
+      let rt = 0;
+      for (let i = 0; i < result.length; i++) {
+        if (i === 0) { result[i] = { ...result[i], time: 0 }; continue; }
+        const prevEntry = result[i - 1];
+        if (result[i].type === 'clear') rt += CLEAR_PAUSE;
+        else if (prevEntry.type === 'clear') rt += POST_CLEAR_GAP;
+        else rt += MIN_GAP;
+        rt = Math.min(rt, targetEnd);
+        result[i] = { ...result[i], time: Math.round(rt * 10) / 10 };
+      }
     }
   }
 
