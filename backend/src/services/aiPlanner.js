@@ -4292,10 +4292,8 @@ function generateContentVisuals({ lessonTitle, part, contentIndex, comprehension
     scenes = buildApplicationVisuals(part.title, concepts, relevantTopics, narrationSentences, continuity, visualField, explanationMode);
   }
 
-  // A teacher reveals one idea at a time — aim for 1 new element every 8-10 seconds
+  // A teacher reveals one idea at a time — aim for 1 new element every ~10 seconds
   // Keep boards clean: fewer elements per page, more frequent clears
-  // MAX 6-8 elements per board page (between clears) to prevent overlap
-  const MAX_ELEMENTS_PER_PAGE = 7;
   const modeSceneFloor = explanationMode === 'visual_first'
     ? 20
     : explanationMode === 'step_by_step'
