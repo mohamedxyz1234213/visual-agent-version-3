@@ -32,45 +32,31 @@ export default function UploadPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,_#f8fafc_0%,_#f1f5f9_100%)]">
-      <header className="border-b border-slate-200/80 bg-white/80 px-4 py-4 backdrop-blur sm:px-6">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm">
+    <main className="flex min-h-screen flex-col bg-white">
+      {/* Minimal header */}
+      <header className="border-b border-slate-100 px-4 py-3">
+        <div className="mx-auto flex w-full max-w-[720px] items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white">
               <IconBoard className="h-4 w-4" />
             </div>
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">Whiteboard Classroom</div>
-              <div className="text-sm font-semibold tracking-[-0.03em] text-slate-900">Create a lesson request</div>
-            </div>
+            <span className="text-sm font-semibold text-slate-900">Visual Teaching AI</span>
           </div>
           <button
             onClick={() => router.push("/")}
-            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
           >
-            <IconArrowLeft className="h-4 w-4" />
+            <IconArrowLeft className="h-3.5 w-3.5" />
             Dashboard
           </button>
         </div>
       </header>
 
-      <div className="mx-auto grid min-h-[calc(100vh-73px)] w-full max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1.1fr)_320px] lg:items-start lg:gap-8 lg:py-10">
-        <div className="w-full lg:order-1">
+      {/* Chat-style centered content */}
+      <div className="flex flex-1 flex-col items-center">
+        <div className="w-full max-w-[720px] flex-1 px-4 py-6">
           <UploadZone onReady={handleReady} />
         </div>
-
-        <aside className="rounded-[30px] border border-slate-200 bg-white px-5 py-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:px-6 lg:order-2 lg:sticky lg:top-6">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">Quick Guide</div>
-          <h1 className="app-display mt-3 text-3xl font-semibold text-slate-900 sm:text-4xl lg:text-[2.6rem]">Choose the source, then choose how it should teach.</h1>
-          <p className="mt-3 text-sm leading-7 text-slate-600">
-            The main form is first. This sidebar only helps if you want a quick reminder of what each step means.
-          </p>
-          <div className="mt-5 space-y-3">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">Use a file for PDFs, worksheets, notes, or images you want the lesson to stay grounded in.</div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">Use a teaching preset when you want the system to decide the right goal and whiteboard style for you.</div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">Open fine-tuning only when the preset is close but not exact.</div>
-          </div>
-        </aside>
       </div>
     </main>
   );
