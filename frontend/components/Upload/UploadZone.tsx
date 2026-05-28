@@ -878,7 +878,7 @@ async function poll(
   onReady: (id: string, seriesId?: string, totalLessons?: number) => void,
   setStep: (step: string) => void
 ) {
-  const MAX = 270;
+  const MAX = 300;
   let tries = 0;
   while (tries < MAX) {
     await sleep(2000);
