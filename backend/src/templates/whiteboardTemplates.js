@@ -1695,7 +1695,7 @@ function buildTemplateData(part, lessonTitle, comprehension) {
  * @param {number} [contentIndex=0] - Index of content part for variety
  * @returns {object} Selected template
  */
-function selectTemplate(field, concepts, hasEquation, hasTable, hasGraph, hasSteps, contentIndex) {
+function selectTemplate(field, concepts, hasEquation, hasTable, hasGraph, hasSteps, contentIndex = 0) {
   let candidates = [];
 
   if (hasSteps) {
