@@ -1,6 +1,6 @@
 /**
  * Whiteboard Template System
- * 102 templates organized into 6 categories (17 each) for AI-powered whiteboard lessons.
+ * 60 templates organized into 6 categories (10 each) for AI-powered whiteboard lessons.
  * Canvas: 800x480px, 30px margins
  * Colors: #2563eb, #16a34a, #d97706, #7c3aed, #be123c, #0891b2, #0f766e
  */
@@ -1611,6 +1611,80 @@ const WHITEBOARD_TEMPLATES = [
 ];
 
 /**
+ * Build template data from a lesson part, extracting concepts, definitions,
+ * steps, and other elements needed by the template generators.
+ * @param {object} part - Lesson part object with key_concepts, narration, title, etc.
+ * @param {string} lessonTitle - Overall lesson title
+ * @param {object|null} comprehension - AI comprehension result with extracted info
+ * @returns {object} Data object ready for template generators
+ */
+function buildTemplateData(part, lessonTitle, comprehension) {
+  const concepts = (part.key_concepts || []).slice(0, 6);
+  // Ensure at least 3 concepts for templates that reference data.concepts[0..2]
+  while (concepts.length < 3) {
+    concepts.push(concepts[0] || lessonTitle || 'Key Idea');
+  }
+
+  const narration = part.narration || '';
+  // Extract sentences as potential definitions
+  const sentences = narration.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 10);
+  const definitions = sentences.slice(0, 3);
+  while (definitions.length < 3) {
+    definitions.push(definitions[0] || `${concepts[0]} is a fundamental concept`);
+  }
+
+  // Extract steps from visual_logic or narration
+  let steps = [];
+  if (part.visual_logic) {
+    steps = part.visual_logic
+      .filter(v => v.semantic_role === 'sequence' || v.type === 'process' || v.type === 'step')
+      .map(v => v.content || v.label || '')
+      .filter(Boolean);
+  }
+  if (steps.length === 0) {
+    steps = concepts.map((c, i) => `Step ${i + 1}: ${c}`);
+  }
+  while (steps.length < 4) {
+    steps.push(steps[steps.length - 1] || `Step ${steps.length + 1}`);
+  }
+
+  // Extract relationships
+  const relationships = [];
+  if (part.visual_logic) {
+    for (const v of part.visual_logic) {
+      if (v.relationship) {
+        relationships.push({ from: v.content || concepts[0], to: concepts[1] || '', type: v.relationship });
+      }
+    }
+  }
+  if (relationships.length === 0) {
+    relationships.push({ from: concepts[0], to: concepts[1], type: 'relates to' });
+  }
+
+  // Extract equation if present
+  let equation = '';
+  if (part.visual_logic) {
+    const eqEntry = part.visual_logic.find(v => v.type === 'equation' || v.semantic_role === 'equation');
+    if (eqEntry) equation = eqEntry.content || '';
+  }
+
+  // Build summary
+  const summary = sentences.length > 0
+    ? sentences.slice(0, 2).join('. ') + '.'
+    : `${lessonTitle}: ${concepts.slice(0, 3).join(', ')}`;
+
+  return {
+    title: part.title || lessonTitle || 'Key Concepts',
+    concepts,
+    definitions,
+    steps,
+    relationships,
+    equation,
+    summary: summary.slice(0, 200),
+  };
+}
+
+/**
  * Select the best template based on content characteristics.
  * @param {string} field - Subject field (e.g., 'math', 'science', 'history')
  * @param {Array} concepts - List of concepts to teach
@@ -1618,9 +1692,10 @@ const WHITEBOARD_TEMPLATES = [
  * @param {boolean} hasTable - Whether content includes tabular data
  * @param {boolean} hasGraph - Whether content includes graph data
  * @param {boolean} hasSteps - Whether content includes sequential steps
+ * @param {number} [contentIndex=0] - Index of content part for variety
  * @returns {object} Selected template
  */
-function selectTemplate(field, concepts, hasEquation, hasTable, hasGraph, hasSteps) {
+function selectTemplate(field, concepts, hasEquation, hasTable, hasGraph, hasSteps, contentIndex) {
   let candidates = [];
 
   if (hasSteps) {
@@ -1637,9 +1712,9 @@ function selectTemplate(field, concepts, hasEquation, hasTable, hasGraph, hasSte
     candidates = WHITEBOARD_TEMPLATES.filter(t => t.category === 'applied_teaching');
   }
 
-  // Pick based on field hash for variety
+  // Pick based on field hash + contentIndex for variety across parts
   const hash = (field || '').split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
-  const index = hash % candidates.length;
+  const index = (hash + (contentIndex || 0)) % candidates.length;
   return candidates[index];
 }
 
@@ -1662,5 +1737,6 @@ export {
   WHITEBOARD_TEMPLATES,
   selectTemplate,
   applyTemplate,
+  buildTemplateData,
   COLORS
 };
