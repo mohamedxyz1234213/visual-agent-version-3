@@ -9,6 +9,7 @@ import lessonsRouter from './routes/lessons.js';
 import storyboardRouter from './routes/storyboard.js';
 import quizRouter from './routes/quiz.js';
 import dashboardRouter from './routes/dashboard.js';
+import { toErrorResponse } from './utils/errors.js';
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -35,8 +36,8 @@ app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 // ── Global error handler ──────────────────────────────────────────────────────
 app.use((err, _req, res, _next) => {
   console.error(err);
-  const status = err.status || err.statusCode || 500;
-  res.status(status).json({ error: err.message || 'Internal server error' });
+  const { status, message } = toErrorResponse(err);
+  res.status(status).json({ error: message });
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import { saveLessonPlan } from '../services/storyboardGenerator.js';
 import { synthesize } from '../services/ttsService.js';
 import { uploadFile, uploadAudio } from '../services/storageService.js';
 import { BLAZE_MODELS, getBlazeConfig, resolveBlazeModel } from '../services/blazeConfig.js';
+import { toUserFacingError } from '../utils/errors.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
@@ -236,7 +237,7 @@ async function processLesson(lessonId, seriesId, buffer, filename, userInstructi
     }
   } catch (err) {
     console.error(`Lesson 1 processing failed for ${lessonId}:`, err);
-    await Lesson.findByIdAndUpdate(lessonId, { status: 'error', errorMessage: err.message });
+    await Lesson.findByIdAndUpdate(lessonId, { status: 'error', errorMessage: toUserFacingError(err) });
   }
 }
 
@@ -277,7 +278,7 @@ async function processRemainingLessons(seriesId, sourceFilename, totalLessons, a
         console.log(`[upload] Background lesson ${lessonIndex + 1} ready.`);
       } catch (err) {
         console.error(`Background lesson ${lessonIndex + 1} failed:`, err.message);
-        await Lesson.findByIdAndUpdate(lesson._id, { status: 'error', errorMessage: err.message });
+        await Lesson.findByIdAndUpdate(lesson._id, { status: 'error', errorMessage: toUserFacingError(err) });
       }
     });
 

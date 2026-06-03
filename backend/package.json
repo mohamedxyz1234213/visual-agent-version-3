@@ -7,7 +7,10 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "lsof -ti:8000 | xargs kill -9 2>/dev/null; node --watch src/index.js",
-    "dev:local": "node dev-start.js"
+    "dev:local": "node dev-start.js",
+    "test:whiteboard": "node scripts/test-whiteboard-pipeline.mjs",
+    "diagnose:whiteboard": "node scripts/diagnose-whiteboard.mjs",
+    "preview:templates": "node scripts/preview-templates.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.96.0",

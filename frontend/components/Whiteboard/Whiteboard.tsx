@@ -21,12 +21,16 @@ interface TextStyle {
   fontWeight?: string;
   fontStyle?: string;
   textAnchor?: "start" | "middle" | "end";
+  // Set by the backend layout pass so text wraps/truncates to fit its container
+  // box exactly (prevents the wrapped-text overflow that caused overlap).
+  maxWidth?: number;
+  maxLines?: number;
 }
 
 interface DrawTextP    { content: string; position: [number, number]; style?: TextStyle; }
-interface DrawRectP    { x: number; y: number; width: number; height: number; label?: string; style?: { fill?: string; stroke?: string; strokeWidth?: number; rx?: number; }; }
+interface DrawRectP    { x: number; y: number; width: number; height: number; label?: string; style?: { fill?: string; stroke?: string; strokeWidth?: number; rx?: number; flat?: boolean; }; }
 interface DrawCircleP  { center: [number, number]; radius: number; label?: string; style?: { fill?: string; stroke?: string; strokeWidth?: number; }; }
-interface DrawArrowP   { from: [number, number]; to: [number, number]; label?: string; style?: { color?: string; strokeWidth?: number; }; }
+interface DrawArrowP   { from: [number, number]; to: [number, number]; label?: string; style?: { color?: string; strokeWidth?: number; dashed?: boolean; }; }
 interface DrawPathP    { d: string; markerEnd?: string; style?: { fill?: string; stroke?: string; strokeWidth?: number; dashed?: boolean; }; }
 interface DrawBadgeP   { content: string; position: [number, number]; style?: { bg?: string; color?: string; fontSize?: number; }; }
 interface DrawCalloutP { content: string; position: [number, number]; width?: number; style?: { bg?: string; stroke?: string; color?: string; }; }
@@ -47,11 +51,16 @@ interface DrawPhysicsShapeP {
   annotations?: string[];
 }
 interface DrawObjectP {
-  object_type: "cell" | "network" | "blockchain" | "cycle" | "gear" | "document" | "checklist" | "triangle" | "leaf" | "flask" | "lightbulb" | "target" | "book" | "dialogue" | "layers" | "compass";
+  object_type:
+    // rich figures (heavy panel)
+    | "cell" | "network" | "blockchain" | "cycle" | "gear" | "document" | "checklist" | "triangle" | "leaf" | "flask" | "lightbulb" | "target" | "book" | "dialogue" | "layers" | "compass"
+    // bare line-art icons (clean colored ring, no panel) — for flow diagrams
+    | "person" | "users" | "database" | "server" | "cloud" | "folder" | "shield" | "lock" | "key" | "check" | "cross" | "brain" | "money" | "building" | "globe" | "envelope" | "chip" | "flag" | "star" | "warning" | "gauge" | "rocket" | "handshake" | "chart_up" | "pencil_edit" | "cog_icon" | "clock" | "search";
   position?: [number, number];
   size?: [number, number];
   label?: string;
   annotations?: string[];
+  accent?: string;
 }
 interface DrawTableP {
   headers: string[];
@@ -101,6 +110,13 @@ export interface WhiteboardProps {
 
 interface RenderedEl { id: string; jsx: React.ReactNode; }
 
+interface CameraState {
+  zoom: number;
+  offsetX: number;
+  offsetY: number;
+  transition: string;
+}
+
 export default function Whiteboard({
   scenes,
   elapsed,
@@ -109,12 +125,18 @@ export default function Whiteboard({
   zoom = 1,
 }: WhiteboardProps) {
   const [visible, setVisible] = useState<RenderedEl[]>([]);
+  const [camera, setCamera] = useState<CameraState>({ zoom: 1, offsetX: 0, offsetY: 0, transition: 'none' });
+  // The teacher's spoken line for the current beat, written along the bottom band
+  // (there is no audio — captions ARE the narration the student reads).
+  const [caption, setCaption] = useState<{ text: string; index: number; total: number } | null>(null);
   const renderedIds = useRef<Set<string>>(new Set());
   const prevElapsed = useRef<number>(-1);
 
   // Reset when the scene list changes (new lesson part loaded)
   useEffect(() => {
     setVisible([]);
+    setCaption(null);
+    setCamera({ zoom: 1, offsetX: 0, offsetY: 0, transition: 'none' });
     renderedIds.current.clear();
     prevElapsed.current = -1;
   }, [scenes]);
@@ -123,10 +145,39 @@ export default function Whiteboard({
     if (Math.abs(elapsed - prevElapsed.current) < 0.05) return;
     prevElapsed.current = elapsed;
 
+    // Handle camera animations
+    const cameraScenes = scenes.filter((s) => s.action_type === "camera" && s.time_offset <= elapsed);
+    if (cameraScenes.length > 0) {
+      const latestCamera = cameraScenes[cameraScenes.length - 1];
+      const payload = latestCamera.payload as any;
+      const mode = payload?.mode || 'reset';
+      const targetZoom = Number(payload?.zoom) || 1;
+
+      if (mode === 'enter') {
+        setCamera({ zoom: targetZoom, offsetX: 0, offsetY: 0, transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)' });
+      } else if (mode === 'focus') {
+        // Zoom in slightly for emphasis
+        setCamera({ zoom: targetZoom * 1.15, offsetX: 0, offsetY: 0, transition: 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)' });
+      } else if (mode === 'reset') {
+        setCamera({ zoom: 1, offsetX: 0, offsetY: 0, transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)' });
+      }
+    }
+
     // Find the last clear that has fired up to this point
     const lastClearTime = scenes
       .filter((s) => s.action_type === "clear" && s.time_offset <= elapsed)
       .reduce((max, s) => Math.max(max, s.time_offset), -1);
+
+    // Caption track: show the LATEST caption for this beat (after the last clear,
+    // at/under elapsed). Captions replace each other — they never stack.
+    let latestCaption: { text: string; index: number; total: number } | null = null;
+    for (const scene of scenes) {
+      if (scene.action_type !== "draw_caption") continue;
+      if (scene.time_offset > elapsed || scene.time_offset <= lastClearTime) continue;
+      const p = scene.payload as any;
+      latestCaption = { text: String(p?.content ?? ""), index: Number(p?.index ?? 0), total: Number(p?.total ?? 1) };
+    }
+    setCaption(latestCaption);
 
     // Collect all non-clear scenes that should be visible:
     // after the last clear AND at or before current elapsed
@@ -134,7 +185,7 @@ export default function Whiteboard({
     const newIds = new Set<string>();
 
     for (const scene of scenes) {
-      if (scene.action_type === "clear") continue;
+      if (scene.action_type === "clear" || scene.action_type === "camera" || scene.action_type === "draw_caption") continue;
       if (scene.time_offset > elapsed) continue;
       if (scene.time_offset <= lastClearTime) continue;
 
@@ -185,7 +236,13 @@ export default function Whiteboard({
         width={width * zoom}
         height={height * zoom}
         className="absolute inset-0"
-        style={{ fontFamily: "var(--font-sans)", willChange: "contents" }}
+        style={{
+          fontFamily: "var(--font-sans)",
+          willChange: "transform",
+          transform: `scale(${camera.zoom}) translate(${camera.offsetX}px, ${camera.offsetY}px)`,
+          transition: camera.transition,
+          transformOrigin: 'center center'
+        }}
       >
         <defs>
           {/* Canvas clip — nothing escapes the board boundary */}
@@ -238,6 +295,32 @@ export default function Whiteboard({
           ))}
         </g>
       </svg>
+
+      {/* Narration caption band — the teacher's spoken line, written for the
+          student to read (no audio). Sits outside the SVG zoom so it never
+          scales or drifts; replaces itself per beat. */}
+      {caption && caption.text ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center px-4 pb-3">
+          <div
+            key={`${caption.text}-${caption.index}`}
+            className="wb-caption max-w-[92%] rounded-2xl border border-slate-200/70 bg-white/92 px-5 py-2.5 text-center shadow-[0_10px_30px_-12px_rgba(15,23,42,0.35)] backdrop-blur"
+          >
+            <p className="text-[15px] font-medium leading-snug tracking-[-0.01em] text-slate-700">
+              {caption.text}
+            </p>
+            {caption.total > 1 ? (
+              <div className="mt-1.5 flex justify-center gap-1">
+                {Array.from({ length: Math.min(caption.total, 8) }).map((_, i) => (
+                  <span
+                    key={i}
+                    className={`h-1 w-4 rounded-full transition-colors ${i <= caption.index ? "bg-blue-500" : "bg-slate-200"}`}
+                  />
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -316,6 +399,7 @@ function wrapText(
   fontWeight: string,
   textAnchor: "start" | "middle" | "end",
   maxLines?: number,
+  animClass: string = "wb-appear",
 ) {
   const { lines, lineHeight } = buildWrappedLines(text, maxWidth, fontSize, maxLines);
 
@@ -327,7 +411,7 @@ function wrapText(
       fill={color}
       fontWeight={fontWeight}
       textAnchor={textAnchor}
-      className="wb-appear"
+      className={animClass}
     >
       {lines.map((line, i) => (
         <tspan key={i} x={x} dy={i === 0 ? 0 : lineHeight}>
@@ -464,7 +548,281 @@ function getPhysicsAccent(shapeType: DrawPhysicsShapeP["shape_type"]) {
   }
 }
 
+// Bare line-art icons render inside a clean colored ring (like a flow diagram),
+// NOT inside the heavy figure panel. This set drives that branch in DrawObject.
+const BARE_ICONS = new Set<DrawObjectP["object_type"]>([
+  "person", "users", "database", "server", "cloud", "folder", "shield", "lock",
+  "key", "check", "cross", "brain", "money", "building", "globe", "envelope",
+  "chip", "flag", "star", "warning", "gauge", "rocket", "handshake", "chart_up",
+  "pencil_edit", "cog_icon", "clock", "search",
+]);
+
+const BARE_ICON_ACCENT: Partial<Record<DrawObjectP["object_type"], string>> = {
+  person: "#2563eb", users: "#65a30d", database: "#0891b2", server: "#475569",
+  cloud: "#0284c7", folder: "#d97706", shield: "#7c3aed", lock: "#475569",
+  key: "#ca8a04", check: "#16a34a", cross: "#dc2626", brain: "#db2777",
+  money: "#16a34a", building: "#7c3aed", globe: "#0891b2", envelope: "#2563eb",
+  chip: "#0f766e", flag: "#dc2626", star: "#ca8a04", warning: "#ea580c",
+  gauge: "#0284c7", rocket: "#7c3aed", handshake: "#0ea5e9", chart_up: "#2563eb",
+  pencil_edit: "#ea580c", cog_icon: "#475569", clock: "#0891b2", search: "#2563eb",
+};
+
+// Returns line-art icon JSX centered at (cx,cy), drawn to fit a ring of radius r.
+// Every shape is stroke-based round-cap line art so it reads as hand-drawn.
+function bareIcon(type: DrawObjectP["object_type"], cx: number, cy: number, r: number, color: string): React.ReactNode {
+  const sw = Math.max(2.2, r * 0.075);
+  const u = r * 0.6; // icon half-extent inside the ring
+  const common = { fill: "none", stroke: color, strokeWidth: sw, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  switch (type) {
+    case "person":
+      return (
+        <g {...common}>
+          <circle cx={cx} cy={cy - u * 0.45} r={u * 0.42} />
+          <path d={`M ${cx - u * 0.72} ${cy + u * 0.85} Q ${cx} ${cy - u * 0.05} ${cx + u * 0.72} ${cy + u * 0.85}`} />
+        </g>
+      );
+    case "users":
+      return (
+        <g {...common}>
+          <circle cx={cx - u * 0.5} cy={cy - u * 0.3} r={u * 0.32} />
+          <circle cx={cx + u * 0.5} cy={cy - u * 0.3} r={u * 0.32} />
+          <circle cx={cx} cy={cy - u * 0.5} r={u * 0.34} />
+          <path d={`M ${cx - u} ${cy + u * 0.75} Q ${cx} ${cy + u * 0.05} ${cx + u} ${cy + u * 0.75}`} />
+        </g>
+      );
+    case "database":
+      return (
+        <g {...common}>
+          <ellipse cx={cx} cy={cy - u * 0.7} rx={u * 0.78} ry={u * 0.28} />
+          <path d={`M ${cx - u * 0.78} ${cy - u * 0.7} L ${cx - u * 0.78} ${cy + u * 0.55}`} />
+          <path d={`M ${cx + u * 0.78} ${cy - u * 0.7} L ${cx + u * 0.78} ${cy + u * 0.55}`} />
+          <path d={`M ${cx - u * 0.78} ${cy + u * 0.55} A ${u * 0.78} ${u * 0.28} 0 0 0 ${cx + u * 0.78} ${cy + u * 0.55}`} />
+          <path d={`M ${cx - u * 0.78} ${cy - u * 0.1} A ${u * 0.78} ${u * 0.28} 0 0 0 ${cx + u * 0.78} ${cy - u * 0.1}`} />
+        </g>
+      );
+    case "server":
+      return (
+        <g {...common}>
+          <rect x={cx - u * 0.8} y={cy - u * 0.78} width={u * 1.6} height={u * 0.66} rx={u * 0.12} />
+          <rect x={cx - u * 0.8} y={cy + u * 0.12} width={u * 1.6} height={u * 0.66} rx={u * 0.12} />
+          <circle cx={cx - u * 0.5} cy={cy - u * 0.45} r={sw * 0.5} fill={color} />
+          <circle cx={cx - u * 0.5} cy={cy + u * 0.45} r={sw * 0.5} fill={color} />
+        </g>
+      );
+    case "cloud":
+      return (
+        <g {...common}>
+          <path d={`M ${cx - u * 0.7} ${cy + u * 0.45} A ${u * 0.42} ${u * 0.42} 0 0 1 ${cx - u * 0.55} ${cy - u * 0.35} A ${u * 0.5} ${u * 0.5} 0 0 1 ${cx + u * 0.45} ${cy - u * 0.25} A ${u * 0.4} ${u * 0.4} 0 0 1 ${cx + u * 0.7} ${cy + u * 0.45} Z`} />
+        </g>
+      );
+    case "folder":
+      return (
+        <g {...common}>
+          <path d={`M ${cx - u * 0.85} ${cy - u * 0.55} L ${cx - u * 0.2} ${cy - u * 0.55} L ${cx - u * 0.02} ${cy - u * 0.3} L ${cx + u * 0.85} ${cy - u * 0.3} L ${cx + u * 0.85} ${cy + u * 0.6} L ${cx - u * 0.85} ${cy + u * 0.6} Z`} />
+        </g>
+      );
+    case "shield":
+      return (
+        <g {...common}>
+          <path d={`M ${cx} ${cy - u * 0.85} L ${cx + u * 0.72} ${cy - u * 0.5} L ${cx + u * 0.72} ${cy + u * 0.15} Q ${cx + u * 0.72} ${cy + u * 0.75} ${cx} ${cy + u * 0.9} Q ${cx - u * 0.72} ${cy + u * 0.75} ${cx - u * 0.72} ${cy + u * 0.15} L ${cx - u * 0.72} ${cy - u * 0.5} Z`} />
+          <path d={`M ${cx - u * 0.3} ${cy + u * 0.02} L ${cx - u * 0.05} ${cy + u * 0.3} L ${cx + u * 0.38} ${cy - u * 0.32}`} />
+        </g>
+      );
+    case "lock":
+      return (
+        <g {...common}>
+          <rect x={cx - u * 0.62} y={cy - u * 0.1} width={u * 1.24} height={u * 0.95} rx={u * 0.14} />
+          <path d={`M ${cx - u * 0.4} ${cy - u * 0.1} L ${cx - u * 0.4} ${cy - u * 0.5} A ${u * 0.4} ${u * 0.4} 0 0 1 ${cx + u * 0.4} ${cy - u * 0.5} L ${cx + u * 0.4} ${cy - u * 0.1}`} />
+          <circle cx={cx} cy={cy + u * 0.32} r={sw * 0.7} fill={color} />
+        </g>
+      );
+    case "key":
+      return (
+        <g {...common}>
+          <circle cx={cx - u * 0.45} cy={cy - u * 0.3} r={u * 0.38} />
+          <path d={`M ${cx - u * 0.18} ${cy - u * 0.03} L ${cx + u * 0.75} ${cy + u * 0.6}`} />
+          <path d={`M ${cx + u * 0.45} ${cy + u * 0.3} L ${cx + u * 0.62} ${cy + u * 0.12}`} />
+          <path d={`M ${cx + u * 0.62} ${cy + u * 0.48} L ${cx + u * 0.78} ${cy + u * 0.32}`} />
+        </g>
+      );
+    case "check":
+      return <path {...common} d={`M ${cx - u * 0.55} ${cy} L ${cx - u * 0.12} ${cy + u * 0.45} L ${cx + u * 0.62} ${cy - u * 0.45}`} strokeWidth={sw * 1.2} />;
+    case "cross":
+      return (
+        <g {...common} strokeWidth={sw * 1.2}>
+          <path d={`M ${cx - u * 0.5} ${cy - u * 0.5} L ${cx + u * 0.5} ${cy + u * 0.5}`} />
+          <path d={`M ${cx + u * 0.5} ${cy - u * 0.5} L ${cx - u * 0.5} ${cy + u * 0.5}`} />
+        </g>
+      );
+    case "brain":
+      return (
+        <g {...common}>
+          <path d={`M ${cx} ${cy - u * 0.7} Q ${cx - u * 0.8} ${cy - u * 0.7} ${cx - u * 0.65} ${cy} Q ${cx - u * 0.85} ${cy + u * 0.55} ${cx} ${cy + u * 0.7}`} />
+          <path d={`M ${cx} ${cy - u * 0.7} Q ${cx + u * 0.8} ${cy - u * 0.7} ${cx + u * 0.65} ${cy} Q ${cx + u * 0.85} ${cy + u * 0.55} ${cx} ${cy + u * 0.7}`} />
+          <path d={`M ${cx} ${cy - u * 0.7} L ${cx} ${cy + u * 0.7}`} strokeWidth={sw * 0.7} />
+          <path d={`M ${cx - u * 0.35} ${cy - u * 0.15} Q ${cx - u * 0.1} ${cy} ${cx - u * 0.35} ${cy + u * 0.2}`} strokeWidth={sw * 0.6} />
+        </g>
+      );
+    case "money":
+      return (
+        <g {...common}>
+          <circle cx={cx} cy={cy} r={u * 0.82} />
+          <path d={`M ${cx + u * 0.28} ${cy - u * 0.32} Q ${cx - u * 0.32} ${cy - u * 0.45} ${cx - u * 0.32} ${cy - u * 0.08} Q ${cx - u * 0.32} ${cy + u * 0.12} ${cx + u * 0.28} ${cy + u * 0.12} Q ${cx + u * 0.32} ${cy + u * 0.32} ${cx - u * 0.3} ${cy + u * 0.34}`} strokeWidth={sw * 0.85} />
+          <path d={`M ${cx} ${cy - u * 0.6} L ${cx} ${cy + u * 0.6}`} strokeWidth={sw * 0.7} />
+        </g>
+      );
+    case "building":
+      return (
+        <g {...common}>
+          <rect x={cx - u * 0.7} y={cy - u * 0.8} width={u * 0.78} height={u * 1.6} />
+          <rect x={cx + u * 0.1} y={cy - u * 0.35} width={u * 0.62} height={u * 1.15} />
+          {[-0.5, -0.1, 0.3].map((ry, i) => (
+            <g key={i}>
+              <line x1={cx - u * 0.55} y1={cy + ry * u} x2={cx - u * 0.32} y2={cy + ry * u} strokeWidth={sw * 0.7} />
+              <line x1={cx - u * 0.18} y1={cy + ry * u} x2={cx - u * 0.02} y2={cy + ry * u} strokeWidth={sw * 0.7} />
+            </g>
+          ))}
+        </g>
+      );
+    case "globe":
+      return (
+        <g {...common}>
+          <circle cx={cx} cy={cy} r={u * 0.82} />
+          <ellipse cx={cx} cy={cy} rx={u * 0.34} ry={u * 0.82} />
+          <line x1={cx - u * 0.82} y1={cy} x2={cx + u * 0.82} y2={cy} strokeWidth={sw * 0.8} />
+          <path d={`M ${cx - u * 0.7} ${cy - u * 0.42} Q ${cx} ${cy - u * 0.2} ${cx + u * 0.7} ${cy - u * 0.42}`} strokeWidth={sw * 0.7} />
+          <path d={`M ${cx - u * 0.7} ${cy + u * 0.42} Q ${cx} ${cy + u * 0.2} ${cx + u * 0.7} ${cy + u * 0.42}`} strokeWidth={sw * 0.7} />
+        </g>
+      );
+    case "envelope":
+      return (
+        <g {...common}>
+          <rect x={cx - u * 0.85} y={cy - u * 0.6} width={u * 1.7} height={u * 1.2} rx={u * 0.08} />
+          <path d={`M ${cx - u * 0.85} ${cy - u * 0.55} L ${cx} ${cy + u * 0.18} L ${cx + u * 0.85} ${cy - u * 0.55}`} />
+        </g>
+      );
+    case "chip":
+      return (
+        <g {...common}>
+          <rect x={cx - u * 0.55} y={cy - u * 0.55} width={u * 1.1} height={u * 1.1} rx={u * 0.1} />
+          <rect x={cx - u * 0.25} y={cy - u * 0.25} width={u * 0.5} height={u * 0.5} rx={u * 0.05} />
+          {[-0.3, 0, 0.3].map((o, i) => (
+            <g key={i} strokeWidth={sw * 0.8}>
+              <line x1={cx + o * u} y1={cy - u * 0.85} x2={cx + o * u} y2={cy - u * 0.55} />
+              <line x1={cx + o * u} y1={cy + u * 0.55} x2={cx + o * u} y2={cy + u * 0.85} />
+              <line x1={cx - u * 0.85} y1={cy + o * u} x2={cx - u * 0.55} y2={cy + o * u} />
+              <line x1={cx + u * 0.55} y1={cy + o * u} x2={cx + u * 0.85} y2={cy + o * u} />
+            </g>
+          ))}
+        </g>
+      );
+    case "flag":
+      return (
+        <g {...common}>
+          <line x1={cx - u * 0.55} y1={cy - u * 0.8} x2={cx - u * 0.55} y2={cy + u * 0.85} />
+          <path d={`M ${cx - u * 0.55} ${cy - u * 0.8} L ${cx + u * 0.7} ${cy - u * 0.55} L ${cx + u * 0.2} ${cy - u * 0.2} L ${cx + u * 0.7} ${cy + u * 0.12} L ${cx - u * 0.55} ${cy - u * 0.1} Z`} />
+        </g>
+      );
+    case "star":
+      return (
+        <path {...common} d={(() => {
+          let d = "";
+          for (let i = 0; i < 10; i++) {
+            const ang = (Math.PI / 5) * i - Math.PI / 2;
+            const rad = i % 2 === 0 ? u * 0.85 : u * 0.36;
+            d += `${i === 0 ? "M" : "L"} ${cx + Math.cos(ang) * rad} ${cy + Math.sin(ang) * rad} `;
+          }
+          return d + "Z";
+        })()} />
+      );
+    case "warning":
+      return (
+        <g {...common}>
+          <path d={`M ${cx} ${cy - u * 0.8} L ${cx + u * 0.85} ${cy + u * 0.7} L ${cx - u * 0.85} ${cy + u * 0.7} Z`} />
+          <line x1={cx} y1={cy - u * 0.25} x2={cx} y2={cy + u * 0.25} strokeWidth={sw * 1.1} />
+          <circle cx={cx} cy={cy + u * 0.52} r={sw * 0.6} fill={color} />
+        </g>
+      );
+    case "gauge":
+      return (
+        <g {...common}>
+          <path d={`M ${cx - u * 0.8} ${cy + u * 0.35} A ${u * 0.8} ${u * 0.8} 0 0 1 ${cx + u * 0.8} ${cy + u * 0.35}`} />
+          <line x1={cx} y1={cy + u * 0.35} x2={cx + u * 0.5} y2={cy - u * 0.3} strokeWidth={sw * 1.1} />
+          <circle cx={cx} cy={cy + u * 0.35} r={sw * 0.8} fill={color} />
+        </g>
+      );
+    case "rocket":
+      return (
+        <g {...common}>
+          <path d={`M ${cx} ${cy - u * 0.85} Q ${cx + u * 0.45} ${cy - u * 0.2} ${cx + u * 0.3} ${cy + u * 0.5} L ${cx - u * 0.3} ${cy + u * 0.5} Q ${cx - u * 0.45} ${cy - u * 0.2} ${cx} ${cy - u * 0.85} Z`} />
+          <circle cx={cx} cy={cy - u * 0.2} r={u * 0.18} />
+          <path d={`M ${cx - u * 0.3} ${cy + u * 0.5} L ${cx - u * 0.6} ${cy + u * 0.8} L ${cx - u * 0.18} ${cy + u * 0.55}`} />
+          <path d={`M ${cx + u * 0.3} ${cy + u * 0.5} L ${cx + u * 0.6} ${cy + u * 0.8} L ${cx + u * 0.18} ${cy + u * 0.55}`} />
+        </g>
+      );
+    case "handshake":
+      return (
+        <g {...common}>
+          <path d={`M ${cx - u * 0.85} ${cy - u * 0.15} L ${cx - u * 0.35} ${cy - u * 0.15} L ${cx} ${cy + u * 0.15} L ${cx + u * 0.35} ${cy - u * 0.15} L ${cx + u * 0.85} ${cy - u * 0.15}`} />
+          <path d={`M ${cx - u * 0.35} ${cy - u * 0.15} L ${cx - u * 0.05} ${cy + u * 0.45} Q ${cx + u * 0.1} ${cy + u * 0.55} ${cx + u * 0.2} ${cy + u * 0.4}`} strokeWidth={sw * 0.85} />
+          <path d={`M ${cx - u * 0.85} ${cy + u * 0.45} L ${cx - u * 0.45} ${cy + u * 0.45}`} strokeWidth={sw * 0.85} />
+          <path d={`M ${cx + u * 0.85} ${cy + u * 0.45} L ${cx + u * 0.45} ${cy + u * 0.45}`} strokeWidth={sw * 0.85} />
+        </g>
+      );
+    case "chart_up":
+      return (
+        <g {...common}>
+          <line x1={cx - u * 0.7} y1={cy + u * 0.7} x2={cx - u * 0.7} y2={cy - u * 0.5} strokeWidth={sw * 0.8} />
+          <line x1={cx - u * 0.7} y1={cy + u * 0.7} x2={cx + u * 0.8} y2={cy + u * 0.7} strokeWidth={sw * 0.8} />
+          <rect x={cx - u * 0.45} y={cy + u * 0.2} width={u * 0.28} height={u * 0.5} />
+          <rect x={cx - u * 0.02} y={cy - u * 0.05} width={u * 0.28} height={u * 0.75} />
+          <rect x={cx + u * 0.4} y={cy - u * 0.35} width={u * 0.28} height={u * 1.05} />
+          <path d={`M ${cx - u * 0.4} ${cy} L ${cx + u * 0.1} ${cy - u * 0.4} L ${cx + u * 0.55} ${cy - u * 0.7}`} strokeWidth={sw * 0.9} />
+          <path d={`M ${cx + u * 0.25} ${cy - u * 0.72} L ${cx + u * 0.6} ${cy - u * 0.72} L ${cx + u * 0.6} ${cy - u * 0.4}`} strokeWidth={sw * 0.8} />
+        </g>
+      );
+    case "pencil_edit":
+      return (
+        <g {...common}>
+          <path d={`M ${cx - u * 0.75} ${cy - u * 0.7} L ${cx + u * 0.2} ${cy - u * 0.7} L ${cx + u * 0.2} ${cy + u * 0.7} L ${cx - u * 0.75} ${cy + u * 0.7} Z`} />
+          <line x1={cx - u * 0.5} y1={cy - u * 0.35} x2={cx - u * 0.05} y2={cy - u * 0.35} strokeWidth={sw * 0.7} />
+          <line x1={cx - u * 0.5} y1={cy - u * 0.05} x2={cx - u * 0.05} y2={cy - u * 0.05} strokeWidth={sw * 0.7} />
+          <path d={`M ${cx + u * 0.15} ${cy + u * 0.55} L ${cx + u * 0.6} ${cy - u * 0.05} L ${cx + u * 0.82} ${cy + u * 0.15} L ${cx + u * 0.38} ${cy + u * 0.78} Z`} />
+          <path d={`M ${cx + u * 0.15} ${cy + u * 0.55} L ${cx + u * 0.1} ${cy + u * 0.82} L ${cx + u * 0.38} ${cy + u * 0.78}`} strokeWidth={sw * 0.8} />
+        </g>
+      );
+    case "clock":
+      return (
+        <g {...common}>
+          <circle cx={cx} cy={cy} r={u * 0.82} />
+          <line x1={cx} y1={cy} x2={cx} y2={cy - u * 0.5} strokeWidth={sw * 0.9} />
+          <line x1={cx} y1={cy} x2={cx + u * 0.4} y2={cy + u * 0.18} strokeWidth={sw * 0.9} />
+        </g>
+      );
+    case "search":
+      return (
+        <g {...common}>
+          <circle cx={cx - u * 0.18} cy={cy - u * 0.18} r={u * 0.55} />
+          <line x1={cx + u * 0.25} y1={cy + u * 0.25} x2={cx + u * 0.75} y2={cy + u * 0.75} strokeWidth={sw * 1.1} />
+        </g>
+      );
+    case "cog_icon":
+    default:
+      return (
+        <g {...common}>
+          <circle cx={cx} cy={cy} r={u * 0.42} />
+          {Array.from({ length: 8 }, (_, i) => {
+            const a = (Math.PI * 2 * i) / 8;
+            return <line key={i} x1={cx + Math.cos(a) * u * 0.58} y1={cy + Math.sin(a) * u * 0.58} x2={cx + Math.cos(a) * u * 0.85} y2={cy + Math.sin(a) * u * 0.85} />;
+          })}
+        </g>
+      );
+  }
+}
+
 function getObjectAccent(objectType: DrawObjectP["object_type"]) {
+  const bare = BARE_ICON_ACCENT[objectType];
+  if (bare) return bare;
   switch (objectType) {
     case "cell":
     case "triangle":
@@ -500,9 +858,15 @@ function DrawText({ id, p }: { id: string; p: DrawTextP }) {
   const subtitleLike = textAnchor === "middle" && y > 90 && y <= 130;
   const displayFontSize = titleLike ? Math.min(fontSize, 26) : subtitleLike ? Math.min(fontSize, 15) : fontSize;
   const content = String(p.content ?? "");
-  // max text width: roughly canvas width minus margins based on anchor
-  const maxWidth = textAnchor === "middle" ? (titleLike ? 560 : subtitleLike ? 540 : 680) : 720 - x;
-  const maxLines = titleLike ? 2 : subtitleLike ? 2 : textAnchor === "middle" ? 3 : 4;
+  // Prefer the explicit fit the backend layout pass assigned (so text wraps to
+  // exactly the width/height of its container and never spills); fall back to
+  // the anchor-based heuristic only when none was provided.
+  const maxWidth = typeof s.maxWidth === "number"
+    ? s.maxWidth
+    : textAnchor === "middle" ? (titleLike ? 560 : subtitleLike ? 540 : 680) : 720 - x;
+  const maxLines = typeof s.maxLines === "number"
+    ? s.maxLines
+    : titleLike ? 2 : subtitleLike ? 2 : textAnchor === "middle" ? 3 : 4;
   const underlineWidth = titleLike || subtitleLike
     ? Math.min(maxWidth - 24, Math.max(140, estimateTextWidth(content, displayFontSize) + 22))
     : 0;
@@ -513,7 +877,7 @@ function DrawText({ id, p }: { id: string; p: DrawTextP }) {
       {titleLike ? (
         <ellipse cx={x} cy={y + 10} rx={underlineWidth * 0.42} ry={displayFontSize * 0.9} fill={color} fillOpacity={0.08} filter="url(#wb-glow)" className="wb-halo" />
       ) : null}
-      {wrapText(content, x, y, maxWidth, displayFontSize, color, fontWeight, textAnchor, maxLines)}
+      {wrapText(content, x, y, maxWidth, displayFontSize, color, fontWeight, textAnchor, maxLines, "wb-write-on")}
       {titleLike ? (
         <g>
           <path
@@ -558,6 +922,25 @@ function DrawRect({ id, p }: { id: string; p: DrawRectP }) {
   const rx = s.rx ?? 6;
   const accent = s.stroke ?? "#1a1a1a";
   const fill = s.fill === undefined ? "#ffffff" : s.fill;
+
+  // FLAT clean node (architecture-diagram look): just a solid rounded box with a
+  // soft shadow — no halo, no inner highlight strip, no accent rail. Title and
+  // subtitle are drawn as separate text fragments on top by the template.
+  if (s.flat) {
+    return (
+      <g key={id} className={pickAnimation(id, SHAPE_ANIMATIONS)}>
+        <rect
+          x={x} y={y} width={w} height={h}
+          fill={fill}
+          stroke={s.stroke ?? "none"}
+          strokeWidth={s.strokeWidth ?? 0}
+          rx={rx}
+          filter="url(#wb-shadow)"
+        />
+        {p.label && wrapText(p.label, x + w / 2, y + h / 2 - 4, w - 16, Math.min(15, h * 0.32), "#ffffff", "700", "middle", 2)}
+      </g>
+    );
+  }
 
   return (
     <g key={id} className={pickAnimation(id, SHAPE_ANIMATIONS)}>
@@ -663,6 +1046,26 @@ function DrawArrow({ id, p }: { id: string; p: DrawArrowP }) {
   };
   const markerId = markerMap[color] ?? "arr-default";
   const length = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+
+  // Dashed connector (architecture-diagram link): a thin dashed line that fades
+  // in — the self-draw dashoffset trick can't coexist with a dash pattern.
+  if (s.dashed) {
+    return (
+      <g key={id} className="wb-appear">
+        <line
+          x1={x1} y1={y1} x2={x2} y2={y2}
+          stroke={color}
+          strokeWidth={sw}
+          markerEnd={`url(#${markerId})`}
+          strokeDasharray="6 5"
+          strokeLinecap="round"
+        />
+        {p.label && (
+          <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 8} fontSize={12} fill={color} textAnchor="middle">{p.label}</text>
+        )}
+      </g>
+    );
+  }
 
   return (
     <g key={id}>
@@ -1213,7 +1616,7 @@ function DrawPhysicsShape({ id, p }: { id: string; p: DrawPhysicsShapeP }) {
       <ellipse cx={px + pw / 2} cy={py + ph / 2} rx={pw * 0.44} ry={ph * 0.36} fill={accent} fillOpacity={0.12} filter="url(#wb-glow)" className="wb-halo" />
       <rect x={px + 6} y={py + 10} width={Math.max(0, pw - 12)} height={Math.max(0, ph - 20)} rx={24} fill="url(#wb-panel-fill)" fillOpacity={0.92} stroke={accent} strokeOpacity={0.18} strokeWidth={1.4} filter="url(#wb-shadow)" />
       <rect x={px + 18} y={py + 18} width={Math.max(18, pw - 36)} height={8} rx={4} fill="#ffffff" fillOpacity={0.2} />
-      <g className="wb-drift">{shape}</g>
+      <g className="wb-figure-build"><g className="wb-drift">{shape}</g></g>
       {label ? renderLabelCapsule(`${id}-label`, label, px + pw / 2, labelTop, Math.max(140, Math.min(pw + 28, 240)), accent) : null}
       {renderAnnotationCards(`${id}-annotation`, annotations, annotationX, annotationY, annotationWidth, accent)}
     </g>
@@ -1225,11 +1628,33 @@ function DrawObject({ id, p }: { id: string; p: DrawObjectP }) {
   const [pw, ph] = p.size ?? [220, 180];
   const label = p.label ?? "";
   const annotations = p.annotations ?? [];
-  const accent = getObjectAccent(p.object_type);
+  const accent = p.accent || getObjectAccent(p.object_type);
   const labelTop = py < 170 ? Math.max(16, py - 46) : py - 44;
   const annotationWidth = 160;
   const annotationX = px + pw + 12 > 800 - annotationWidth - 14 ? px - annotationWidth - 12 : px + pw + 12;
   const annotationY = py < 170 ? py + 8 : py + 12;
+
+  // ── Bare line-art icon: clean colored ring, no heavy panel (flow-diagram look) ──
+  if (BARE_ICONS.has(p.object_type)) {
+    const cx = px + pw / 2;
+    const cy = py + ph / 2;
+    const R = Math.max(24, Math.min(pw, ph) / 2 - 4);
+    const circ = 2 * Math.PI * R;
+    return (
+      <g key={id} className="wb-pop">
+        <circle cx={cx} cy={cy} r={R + 7} fill={accent} fillOpacity={0.06} className="wb-halo" />
+        <circle cx={cx} cy={cy} r={R} fill="#ffffff" />
+        <circle
+          cx={cx} cy={cy} r={R}
+          fill="none" stroke={accent} strokeWidth={3.4} strokeLinecap="round"
+          strokeDasharray={circ} strokeDashoffset={circ}
+          style={{ animation: "wbDrawLine 0.85s cubic-bezier(0.4,0,0.2,1) forwards", ["--path-len" as string]: circ }}
+        />
+        <g className="wb-figure-build">{bareIcon(p.object_type, cx, cy, R, accent)}</g>
+        {label ? renderLabelCapsule(`${id}-label`, label, cx, cy + R + 22, Math.max(120, Math.min(pw + 40, 220)), accent) : null}
+      </g>
+    );
+  }
 
   let objectShape: React.ReactNode = null;
 
@@ -1567,7 +1992,7 @@ function DrawObject({ id, p }: { id: string; p: DrawObjectP }) {
       <rect x={px + 18} y={py + 18} width={Math.max(24, pw - 36)} height={8} rx={4} fill="#ffffff" fillOpacity={0.2} />
       <circle cx={px + 22} cy={py + 24} r={4} fill={accent} fillOpacity={0.18} className="wb-breathe" />
       <circle cx={px + pw - 24} cy={py + ph - 24} r={5} fill={accent} fillOpacity={0.16} className="wb-breathe" style={{ animationDelay: "0.14s" }} />
-      <g className="wb-drift">{objectShape}</g>
+      <g className="wb-figure-build"><g className="wb-drift">{objectShape}</g></g>
       {label ? renderLabelCapsule(`${id}-label`, label, px + pw / 2, labelTop, Math.max(150, Math.min(pw + 28, 248)), accent) : null}
       {renderAnnotationCards(`${id}-annotation`, annotations, annotationX, annotationY, annotationWidth, accent)}
     </g>

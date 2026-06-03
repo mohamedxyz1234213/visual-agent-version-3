@@ -14,6 +14,9 @@
 
 import dagre from '@dagrejs/dagre';
 import { getBlazeConfig, resolveBlazeModel } from './blazeConfig.js';
+import { buildWhiteboardForPart } from './whiteboard/index.js';
+import { COMPREHENSION_PROMPT, DECOMPOSITION_PROMPT, REFINEMENT_PROMPT, TEACHING_PROMPT, TOPIC_SCAFFOLD_PROMPT } from './prompts/index.js';
+import { validateBoardScenes } from './whiteboard/validator.js';
 
 const STOPWORDS = new Set([
   'about', 'after', 'again', 'against', 'almost', 'also', 'although', 'always',
@@ -133,252 +136,21 @@ let lastAiVia = null;
 // The AI must read the FULL document and produce a structured understanding
 // =============================================================================
 
-const COMPREHENSION_PROMPT = `You are an expert teacher preparing to teach from a document. Your task is to DEEPLY and THOROUGHLY analyze the ENTIRE document and produce a comprehensive structured understanding.
-
-THINKING PROCESS (you MUST follow this before generating JSON):
-1. First, read through the ENTIRE document from beginning to end. Note every major section.
-2. For EACH section: identify the core concept, any commands/code shown, any procedures described, any tools mentioned.
-3. Map the relationships: which concepts depend on others? What is the learning progression?
-4. Identify what makes this document unique: what specific real-world context does it provide?
-5. Only AFTER completing steps 1-4, generate your JSON output.
-
-TAKE YOUR TIME. Process every paragraph. Understand the full scope. Do NOT rush. The user is NOT in a hurry — they want QUALITY, not speed.
-
-CRITICAL RULES:
-- Read the ENTIRE document from start to finish. Do NOT skip or skim any section.
-- For each section you read, identify: what new knowledge it introduces, what skills it teaches, what relationships it reveals.
-- Identify what this document is actually ABOUT — the real subject matter, not meta-information like author names, version numbers, or formatting instructions.
-- Skip ONLY: title pages, tables of contents, acknowledgments, bibliographies, indices.
-- Everything else is teachable content. Chapters, sections, examples, code snippets, explanations, analogies — ALL of it matters.
-- Extract the actual knowledge: facts, definitions, processes, step-by-step procedures, relationships between concepts, examples, warnings, best practices.
-- Be EXHAUSTIVE in your analysis. A 50-page document should produce 15+ topics with detailed breakdowns.
-- Each topic MUST have 5+ details extracted verbatim or closely paraphrased from the source.
-- Your output length should be PROPORTIONAL to the document length. A long document = long detailed analysis.
-
-Return raw JSON only with this exact shape:
-{
-  "document_subject": "The precise main subject (e.g., 'DevOps Engineering: CI/CD, Docker, Kubernetes, and Production Deployment', 'Human Cardiovascular System: Anatomy and Pathology')",
-  "field": "medical|architecture|mathematics|programming|science|history|business|language|general",
-  "core_thesis": "2-3 sentences summarizing the main teaching purpose and what a student will learn",
-  "key_topics": [
-    {
-      "topic": "Name of this topic/concept (use the actual terminology from the document)",
-      "definition": "Clear 2-3 sentence definition or explanation drawn directly from the document",
-      "importance": "Why this matters — what breaks or fails without this knowledge",
-      "details": ["Specific fact 1 from the document", "Specific fact 2", "Specific fact 3", "Specific fact 4", "Specific fact 5"],
-      "relationships": ["How this connects to topic X", "How this builds on topic Y", "How this enables topic Z"]
-    }
-  ],
-  "logical_flow": "Detailed description of how topics build on each other — the document's teaching progression from foundations to advanced",
-  "difficulty_level": "beginner|intermediate|advanced",
-  "teaching_approach": "Specific visual strategy — e.g., 'flowcharts for deployment pipelines, labeled diagrams for architecture, comparison tables for tool selection, step-by-step process flows for setup procedures'"
-}
-
-Extract 10-20 key_topics depending on document length. A 50-page document MUST have at least 15 topics. Each topic MUST have real specific content extracted from the document — actual definitions, actual procedures, actual examples. NO generic placeholders like "This is important" or "Key concept in the field".`;
 
 // =============================================================================
 // PHASE 2 PROMPT: Lesson decomposition based on comprehension
 // =============================================================================
 
-const DECOMPOSITION_PROMPT = `Based on the document analysis below, create a teaching plan that DYNAMICALLY breaks this material into the appropriate number of lessons.
-
-THINKING PROCESS (follow BEFORE generating output):
-1. Read through ALL the topics identified in the analysis. Group them logically by chapter/section.
-2. Determine how many lessons are needed based on the volume and complexity of material.
-3. For each lesson, identify exactly which paragraphs/sections of the source document it should cover.
-4. Plan the progression: foundations first, then building blocks, then advanced applications.
-5. Only THEN generate the JSON with exhaustive section_text for each lesson.
-
-LESSON COUNT RULES — adapt to document complexity:
-- Short document (1-5 pages, 1-3 topics): 1-2 lessons
-- Medium document (5-20 pages, 3-8 topics): 3-5 lessons  
-- Large document (20-50+ pages, 8+ topics): 5-10 lessons
-- Each lesson should focus on ONE coherent chapter/section of the document
-- NEVER cram multiple unrelated chapters into one lesson
-
-The user is NOT in a rush. Take your time to produce the BEST possible teaching plan. Each lesson must be substantial enough to fill 5-10 minutes of teaching with rich content.
-
-Each lesson must:
-- Cover a coherent chunk of the material that can stand alone as a complete teaching unit
-- Have a specific, measurable learning objective (not vague goals)
-- Build naturally from the previous lesson (if any)
-- Include EXTENSIVE actual content to teach — real definitions, facts, processes, code examples, step-by-step procedures from the document
-- The section_text field is CRITICAL: it must contain 5000-15000 characters of actual document content. This is what the content generator reads to create the lesson. If you provide too little text, the lesson will be empty and useless.
-
-Return raw JSON only:
-{
-  "course_title": "Descriptive course title that captures the full scope",
-  "lessons": [
-    {
-      "lesson_number": 1,
-      "title": "Specific descriptive title (e.g., 'Docker Containers: Building, Running, and Networking' not just 'Docker')",
-      "learning_objective": "By the end of this lesson, the learner will be able to: [specific measurable outcome]",
-      "key_points": ["Specific point 1 with real content", "Specific point 2", "Specific point 3", "Specific point 4", "Specific point 5"],
-      "topics_covered": ["topic name 1", "topic name 2", "topic name 3"],
-      "section_text": "EXTENSIVE verbatim excerpt of ALL source material relevant to this lesson. Include complete paragraphs, full definitions, all explanations, examples, code snippets, procedures, warnings, best practices. 5000-15000 characters MINIMUM. The more text you provide here, the better the final lesson will be. Do NOT summarize — include the actual raw text from the document.",
-      "visual_strategy": "Specific visual plan — e.g., 'Page 1: labeled architecture diagram showing frontend→backend→database flow. Page 2: step-by-step flowchart of the deployment pipeline. Page 3: comparison table of Docker vs VM. Page 4: code structure diagram showing file organization.'"
-    }
-  ]
-}`;
 
 // =============================================================================
 // PHASE 3B PROMPT: Refinement pass — AI reviews its own output and improves it
 // =============================================================================
 
-const REFINEMENT_PROMPT = `You are a strict educational whiteboard critic.
-
-Review the storyboard quality before any whiteboard coordinates are generated.
-
-Your job is to improve TEACHING QUALITY, VISUAL MEANING, COGNITIVE CLARITY, and TEACHER-LIKE PACING.
-
-Reject or rewrite any content part that has:
-- decorative visuals
-- weak teaching logic
-- too much on-screen text
-- random arrows or unclear relationships
-- generic cards or templated wording
-- missing examples
-- slideshow feeling
-- unclear teaching order
-- overlap risk caused by too many simultaneous visual anchors
-
-Critical rules:
-- Do NOT add coordinates.
-- Do NOT add raw visual_sequence drawing commands.
-- Keep every content part focused on one main teaching goal.
-- Keep visible text short and anchor-based.
-- visual_logic entries must stay semantic, purposeful, and compact.
-- Prefer hook -> concept -> relationship -> example -> mini recap -> quiz.
-
-Score every content part from 1-10 on:
-1. teaching_quality
-2. visual_meaning
-3. cognitive_clarity
-4. scene_cleanliness
-5. teacher_realism
-
-If any score is below 9, rewrite that part until it would score at least 9 across all five dimensions.
-
-Return the IMPROVED JSON in the SAME schema format.
-IMPORTANT: Return ONLY valid JSON. No markdown fences. No explanatory text before or after.`;
 
 // PHASE 3 PROMPT: Content + Visual generation for each lesson
 // This is where the actual teaching happens
 // =============================================================================
 
-const TEACHING_PROMPT = `You are not a summarizer, slideshow generator, or generic AI assistant.
-
-You are an elite instructional designer, cognitive learning expert, and professional whiteboard teacher — the kind who makes students say "I finally get it."
-
-Your task is to transform lesson material into a highly structured, pedagogically accurate, visually meaningful, teacher-like whiteboard lesson that feels like being in a REAL classroom with an extraordinary teacher.
-
-PRIMARY OBJECTIVE
-- Teach deeply and visually like an exceptional human teacher standing at a whiteboard.
-- Build understanding GRADUALLY — reveal one idea at a time, just like a real teacher drawing step by step.
-- The whiteboard must feel ALIVE: the teacher writes, draws, circles, connects, erases, and rebuilds.
-- Optimize for deep understanding, not decoration or information density.
-
-TEACHER-LIKE SEQUENCING (this is what makes the difference)
-- Start EVERY part with a hook: a question, a surprising fact, or a relatable scenario.
-- Write the core keyword/term FIRST on the board, then explain around it.
-- Draw connections AFTER establishing individual concepts — never all at once.
-- Use pauses (clear) between major concept shifts — like a teacher erasing the board.
-- Build complexity gradually: simple → nuanced → applied.
-- End each section by circling back to connect with what came before.
-
-ABSOLUTE RULES
-- Use only source-grounded information unless topic mode explicitly allows general instructional knowledge.
-- Teach. Never merely summarize or list bullet points.
-- One content part = one teaching goal. Never cram multiple unrelated ideas.
-- Keep visible whiteboard text short: 3-12 words per element. A teacher writes KEYWORDS, not paragraphs.
-- No decorative visuals — every drawn element must advance understanding.
-- No random arrows. Arrows ONLY represent: cause→effect, sequence, dependency, data flow, or transformation.
-- Never output coordinates, x/y positions, or raw visual_sequence drawing commands.
-- Output semantic roles only. The layout engine decides placement.
-- One core idea per scene with 2-4 supporting visuals maximum. Never overload.
-- NEVER repeat the same visual pattern across parts. Each part must feel unique.
-
-VISUAL PEDAGOGY (match the concept to the right visual form)
-- Cause/effect → arrow with labeled relationship
-- Sequence/process → numbered path or pipeline
-- Timeline → chronological bar with markers
-- Hierarchy → tree with clear parent-child
-- Comparison → side_by_side boxes with differentiators
-- Category/grouping → cluster of related items
-- Data/quantity → graph with labeled axes
-- Definition → keyword in bold + callout explanation
-- Formula/equation → isolated centered equation
-- Example → boxed worked illustration with steps
-
-DYNAMIC VARIETY (prevent templated feel)
-- NEVER use the same visual_logic pattern in consecutive parts.
-- Vary the teaching flow: hook→concept→example, or question→discovery→principle, or story→diagram→rule.
-- Each animation_sequence must be unique — mix different orderings.
-- Use different visual types across parts: if Part 1 uses arrows, Part 2 should use boxes or a table.
-
-QUALITY BAR
-- Every narration sentence must teach a distinct idea — no filler, no repetition.
-- Every visual element must improve understanding of the specific concept being taught.
-- The student should feel progressive "aha" moments, not information overload.
-- Narration should sound like a teacher TALKING, not reading from a textbook.
-
-OUTPUT CONTRACT
-Return ONLY valid JSON with this schema:
-{
-  "title": "",
-  "subject": "",
-  "summary": "",
-  "parts": [
-    {
-      "order_index": 1,
-      "title": "",
-      "part_type": "content",
-      "duration_seconds": 360,
-      "scene_goal": "",
-      "learning_objective": "",
-      "narration": "",
-      "key_concepts": [""],
-      "visual_logic": [
-        {
-          "type": "",
-          "semantic_role": "",
-          "relationship": "",
-          "importance": "",
-          "content": ""
-        }
-      ],
-      "animation_sequence": ["hook", "concept", "relationship", "example", "mini_recap"]
-    },
-    {
-      "order_index": 2,
-      "title": "",
-      "part_type": "quiz",
-      "duration_seconds": 55,
-      "narration": "",
-      "key_concepts": [],
-      "quiz_questions": [
-        {
-          "order_index": 1,
-          "question_type": "mcq",
-          "question_text": "",
-          "difficulty": "medium",
-          "options": { "choices": ["A", "B", "C", "D"], "correct": "A" },
-          "correct_answer": "A",
-          "explanation": ""
-        }
-      ]
-    }
-  ]
-}
-
-Before finalizing, internally verify:
-- Does each part teach ONE clear idea progressively?
-- Would a real teacher draw these visuals in this order?
-- Is there visual VARIETY between parts (not the same pattern repeated)?
-- Is the narration conversational and teacher-like (not textbook-like)?
-- Is the pacing gradual with proper build-up?
-
-If not, improve it before returning the JSON.`; 
 
 // ─── Mode-specific prompt prefix ──────────────────────────────────────────────
 function buildModePrefix(mode) {
@@ -481,29 +253,38 @@ function buildSourceModePrefix(sourceMode) {
   return 'INPUT MODE: TOPIC REQUEST\n- The material below is a user-requested topic or question, not a source document.\n- Use accurate mainstream educational knowledge for this subject.\n- You may use standard definitions, formulas, canonical examples, and common teaching diagrams.\n- Do NOT invent citations, page references, or pretend the topic prompt already contained the full explanation.\n- Keep every claim technically correct and suitable for teaching a student from first principles.\n\n';
 }
 
-const TOPIC_SCAFFOLD_PROMPT = `You are preparing a lesson for a direct topic request. Use accurate mainstream educational knowledge and return raw JSON only.
+// Subject-aware "visual playbook": a light prompt-level bias that nudges the
+// model toward the board_scene intents (and named figures) that teach a given
+// field best. The engine stays intent-driven — this only tilts the choice so a
+// biology lesson reaches for cycles/diagrams and a history lesson for timelines
+// and causal chains, instead of every subject defaulting to bullet lists.
+export function buildVisualPlaybook(field) {
+  const f = String(field || 'general').toLowerCase();
+  const PLAYBOOKS = {
+    biology: 'BIOLOGY VISUAL PLAYBOOK: Prefer "map" (labeled diagrams — use a "diagram" figure such as cell, dna, neuron when relevant + "labels" for parts), "cycle" (photosynthesis, Krebs, water cycle, life cycles), and "process" for sequential mechanisms. Use "compare" for structure/function contrasts. Anchor each board on a drawn structure, not a bullet list.',
+    medical: 'MEDICAL VISUAL PLAYBOOK: Prefer "map" (labeled anatomy diagrams with "labels"), "process" (pathophysiology / clinical pathways), "cause" (etiology → effect), and "cycle" for recurring physiological loops. Show the body/structure, then label it.',
+    science: 'SCIENCE VISUAL PLAYBOOK: Prefer "map" (labeled figures via "diagram": atom, wave, field, magnet, gear, battery), "process" (reactions, experiments), "formula" (laws/equations), and "data" (plotted relationships). Draw the phenomenon, not just words about it.',
+    mathematics: 'MATH VISUAL PLAYBOOK: Prefer "formula" (equation with worked steps), "data" (graphs / plotted functions / number lines / vectors), and "process" (solution procedures). Every abstract step should be anchored to a drawn equation or plot.',
+    economics: 'ECONOMICS VISUAL PLAYBOOK: Prefer "data" for market graphs (supply & demand axes, equilibrium point, curve shifts), "process"/"cause" for circular-flow and cause→effect (e.g. price→quantity), and "compare" for surplus vs shortage. Anchor on axes + curves, label equilibrium.',
+    business: 'BUSINESS VISUAL PLAYBOOK: Prefer "process" (workflows / funnels), "hierarchy" (org / market structure), "compare" (options, pros/cons), and "data" (KPIs, trends). Show the structure or flow, not paragraphs.',
+    history: 'HISTORY VISUAL PLAYBOOK: Prefer "timeline" (eras, dated events in order), "cause" (causal chains: event → consequence → consequence with a highlighted outcome), and "compare" (before vs after, two regimes). Put events on a spine, link causes with arrows.',
+    programming: 'PROGRAMMING/CS VISUAL PLAYBOOK: Prefer "process" (flowcharts with a decision step, request lifecycles, algorithms), "hierarchy"/"map" (system architecture: client → API → service → database as boxes + arrows), and "cycle" (state machines, event loops). Draw the components and the data movement between them.',
+    architecture: 'ARCHITECTURE VISUAL PLAYBOOK: Prefer "map" (labeled structural diagrams), "hierarchy" (load paths / component breakdown), and "process" (construction sequence). Draw the structure and label its parts.',
+    language: 'LANGUAGE VISUAL PLAYBOOK: Prefer "define" (term + meaning + example), "compare" (contrasting forms/rules), and "process" (conjugation / sentence-building steps). Anchor each rule with a concrete worked example.',
+    general: 'GENERAL VISUAL PLAYBOOK: Prefer DIAGRAMS over bullet lists — "cluster"/"cause" for an idea that branches into outcomes (distributed-arrow flow with icon nodes), "map" for a central concept with related parts (hub-and-spoke or concept+notes panel), and "process" for steps/decisions (icon pipeline or yes/no decision flow). Name each node with a concrete noun ("User", "Data", "Goal", "Risk") so a meaningful icon is drawn. Anchor every board on a relationship between labeled nodes, never plain text.',
+  };
+  const playbook = PLAYBOOKS[f] || PLAYBOOKS[
+    /bio|cell|gene|organ|species/.test(f) ? 'biology'
+    : /econ|market|trade|finance/.test(f) ? 'economics'
+    : /hist|war|era|civilization/.test(f) ? 'history'
+    : /program|software|comput|code|cs/.test(f) ? 'programming'
+    : /math|algebra|calculus|geometry/.test(f) ? 'mathematics'
+    : 'science'
+  ];
+  if (!playbook) return '';
+  return `\n\nSUBJECT-AWARE VISUALS (field: ${f}):\n${playbook}\nThis is a bias, not a restriction — still choose the intent that genuinely teaches each beat best, and vary intents across the lesson.`;
+}
 
-If the topic request is just a short seed such as a single concept or short phrase, you must expand it into a complete teachable scope on your own. Infer the foundations, core components, mechanism or sequence, key examples, and practical meaning that a student would need for a high-quality lesson.
-
-Return this exact shape:
-{
-  "document_subject": "Precise topic title",
-  "field": "biology|medical|architecture|mathematics|programming|science|history|business|economics|language|general",
-  "core_thesis": "2-3 sentences describing what a learner should understand by the end",
-  "key_topics": [
-    {
-      "topic": "Core subtopic name",
-      "definition": "Accurate teaching definition",
-      "importance": "Why this matters or what it explains",
-      "details": ["Specific supporting detail", "Specific supporting detail"],
-      "relationships": ["How it connects to another subtopic"]
-    }
-  ],
-  "logical_flow": "A clean teaching sequence from foundation to application",
-  "difficulty_level": "beginner|intermediate|advanced",
-  "teaching_approach": "Visual and instructional approach that suits the topic",
-  "source_brief": "8-14 full sentences that a teacher could teach from directly. Define the topic, explain the mechanism or structure, include one concrete application or worked example when appropriate, and mention the best visual anchors. Do not mention the user or refer to this as a request."
-}`;
 
 function stripTopicRequestLead(text) {
   return normalizeText(text)
@@ -576,18 +357,6 @@ function filterInstructionalMetaEntries(values) {
     .filter((value) => !isInstructionalMetaSentence(value)), 24);
 }
 
-function firstMeaningfulEntry(...collections) {
-  for (const collection of collections) {
-    const values = Array.isArray(collection) ? collection : [collection];
-    for (const value of values) {
-      const normalized = normalizeSentence(value);
-      if (!normalized || isInstructionalMetaSentence(normalized)) continue;
-      return normalized;
-    }
-  }
-
-  return '';
-}
 
 function buildTopicSourceBrief(topicSpec) {
   const comprehension = topicSpec.comprehension || {};
@@ -1246,6 +1015,9 @@ async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, ana
     ? `\n\nDOCUMENT UNDERSTANDING:\nSubject: ${lessonSpec.comprehension.document_subject}\nField: ${lessonSpec.comprehension.field}\nCore thesis: ${lessonSpec.comprehension.core_thesis}\nDifficulty: ${lessonSpec.comprehension.difficulty_level}\nTeaching approach: ${lessonSpec.comprehension.teaching_approach}\nLogical flow: ${lessonSpec.comprehension.logical_flow || ''}\nKey topics (ALL — use these for accurate content):\n${JSON.stringify(lessonSpec.comprehension.key_topics?.slice(0, 20), null, 1)}`
     : '';
 
+  // Light per-subject bias toward the board intents that teach this field best.
+  const visualPlaybook = buildVisualPlaybook(lessonSpec.comprehension?.field);
+
   const specText = [
     `Lesson Title: ${lessonSpec.title}`,
     `Lesson Intent: ${normalizedLessonIntent}`,
@@ -1268,7 +1040,7 @@ async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, ana
     const modePrefix = buildModePrefix(lessonSpec.explanation_mode);
     const sourceModePrefix = buildSourceModePrefix(lessonSpec.source_mode);
     const aiPlan = await callAIRace(
-      `${intentPrefix}${modePrefix}${sourceModePrefix}${TEACHING_PROMPT}${comprehensionContext}\n\nLESSON SPEC:\n${specText}`,
+      `${intentPrefix}${modePrefix}${sourceModePrefix}${TEACHING_PROMPT}${comprehensionContext}${visualPlaybook}\n\nLESSON SPEC:\n${specText}`,
       limits.contentTok,
       limits.contentTimeout,
       aiProvider,
@@ -1302,6 +1074,15 @@ async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, ana
       if (refinedPlan?.parts?.length) {
         const validated = validateAndFixPlan(refinedPlan, lessonSpec);
         if (validated.parts.length >= finalPlan.parts.length) {
+          // Refinement must never strip the AI's board_scenes. If a refined part
+          // lost the teaching beats its pre-refinement counterpart had, restore
+          // them so refinement can only improve coverage, never regress it.
+          validated.parts.forEach((part, i) => {
+            const prior = finalPlan.parts[i];
+            if (!part.board_scenes?.length && prior?.board_scenes?.length) {
+              part.board_scenes = prior.board_scenes;
+            }
+          });
           finalPlan = validated;
           console.log(`[aiPlanner] Phase 3 Pass 2 OK - refined to ${finalPlan.parts.length} parts`);
         }
@@ -1372,6 +1153,17 @@ MATERIAL:\n${(lessonSpec.section_text || '').slice(0, refineSourceLimit)}`;
         next: lessonSpec.next_lesson_title,
       },
     });
+    // CONTENT-DRIVEN DURATION: there is no narration audio, so the board must
+    // end when the DRAWING ends. We pin duration to the last *drawn* shape's time
+    // plus a short read-hold — not the max scene time, which includes a trailing
+    // camera-reset that would otherwise leave the finished board frozen for a few
+    // extra seconds. This stops the player sitting on a dead board. Sane band.
+    const lastDraw = (part.visual_sequence || [])
+      .filter((s) => !['camera', 'clear'].includes(s.type || s.action_type))
+      .reduce((m, s) => Math.max(m, Number(s.time) || 0), 0);
+    if (lastDraw > 0) {
+      part.duration_seconds = clamp(Math.ceil(lastDraw + 2.0), 45, 200);
+    }
   }
 
   // Ensure quiz parts have visuals
@@ -1714,200 +1506,14 @@ function buildVisualCueList(values, limit = 3, maxWords = 4) {
   return cues;
 }
 
-function isCueCoveredByLongerVariant(shortCue, longCue) {
-  const shortWords = normalizeText(String(shortCue || '')).toLowerCase().split(/\s+/).filter(Boolean);
-  const longWords = normalizeText(String(longCue || '')).toLowerCase().split(/\s+/).filter(Boolean);
 
-  if (!shortWords.length || shortWords.length >= longWords.length) return false;
-  if (` ${longWords.join(' ')} `.includes(` ${shortWords.join(' ')} `)) return true;
 
-  const longWordSet = new Set(longWords);
-  return shortWords.every((word) => longWordSet.has(word));
-}
 
-function pruneOverlappingVisualCues(values, limit = 3) {
-  const cues = [];
 
-  for (const value of Array.isArray(values) ? values : []) {
-    const cue = normalizeText(String(value || ''));
-    if (!cue) continue;
 
-    let skipCue = false;
-    for (let index = cues.length - 1; index >= 0; index -= 1) {
-      const existingCue = cues[index];
-      if (isCueCoveredByLongerVariant(cue, existingCue)) {
-        skipCue = true;
-        break;
-      }
-      if (isCueCoveredByLongerVariant(existingCue, cue)) {
-        cues.splice(index, 1);
-      }
-    }
 
-    if (!skipCue) {
-      cues.push(cue);
-    }
-  }
 
-  return cues.slice(0, limit);
-}
 
-function preferSpecificVisualCues(values, contextValues = [], limit = 3, maxWords = 4) {
-  const cues = [];
-
-  for (const value of Array.isArray(values) ? values : []) {
-    let cue = compactBoardLabel(value, maxWords)
-      || normalizeVisualCueWithContext(value, contextValues, maxWords)
-      || normalizeVisualCue(value, maxWords);
-
-    if (!cue) continue;
-
-    const words = cue.split(/\s+/).filter(Boolean);
-    const preserveSingleWordCue = words.length === 1 && (
-      /^[A-Z0-9+()./-]+$/.test(cue)
-      || /^(rubisco|chlorophyll|chloroplast|thylakoid|stroma|grana)$/i.test(cue)
-    );
-
-    if (words.length === 1 && !preserveSingleWordCue) {
-      const expandedCue = compactBoardLabel(expandVisualCueFromContext(cue, contextValues, maxWords), maxWords)
-        || expandVisualCueFromContext(cue, contextValues, maxWords);
-      if (!expandedCue || expandedCue.split(/\s+/).filter(Boolean).length === 1) {
-        continue;
-      }
-      cue = expandedCue;
-    }
-
-    cues.push(cue);
-  }
-
-  return pruneOverlappingVisualCues(uniqueNormalizedStrings(cues, limit * 3), limit);
-}
-
-function buildVisualContextWordSet(values) {
-  const contextWords = new Set();
-
-  for (const value of Array.isArray(values) ? values : []) {
-    const normalized = normalizeText(String(value || ''));
-    if (!normalized) continue;
-
-    const candidates = [normalizeVisualCue(normalized, 3), ...extractKeyConcepts(normalized, [], 4)]
-      .map((candidate) => normalizeVisualCue(candidate, 3))
-      .filter(Boolean);
-
-    for (const candidate of candidates) {
-      const words = candidate.split(/\s+/).filter(Boolean);
-      if (words.length !== 1) continue;
-
-      const token = words[0].toLowerCase();
-      if (STOPWORDS.has(token) || WEAK_CONCEPTS.has(token)) continue;
-      contextWords.add(token);
-    }
-  }
-
-  return contextWords;
-}
-
-function normalizeVisualCueWithContext(value, contextValues = [], maxWords = 4) {
-  const cue = normalizeVisualCue(value, maxWords);
-  if (!cue) return '';
-
-  const words = cue.split(/\s+/).filter(Boolean);
-  if (words.length <= 2) return cue;
-
-  const contextWords = buildVisualContextWordSet(contextValues);
-  while (words.length > 2 && contextWords.has(words[words.length - 1].toLowerCase())) {
-    words.pop();
-  }
-
-  const refined = words.join(' ');
-  return refined && !isWeakVisualCue(refined) ? refined : cue;
-}
-
-function expandVisualCueFromContext(cue, contextValues = [], maxWords = 4) {
-  const normalizedCue = normalizeVisualCue(cue, maxWords);
-  if (!normalizedCue) return '';
-
-  const cueKey = normalizedCue.toLowerCase();
-  const cueWords = cueKey.split(/\s+/).filter(Boolean);
-  const genericCue = cueWords.length === 1 && new Set([
-    'energy', 'function', 'organization', 'structure', 'process', 'system', 'phase', 'angle', 'value', 'graph', 'curve', 'cycle',
-  ]).has(cueWords[0]);
-
-  for (const value of Array.isArray(contextValues) ? contextValues : []) {
-    const candidate = normalizeVisualCueWithContext(value, [normalizedCue], maxWords) || normalizeVisualCue(value, maxWords);
-    if (!candidate) continue;
-
-    const candidateKey = candidate.toLowerCase();
-    if (candidateKey === cueKey) continue;
-    const candidateWords = candidate.split(/\s+/).filter(Boolean);
-    if (candidateWords.length <= cueWords.length) continue;
-    if (candidateKey.includes(cueKey) || genericCue) {
-      return candidate;
-    }
-  }
-
-  return normalizedCue;
-}
-
-function compactBoardLabel(value, maxWords = 4) {
-  const cue = normalizeVisualCue(value, maxWords);
-  if (!cue) return '';
-
-  const words = cue.split(/\s+/).filter(Boolean);
-  const genericTailWords = new Set(['organization', 'architecture', 'overview', 'function', 'properties', 'process', 'system']);
-  while (words.length > 2 && genericTailWords.has(words[words.length - 1].toLowerCase())) {
-    words.pop();
-  }
-  const hasConnector = words.some((word) => /^(and|or|of|for|to|in|with|from|via|through)$/i.test(word));
-  const allTitleLike = words.every((word) => /^[A-Z0-9][A-Za-z0-9/().-]*$/.test(word));
-  const refinedCue = words.join(' ');
-
-  if (refinedCue && refinedCue !== cue && !isWeakVisualCue(refinedCue)) {
-    return refinedCue;
-  }
-
-  if (words.length >= 4 && allTitleLike && !hasConnector) {
-    return words.slice(0, 2).join(' ');
-  }
-
-  return refinedCue || cue;
-}
-
-function extractTitleCueSegments(value, maxWords = 4) {
-  return normalizeText(String(value || ''))
-    .split(/\s+\band\b\s+|[:/,-]+/i)
-    .map((segment) => compactBoardLabel(segment, maxWords) || normalizeVisualCue(segment, maxWords) || truncateWords(segment, maxWords))
-    .filter(Boolean)
-    .filter((segment) => !/^(core notes|mechanism notes|review notes|visual map|diagramming|applying)$/i.test(segment))
-    .filter((segment, index, all) => all.findIndex((entry) => entry.toLowerCase() === segment.toLowerCase()) === index);
-}
-
-function buildVisualSubtitle(concepts, fallbackSentence = '', maxConcepts = 2) {
-  const rawConcepts = uniqueNormalizedStrings(concepts, maxConcepts + 1);
-  const subtitleConcepts = rawConcepts
-    .map((concept) => normalizeVisualCue(concept, 3))
-    .filter(Boolean)
-    .slice(0, maxConcepts);
-
-  if (subtitleConcepts.length >= 2) {
-    const candidate = subtitleConcepts.join(' | ');
-    if (candidate.length <= 58) return candidate;
-
-    const tighter = rawConcepts
-      .slice(0, maxConcepts)
-      .map((concept) => normalizeVisualCue(concept, 2))
-      .filter(Boolean)
-      .join(' | ');
-
-    return tighter || candidate;
-  }
-
-  if (subtitleConcepts.length === 1) {
-    return subtitleConcepts[0];
-  }
-
-  return compactVisualPhrase(fallbackSentence, 8);
-}
 
 function containsPlannerControlPhrase(text, lessonSpec) {
   const normalized = normalizePlannerPhrase(text);
@@ -1924,7 +1530,7 @@ function containsPlannerControlPhrase(text, lessonSpec) {
 }
 
 function sanitizeNarration(narration, lessonSpec, concepts) {
-  const sentences = extractSentences(narration || '');
+  const sentences = extractSentences(stripGatewaySentinels(narration || ''));
   const seen = new Set();
   const cleaned = [];
 
@@ -3043,99 +2649,9 @@ function buildSceneTextSignature(value) {
   return normalized.split(/\s+/).slice(0, 8).join(' ');
 }
 
-function isGenericSceneText(value) {
-  const normalized = normalizeText(String(value || '')).toLowerCase();
-  if (!normalized) return false;
-  return /^(focused|core|review|study|mechanism) notes$/.test(normalized)
-    || /^step \d+$/.test(normalized)
-    || /^question \d+$/.test(normalized)
-    || /^part \d+$/.test(normalized);
-}
 
-function analyzeVisualSequence(visualSeq, anchors = []) {
-  const safeScenes = Array.isArray(visualSeq) ? visualSeq : [];
-  const seenText = new Set();
-  const matchedAnchors = new Set();
-  const anchorSignatures = uniqueNormalizedStrings(anchors, 12)
-    .map((anchor) => buildSceneTextSignature(anchor))
-    .filter(Boolean);
-  const typeSet = new Set();
-  let nonClearCount = 0;
-  let duplicateTextCount = 0;
-  let uniqueTextCount = 0;
-  let genericTextCount = 0;
-  let richSceneCount = 0;
 
-  for (const scene of safeScenes) {
-    if (!scene || typeof scene !== 'object') continue;
-    const type = String(scene.type || '').trim();
-    if (!type) continue;
 
-    typeSet.add(type);
-    if (type === 'clear') continue;
-    nonClearCount += 1;
-
-    if (['draw_object', 'draw_physics_shape', 'draw_graph', 'draw_coordinate_system', 'draw_table', 'draw_path'].includes(type)) {
-      richSceneCount += 1;
-    }
-
-    for (const fragment of collectSceneTextFragments(scene)) {
-      if (isGenericSceneText(fragment)) {
-        genericTextCount += 1;
-      }
-
-      const signature = buildSceneTextSignature(fragment);
-      if (!signature) continue;
-
-      if (seenText.has(signature)) {
-        duplicateTextCount += 1;
-      } else {
-        seenText.add(signature);
-        uniqueTextCount += 1;
-      }
-
-      anchorSignatures.forEach((anchorSignature) => {
-        if (signature.includes(anchorSignature) || anchorSignature.includes(signature)) {
-          matchedAnchors.add(anchorSignature);
-        }
-      });
-    }
-  }
-
-  const totalTrackedText = uniqueTextCount + duplicateTextCount;
-  return {
-    nonClearCount,
-    typeCount: typeSet.size,
-    richSceneCount,
-    uniqueTextCount,
-    duplicateTextCount,
-    anchorMatchCount: matchedAnchors.size,
-    duplicateRatio: totalTrackedText ? duplicateTextCount / totalTrackedText : 0,
-    genericTextRatio: totalTrackedText ? genericTextCount / totalTrackedText : 0,
-  };
-}
-
-function hasStrongLessonSpecificVisualSequence(visualSeq, part, lessonSpec) {
-  const anchors = [
-    part?.title,
-    ...(Array.isArray(part?.key_concepts) ? part.key_concepts : []),
-    ...(Array.isArray(lessonSpec?.key_points) ? lessonSpec.key_points.slice(0, 4) : []),
-  ];
-  const metrics = analyzeVisualSequence(visualSeq, anchors);
-
-  if (metrics.nonClearCount < 10) return false;
-  if (metrics.typeCount < 4) return false;
-  if (metrics.anchorMatchCount < 1 && metrics.richSceneCount < 3) return false;
-  if (metrics.duplicateRatio > 0.45) return false;
-  if (metrics.genericTextRatio > 0.5 && metrics.richSceneCount < 3) return false;
-  if (metrics.uniqueTextCount < 6 && metrics.richSceneCount < 2) return false;
-
-  return true;
-}
-
-function mainSceneText(scene) {
-  return collectSceneTextFragments(scene)[0] || '';
-}
 
 function sanitizeSceneEntry(entry) {
   if (!entry || typeof entry !== 'object') return null;
@@ -3504,12 +3020,28 @@ function validateAndFixPlan(aiPlan, lessonSpec) {
       pedagogicalPlan.learning_objective,
       ...pedagogicalPlan.visual_logic.map((entry) => entry.content),
     ], fallbackConceptText, 8);
+    // Validate the AI's semantic board_scenes FIRST — these drive the template
+    // pipeline AND now carry the spoken teacher line (`say`) for each beat.
+    // Validating up front lets us assemble the part narration from the ordered
+    // beats so the voice and the drawing share one clock (beat N is spoken
+    // exactly while board N is drawn).
+    let cleanScenes = [];
+    if (Array.isArray(part.board_scenes) && part.board_scenes.length) {
+      cleanScenes = validateBoardScenes(part.board_scenes);
+    }
+    // The teaching beat is the unit of narration: each board scene's `say` line,
+    // joined in order, IS the part's spoken script. This keeps audio and board
+    // locked together. Fall back to the AI's free-form narration blob when the
+    // beats carry no spoken lines (older plans / fallback paths).
+    const beatNarration = cleanScenes.map((s) => s.say).filter(Boolean).join(' ');
+    const sourceNarration = beatNarration || part.narration || '';
+
     const fixed = {
       order_index: part.order_index || index + 1,
       title: sanitizeSceneText(part.title || `Part ${index + 1}`, 8) || `Part ${index + 1}`,
       part_type: part.part_type || 'content',
       duration_seconds: clamp(Number(part.duration_seconds) || 300, 55, 600),
-      narration: sanitizeNarration(part.narration || '', lessonSpec, keyConcepts),
+      narration: sanitizeNarration(sourceNarration, lessonSpec, keyConcepts),
       key_concepts: pedagogicalConcepts.length ? pedagogicalConcepts : keyConcepts,
       scene_goal: pedagogicalPlan.scene_goal,
       learning_objective: pedagogicalPlan.learning_objective,
@@ -3517,6 +3049,8 @@ function validateAndFixPlan(aiPlan, lessonSpec) {
       animation_sequence: pedagogicalPlan.animation_sequence,
       visual_sequence: normalizeVisualSequence(Array.isArray(part.visual_sequence) ? part.visual_sequence : [], clamp(Number(part.duration_seconds) || 300, 55, 600)),
     };
+
+    if (cleanScenes.length) fixed.board_scenes = cleanScenes;
 
     if (part.part_type === 'quiz') {
       fixed.quiz_questions = normalizeQuizQuestions(part.quiz_questions, lessonSpec);
@@ -3767,29 +3301,11 @@ function buildTopicFallbackQuizTitles(explanationMode) {
   }
 }
 
-function buildOverviewPageTitle(explanationMode) {
-  return 'Let\u2019s define these';
-}
 
-function buildOverviewConnectionsTitle(explanationMode) {
-  return 'Now watch how they connect';
-}
 
-function buildDetailPageTitle(explanationMode, concept) {
-  return `Let\u2019s break down ${truncateWords(concept, 4)}`;
-}
 
-function buildDetailBadgeLabel(explanationMode) {
-  return '';
-}
 
-function buildApplicationBadgeLabel(explanationMode) {
-  return '';
-}
 
-function buildApplicationTakeawayTitle(explanationMode) {
-  return 'What to remember';
-}
 
 function buildTopicFallbackLesson(spec) {
   const lessonTitle = spec.title || spec.comprehension?.document_subject || buildTopicTitle(spec.topic_request || spec.section_text);
@@ -4122,29 +3638,65 @@ function buildLessonSummary(title, sourceText, concepts) {
   return `This lesson covers ${(concepts || []).slice(0, 3).join(', ')}.`;
 }
 
+// Build varied, TOPIC-SPECIFIC fallback quiz questions when the AI didn't author
+// any. Rotates question forms and draws answers/distractors from the lesson's
+// own concepts and sentences, so two different lessons never get the same quiz
+// (the old version always asked "A central concept in this lesson is ___").
+function buildConceptQuestions(rawConcepts, sourceText, lessonTitle) {
+  const concepts = (Array.isArray(rawConcepts) ? rawConcepts : []).map((c) => String(c || '').trim()).filter(Boolean);
+  const sentences = extractSentences(String(sourceText || '')).filter((s) => s.length > 25 && s.length < 200);
+  const topic = concepts[0] || coreTopic(lessonTitle);
+  const distractorsFor = (answer) => {
+    const pool = concepts.filter((c) => c && c.toLowerCase() !== String(answer).toLowerCase());
+    const picks = pool.slice(0, 3);
+    while (picks.length < 3) picks.push([`a related idea`, `the opposite case`, `none of these`][picks.length] || `option ${picks.length + 1}`);
+    return picks;
+  };
+  const mcq = (order, qtext, answer, why) => {
+    const choices = [answer, ...distractorsFor(answer)].slice(0, 4);
+    // deterministic shuffle by question text so the answer isn't always 'A'
+    const seed = qtext.length % 4;
+    const shuffled = choices.map((c, i) => choices[(i + seed) % choices.length]);
+    return { order_index: order, question_type: 'mcq', question_text: qtext, difficulty: 'medium', options: { choices: shuffled, correct: answer }, correct_answer: answer, explanation: why };
+  };
+
+  const questions = [];
+
+  // Q1 — define the core concept (MCQ over real concepts).
+  questions.push(mcq(1, `Which of these is the central idea of "${truncateWords(lessonTitle, 6)}"?`, topic,
+    `${topic} is the concept the lesson is built around.`));
+
+  // Q2 — cloze from a REAL sentence containing a concept (topic-specific recall).
+  const clozeConcept = concepts.find((c) => sentences.some((s) => s.toLowerCase().includes(c.toLowerCase()))) || topic;
+  const clozeSentence = sentences.find((s) => s.toLowerCase().includes(clozeConcept.toLowerCase()));
+  if (clozeSentence) {
+    const re = new RegExp(clozeConcept.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    questions.push({
+      order_index: 2, question_type: 'fill_blank',
+      question_text: clampText(clozeSentence.replace(re, '_____'), 160),
+      difficulty: 'medium', options: null, correct_answer: clozeConcept,
+      explanation: `The missing term is "${clozeConcept}".`,
+    });
+  } else {
+    questions.push({
+      order_index: 2, question_type: 'fill_blank',
+      question_text: `In this lesson, _____ is responsible for ${truncateWords(sentences[0] || lessonTitle, 8)}.`,
+      difficulty: 'medium', options: null, correct_answer: topic,
+      explanation: `${topic} plays that role here.`,
+    });
+  }
+
+  // Q3 — a second concept (relationship / role), only if we have another concept.
+  if (concepts[1]) {
+    questions.push(mcq(3, `How does ${concepts[1]} relate to ${topic}?`, `It supports ${topic}`,
+      `${concepts[1]} works together with ${topic} in this topic.`));
+  }
+
+  return questions;
+}
+
 function buildQuizPart({ orderIndex, title, narration, lessonTitle, concepts, sourceText }) {
-  const focus = concepts[0] || coreTopic(lessonTitle);
-  const answers = buildQuizChoices(lessonTitle, concepts);
-  const quizQuestions = [
-    {
-      order_index: 1,
-      question_type: 'mcq',
-      question_text: `Which of the following best describes ${focus}?`,
-      difficulty: 'medium',
-      options: { choices: answers, correct: answers[0] },
-      correct_answer: answers[0],
-      explanation: `${answers[0]} most accurately captures the concept of ${focus} as described in the lesson.`,
-    },
-    {
-      order_index: 2,
-      question_type: 'fill_blank',
-      question_text: `A central concept in this lesson is _____.`,
-      difficulty: 'medium',
-      options: null,
-      correct_answer: focus,
-      explanation: `${focus} is the primary concept connecting the ideas in this section.`,
-    },
-  ];
+  const quizQuestions = buildConceptQuestions(concepts, sourceText || narration, lessonTitle);
 
   return {
     order_index: orderIndex,
@@ -4163,156 +3715,93 @@ function buildQuizPart({ orderIndex, title, narration, lessonTitle, concepts, so
 // Every visual element must teach something from the document
 // =============================================================================
 
-function selectPedagogicalStrategy(part, contentIndex, explanationMode) {
-  const goalText = normalizePlannerPhrase(`${part.scene_goal || ''} ${part.learning_objective || ''} ${part.title || ''}`);
-  const relationships = (Array.isArray(part.visual_logic) ? part.visual_logic : [])
-    .map((entry) => normalizePedagogicalRelationship(entry.relationship || entry.type || entry.semantic_role));
 
-  if (relationships.some((relationship) => relationship === 'sequence' || relationship === 'dependency')) {
-    return 'detail';
-  }
-
-  if (relationships.some((relationship) => relationship === 'comparison' || relationship === 'data')) {
-    return contentIndex === 0 ? 'overview' : 'application';
-  }
-
-  if (relationships.some((relationship) => relationship === 'example')) {
-    return 'application';
-  }
-
-  if (/(apply|example|practice|case|scenario|use)/.test(goalText)) {
-    return 'application';
-  }
-
-  if (/(compare|contrast|difference|hierarchy|structure|define|definition|overview|foundation|introduc)/.test(goalText)) {
-    return 'overview';
-  }
-
-  if (explanationMode === 'step_by_step') {
-    return 'detail';
-  }
-
-  if (explanationMode === 'visual_first') {
-    return contentIndex === 2 ? 'application' : 'overview';
-  }
-
-  if (explanationMode === 'text_focus') {
-    return contentIndex === 0 ? 'overview' : 'detail';
-  }
-
-  // Dynamic strategy rotation — prevents same visual pattern across parts
-  const strategies = ['overview', 'detail', 'application'];
-  const seed = hashVisualSeed(`${part.title || ''}|${contentIndex}|${part.scene_goal || ''}`);
-  return strategies[(contentIndex + seed) % strategies.length];
-}
-
-function buildPedagogicalTopicEntry(entry, part) {
-  const topic = normalizeText(entry?.content || '');
-  if (!topic) return null;
-
-  const roleText = String(entry.semantic_role || 'supporting_point').replace(/_/g, ' ');
-  const relationshipText = String(entry.relationship || 'association').replace(/_/g, ' ');
-  const typeText = String(entry.type || 'callout').replace(/_/g, ' ');
-  const goalText = normalizeText(part.scene_goal || part.title || 'this lesson');
-
-  return {
-    topic,
-    definition: `${topic} is the ${roleText} used to teach ${goalText}.`,
-    importance: relationshipText === 'example'
-      ? `${topic} grounds the explanation in a concrete case.`
-      : relationshipText === 'sequence'
-        ? `${topic} marks one visible step in the teaching flow.`
-        : `${topic} supports the main explanation with a purposeful visual role.`,
-    details: uniqueNormalizedStrings([
-      part.learning_objective || '',
-      `${topic} should appear as a ${typeText}.`,
-    ], 2),
-    relationships: [`${topic} connects through ${relationshipText}.`],
-  };
-}
-
-function buildPedagogicalTopicPool(part, topics, concepts) {
-  const matchedTopics = (Array.isArray(topics) ? topics : []).filter((topic) =>
-    concepts.some((concept) => topic.topic.toLowerCase().includes(concept.toLowerCase()) || concept.toLowerCase().includes(topic.topic.toLowerCase()))
-  );
-
-  const mergedTopics = [...matchedTopics];
-  const seen = new Set(matchedTopics.map((topic) => normalizeText(topic.topic).toLowerCase()));
-
-  for (const entry of Array.isArray(part.visual_logic) ? part.visual_logic : []) {
-    const topicEntry = buildPedagogicalTopicEntry(entry, part);
-    if (!topicEntry) continue;
-
-    const signature = normalizeText(topicEntry.topic).toLowerCase();
-    if (!signature || seen.has(signature)) continue;
-
-    seen.add(signature);
-    mergedTopics.push(topicEntry);
-    if (mergedTopics.length >= 6) break;
-  }
-
-  if (!mergedTopics.length) {
-    return concepts.slice(0, 4).map((concept) => ({
-      topic: concept,
-      definition: `${concept} is a central idea in this part of the lesson.`,
-      importance: `${concept} helps the learner understand the part's main goal.`,
-      details: uniqueNormalizedStrings([part.learning_objective || '', part.scene_goal || ''], 2),
-      relationships: [],
-    }));
-  }
-
-  return mergedTopics.slice(0, 6);
+// Composed template output is already clean, timed, paginated, collision-free,
+// and duration-fitted by the scene composer. The legacy normalizeVisualSequence
+// (density-limiter, dedup, box re-sizing/re-clamping, re-timing) is built for
+// hand-rolled heuristic scenes and would MOVE and RESIZE template geometry —
+// reintroducing the exact overlap problem templates exist to prevent. So we
+// finalize composed output with a geometry-preserving pass: drop only entries
+// that are structurally broken, leave every position/size/time untouched.
+function finalizeComposedSequence(composed) {
+  if (!Array.isArray(composed)) return [];
+  return composed
+    .filter((entry) => entry && typeof entry === 'object' && typeof entry.type === 'string' && entry.type)
+    .map((entry) => ({ ...entry, time: Number.isFinite(Number(entry.time)) ? Number(entry.time) : 0 }));
 }
 
 function generateContentVisuals({ lessonTitle, part, contentIndex, comprehension, continuity, explanationMode = 'full_lesson' }) {
+  const durationSeconds = Number(part.duration_seconds) || 300;
+  const field = comprehension?.field;
+
+  // ── Single visual engine: the pedagogy-first, template-filled pipeline ──────
+  // The AI supplies semantic teaching beats (board_scenes / visual_logic). We
+  // fill pre-designed, collision-free templates with that data. Templates own
+  // all geometry, so a board can never overlap, and the composer paces + holds
+  // each board so nothing flashes by. This is the ONLY way visuals are built —
+  // there is no coordinate-placing fallback that could reintroduce overlap.
+  try {
+    const composed = buildWhiteboardForPart(part, { lessonTitle, field });
+    if (Array.isArray(composed) && composed.length) {
+      console.log(`[aiPlanner] template pipeline produced ${composed.length} scenes for "${part.title}"`);
+      return finalizeComposedSequence(composed);
+    }
+  } catch (err) {
+    console.warn(`[aiPlanner] template pipeline failed for "${part.title}": ${err.message} — synthesizing beats`);
+  }
+
+  // Safety net (rarely hit): the part had no usable beats at all. Synthesize a
+  // minimal board_scenes set from whatever text we have and run it back THROUGH
+  // the same template pipeline — so the fallback is still collision-free and
+  // never produces hand-placed coordinate boards.
   const concepts = sanitizeConceptList([
     ...(Array.isArray(part.key_concepts) ? part.key_concepts : []),
     part.scene_goal,
     part.learning_objective,
     ...(Array.isArray(part.visual_logic) ? part.visual_logic.map((entry) => entry?.content) : []),
-  ], `${lessonTitle}\n${part.title || ''}\n${part.narration || ''}`, 10);
-  const topics = comprehension?.key_topics || [];
-  const field = comprehension?.field || detectField(`${lessonTitle} ${part.narration || ''}`);
-  const narrationSentences = extractSentences(part.narration || '');
-  const durationSeconds = Number(part.duration_seconds) || 300;
-  const visualField = detectVisualField(field, concepts, narrationSentences, `${lessonTitle} ${part.title || ''}`);
+  ], `${lessonTitle}\n${part.title || ''}\n${part.narration || ''}`, 8);
+  const sentences = extractSentences(part.narration || '');
 
-  const relevantTopics = buildPedagogicalTopicPool(part, topics, concepts);
-  const strategy = selectPedagogicalStrategy(part, contentIndex, explanationMode);
+  const syntheticPart = {
+    ...part,
+    board_scenes: [
+      {
+        intent: 'define',
+        goal: part.scene_goal || part.title,
+        headline: part.title || lessonTitle,
+        definition: sentences[0] || '',
+        points: concepts.slice(0, 4),
+        say: sentences.slice(0, 2).join(' ') || part.title || '',
+      },
+      {
+        intent: 'cluster',
+        goal: 'key ideas',
+        center: part.title || lessonTitle,
+        items: concepts.slice(0, 5).map((c) => ({ title: c })),
+        say: sentences.slice(2, 4).join(' ') || concepts.join(', '),
+      },
+      {
+        intent: 'recap',
+        goal: 'recap',
+        points: concepts.slice(0, 4),
+        say: sentences[sentences.length - 1] || 'Let us recap the key ideas.',
+      },
+    ],
+  };
 
-  console.log(`[aiPlanner] Generating visuals: strategy=${strategy}, field=${visualField}, concepts=${concepts.length}, topics=${relevantTopics.length}, semantic=${Array.isArray(part.visual_logic) ? part.visual_logic.length : 0}`);
-
-  let scenes = [];
-
-  if (strategy === 'overview') {
-    scenes = buildOverviewVisuals(part.title, concepts, relevantTopics, narrationSentences, continuity, visualField, explanationMode);
-  } else if (strategy === 'detail') {
-    scenes = buildDetailVisuals(lessonTitle, part.title, concepts, relevantTopics, narrationSentences, continuity, visualField, explanationMode, contentIndex);
-  } else {
-    scenes = buildApplicationVisuals(part.title, concepts, relevantTopics, narrationSentences, continuity, visualField, explanationMode);
+  try {
+    const composed = buildWhiteboardForPart(syntheticPart, { lessonTitle, field });
+    if (Array.isArray(composed) && composed.length) {
+      console.log(`[aiPlanner] template pipeline (synthesized) produced ${composed.length} scenes for "${part.title}"`);
+      return finalizeComposedSequence(composed);
+    }
+  } catch (err) {
+    console.warn(`[aiPlanner] synthesized template pipeline failed for "${part.title}": ${err.message}`);
   }
 
-  // A teacher reveals one idea at a time — aim for 1 new element every 8-10 seconds
-  // Keep boards clean: fewer elements per page, more frequent clears
-  // MAX 6-8 elements per board page (between clears) to prevent overlap
-  const MAX_ELEMENTS_PER_PAGE = 7;
-  const modeSceneFloor = explanationMode === 'visual_first'
-    ? 20
-    : explanationMode === 'step_by_step'
-      ? 14
-      : explanationMode === 'text_focus'
-        ? 16
-        : 15;
-  // Calculate based on duration but cap at reasonable density
-  const minScenes = Math.max(modeSceneFloor, Math.min(Math.ceil(durationSeconds / 10), 40));
-  if (scenes.length < minScenes) {
-    const lastTime = Math.max(...scenes.map((s) => Number(s.time) || 0), 1);
-    const extra = buildDeepDivePages(concepts, relevantTopics, narrationSentences, lastTime + 4, minScenes - scenes.length, visualField, explanationMode);
-    scenes = [...scenes, ...extra];
-  }
-
-  return normalizeVisualSequence(scenes, durationSeconds);
+  return [];
 }
+
 
 function rebalanceSceneLayout(scenes) {
   const laidOutScenes = scenes.map((scene) => ({ ...scene }));
@@ -4481,1846 +3970,6 @@ function normalizeVisualSequence(visualSeq, duration) {
   return fitSceneTimeline(scenes, duration);
 }
 
-// ── Color palette ────────────────────────────────────────────────────────────
-const COLORS = ['#2563eb', '#16a34a', '#d97706', '#7c3aed', '#be123c', '#0891b2', '#ca8a04', '#0f766e'];
-const FILLS = ['#eff6ff', '#f0fdf4', '#fef3c7', '#f5f3ff', '#fff1f2', '#ecfeff', '#fefce8', '#f0fdfa'];
-const MARKERS = ['arr-blue', 'arr-green', 'arr-orange', 'arr-purple', 'arr-red', 'arr-blue', 'arr-orange', 'arr-green'];
-
-function detectVisualField(field, concepts, sentences, extraText = '') {
-  const corpus = `${field} ${extraText} ${(concepts || []).join(' ')} ${(sentences || []).join(' ')}`.toLowerCase();
-
-  // Explicit field from AI comprehension takes highest priority
-  if (field === 'mathematics') return 'mathematics';
-  if (field === 'physics') return 'physics';
-  if (field === 'economics') return 'economics';
-  if (field === 'biology') return 'biology';
-  if (field === 'history') return 'history';
-  if (field === 'business') return 'business';
-
-  // Regex-based detection with CORRECT priority:
-  // Physics before economics (prevents "force"/"motion" topics from becoming supply/demand charts)
-  if (PHYSICS_VISUAL_CUE_RE.test(corpus)) {
-    return 'physics';
-  }
-  if (MATHEMATICS_VISUAL_CUE_RE.test(corpus)) {
-    return 'mathematics';
-  }
-  if (BIOLOGY_VISUAL_CUE_RE.test(corpus)) {
-    return 'biology';
-  }
-  if (CYCLE_VISUAL_CUE_RE.test(corpus)) {
-    return 'cycle';
-  }
-  if (HISTORY_VISUAL_CUE_RE.test(corpus)) {
-    return 'history';
-  }
-  // Economics requires BOTH the economic term AND field context to avoid false positives
-  const economicsCue = ECONOMICS_VISUAL_CUE_RE.test(corpus)
-    && (field === 'economics' || field === 'business'
-      || (ECONOMICS_MARKET_RE.test(corpus) && ECONOMICS_MARKET_CONTEXT_RE.test(corpus)));
-  if (economicsCue) {
-    return 'economics';
-  }
-  if (BUSINESS_VISUAL_CUE_RE.test(corpus)) {
-    return 'business';
-  }
-  if (DIRECT_VISUAL_FIELDS.has(field)) {
-    return field;
-  }
-  if (SYSTEMS_VISUAL_CUE_RE.test(corpus)) {
-    return 'systems';
-  }
-  return field || 'general';
-}
-
-function resolveTopicObjectType(objectType, {
-  gearType = 'gear',
-  documentType = 'book',
-  lightbulbType = 'lightbulb',
-} = {}) {
-  if (objectType === 'gear') return gearType;
-  if (objectType === 'document') return documentType;
-  if (objectType === 'lightbulb') return lightbulbType;
-  return objectType;
-}
-
-function buildPlotPoints(text) {
-  const n = String(text || '').toLowerCase();
-  if (/\bcos|cosine\b/.test(n)) {
-    return [[-5, 0.28], [-4, -0.65], [-3, -0.99], [-2, -0.42], [-1, 0.54], [0, 1], [1, 0.54], [2, -0.42], [3, -0.99], [4, -0.65], [5, 0.28]];
-  }
-  if (/\bsin|sine\b/.test(n)) {
-    return [[-5, 0.96], [-4, 0.76], [-3, -0.14], [-2, -0.91], [-1, -0.84], [0, 0], [1, 0.84], [2, 0.91], [3, 0.14], [4, -0.76], [5, -0.96]];
-  }
-  if (/\bquadratic|parabola|polynomial\b/.test(n)) {
-    return [[-5, 5], [-4, 3.2], [-3, 1.8], [-2, 0.8], [-1, 0.2], [0, 0], [1, 0.2], [2, 0.8], [3, 1.8], [4, 3.2], [5, 5]];
-  }
-  if (/\blinear|line|slope\b/.test(n)) {
-    return [[-5, -4], [-3, -2], [-1, 0], [1, 2], [3, 4], [5, 5]];
-  }
-  return [[-4, -2], [-2, -1], [0, 0], [2, 1], [4, 2]];
-}
-
-function detectPhysicsShapeType(text) {
-  const n = String(text || '').toLowerCase();
-  if (/\bpendulum\b/.test(n)) return 'pendulum';
-  if (/\bspring|oscillation|hooke\b/.test(n)) return 'spring';
-  if (/\binclined plane|ramp|slope\b/.test(n)) return 'inclined_plane';
-  if (/\bwave|frequency|amplitude\b/.test(n)) return 'wave';
-  if (/\bforce|friction|normal force|gravity\b/.test(n)) return 'free_body';
-  return 'box_on_surface';
-}
-
-function detectObjectType(text, field) {
-  const n = stripVisualPhrasePreamble(String(text || '')).toLowerCase();
-  if (/\b(step|steps|procedure|checklist|how to|workflow|task|safely|process)\b/.test(n)) {
-    return 'checklist';
-  }
-  if (/\b(communication|conversation|dialogue|debate|discussion|feedback|negotiation|interview|meeting|collaboration)\b/.test(n)) {
-    return 'dialogue';
-  }
-  if (/\b(layer|layers|stack|hierarchy|framework|architecture|tier|foundation|levels|model)\b/.test(n)) {
-    return 'layers';
-  }
-  if (/\b(strategy|leadership|vision|direction|values|ethics|decision|navigation|roadmap|guiding principle)\b/.test(n)) {
-    return 'compass';
-  }
-  if (/\b(book|reading|literature|chapter|curriculum|study|learning|knowledge base)\b/.test(n)) {
-    return 'book';
-  }
-  if (/\b(notes?|summary|outline|resume|cv|document|essay|report|study guide)\b/.test(n)) {
-    return 'document';
-  }
-  if (/\b(cos|cosine|sine|triangle|trigonometry|angle|hypotenuse|adjacent)\b/.test(n)) {
-    return 'triangle';
-  }
-  if (/\b(photosynthesis|plant|leaf|chlorophyll|sunlight|stomata)\b/.test(n)) {
-    return 'leaf';
-  }
-  if (/\b(chemistry|reaction|molecule|atom|experiment|laboratory|lab|solution|acid|base|compound)\b/.test(n)) {
-    return 'flask';
-  }
-  if (/\b(goal|target|objective|application|practice|accuracy|outcome)\b/.test(n)) {
-    return 'target';
-  }
-  if (/\b(idea|concept|principle|insight|explain|understand)\b/.test(n)) {
-    return 'lightbulb';
-  }
-  if (field === 'biology' || /\b(cell|mitosis|meiosis|chromosome|spindle|dna|rna|gene|membrane|nucleus|organelle|enzyme|chloroplast)\b/.test(n)) {
-    return 'cell';
-  }
-  if (/\b(blockchain|validator|ledger|consensus|distributed|transaction|block)\b/.test(n)) {
-    return 'blockchain';
-  }
-  if (/\b(network|server|client|api|database|service|cache|router|protocol|pipeline|queue)\b/.test(n)) {
-    return 'network';
-  }
-  if (/\b(cycle|phase|loop|feedback|iteration|sequence)\b/.test(n)) {
-    return 'cycle';
-  }
-  return 'gear';
-}
-
-function hashVisualSeed(value) {
-  const normalized = normalizeText(value);
-  let hash = 0;
-
-  for (let index = 0; index < normalized.length; index += 1) {
-    hash = (hash * 31 + normalized.charCodeAt(index)) >>> 0;
-  }
-
-  return hash;
-}
-
-function buildTopicBoardTokens(title, concepts, topics, sentences, field, boardRole = 'overview') {
-  const safeConcepts = Array.isArray(concepts) ? concepts.filter(Boolean) : [];
-  const safeTopics = Array.isArray(topics) ? topics.filter(Boolean) : [];
-  const safeSentences = Array.isArray(sentences) ? sentences.filter(Boolean) : [];
-  const factualSentences = filterInstructionalMetaEntries(safeSentences);
-  const factualTopicLines = safeTopics.flatMap((entry) => filterInstructionalMetaEntries([
-    entry?.definition || '',
-    entry?.importance || '',
-    ...uniqueNormalizedStrings(entry?.details, 3),
-    ...uniqueNormalizedStrings(entry?.relationships, 2),
-  ]));
-  const corpus = `${field} ${title} ${safeConcepts.join(' ')} ${factualSentences.join(' ')}`;
-  const cueContext = [
-    title,
-    ...safeConcepts,
-    ...safeTopics.map((entry) => entry?.topic || ''),
-    ...factualTopicLines,
-    ...factualSentences,
-  ].filter(Boolean);
-  const labelSource = safeConcepts[0] || safeTopics[0]?.topic || title || 'Core Idea';
-  const label = compactBoardLabel(labelSource, 4)
-    || normalizeVisualCueWithContext(labelSource, cueContext, 4)
-    || normalizeVisualCue(labelSource, 4)
-    || truncateWords(labelSource, 4);
-  const cueCandidates = preferSpecificVisualCues([
-    ...extractTitleCueSegments(title, 3),
-    ...safeConcepts.slice(1, 6),
-    ...safeTopics.map((entry) => entry?.topic || ''),
-    ...extractKeyConcepts(factualSentences.join(' '), safeConcepts, 8).map((cue) => expandVisualCueFromContext(cue, cueContext, 4)),
-  ], cueContext, 5, 4)
-    .map((cue) => compactBoardLabel(cue, 4)
-      || normalizeVisualCueWithContext(cue, cueContext, 4)
-      || normalizeVisualCue(cue, 4)
-      || truncateWords(cue, 4))
-    .filter(Boolean);
-  const cues = uniqueNormalizedStrings([label, ...cueCandidates], 5).slice(0, 5);
-  const rows = safeConcepts.slice(0, 4).map((concept, index) => {
-    const topic = safeTopics.find((entry) => entry?.topic === concept) || safeTopics[index];
-    const explanation = firstMeaningfulEntry([
-      topic?.definition || '',
-      topic?.importance || '',
-      ...uniqueNormalizedStrings(topic?.details, 2),
-    ], factualSentences[index], concept);
-    return [truncateWords(concept, 3), truncateWords(explanation, 6)];
-  }).filter((row) => row[0] && row[1] && row[0].toLowerCase() !== row[1].toLowerCase());
-  const summaryCue = sanitizeSceneText(
-    firstMeaningfulEntry([
-      safeTopics[0]?.importance || '',
-      safeTopics[0]?.definition || '',
-      ...uniqueNormalizedStrings(safeTopics[0]?.details, 2),
-    ], factualSentences[0], factualTopicLines[0], `${label} links the main idea to its working parts.`),
-    16,
-  );
-  let detailCue = sanitizeSceneText(
-    firstMeaningfulEntry([
-      safeTopics[1]?.definition || '',
-      safeTopics[1]?.importance || '',
-      ...uniqueNormalizedStrings(safeTopics[1]?.details, 2),
-      ...uniqueNormalizedStrings(safeTopics[1]?.relationships, 1),
-    ], factualSentences[1], factualSentences[2], factualTopicLines[1]),
-    14,
-  );
-  let stripCue = sanitizeSceneText(
-    firstMeaningfulEntry(
-      rows.slice(0, 2).map(([concept, meaning]) => `${concept}: ${meaning}`),
-      factualSentences[2],
-      factualTopicLines[2],
-    ),
-    12,
-  );
-
-  if (detailCue && detailCue.toLowerCase() === summaryCue.toLowerCase()) {
-    detailCue = '';
-  }
-  if (stripCue && [summaryCue, detailCue].some((entry) => entry && entry.toLowerCase() === stripCue.toLowerCase())) {
-    stripCue = '';
-  }
-
-  return {
-    seed: hashVisualSeed(`${field}|${boardRole}|${title}|${safeConcepts.slice(0, 4).join('|')}`),
-    label,
-    objectType: detectObjectType(corpus, field),
-    cues,
-    summaryCue,
-    detailCue,
-    stripCue,
-  };
-}
-
-function pickTopicBoardVariant(title, concepts, field, boardRole = 'overview') {
-  const seed = hashVisualSeed(`${field}|${boardRole}|${title}|${(concepts || []).join('|')}`);
-  let variants = ['anchor', 'framework', 'story'];
-
-  if (boardRole === 'application') {
-    variants = ['story', 'framework', 'anchor'];
-  } else if (boardRole === 'detail') {
-    variants = ['framework', 'story', 'anchor'];
-  } else if (String(boardRole).startsWith('deep_dive')) {
-    variants = ['story', 'anchor', 'framework'];
-  }
-
-  if (field === 'systems') {
-    variants = boardRole === 'application'
-      ? ['framework', 'anchor', 'story']
-      : ['anchor', 'framework', 'story'];
-  }
-
-  if (field === 'cycle') {
-    variants = ['story', 'anchor', 'framework'];
-  }
-
-  return variants[seed % variants.length];
-}
-
-function buildTopicAnchorBoard(title, concepts, topics, sentences, startTime, field, boardRole = 'overview') {
-  const scenes = [];
-  let t = startTime;
-  const tokens = buildTopicBoardTokens(title, concepts, topics, sentences, field, boardRole);
-  const cueCards = uniqueNormalizedStrings([tokens.summaryCue, tokens.detailCue].filter(Boolean), 2);
-  const objectType = resolveTopicObjectType(tokens.objectType, {
-    gearType: field === 'business'
-      ? (tokens.seed % 2 === 0 ? 'compass' : 'dialogue')
-      : (tokens.seed % 2 === 0 ? 'compass' : 'checklist'),
-  });
-
-  // Clean layout: object on left, one or two explanation cards on right, one callout at bottom
-  scenes.push(scene(t, 'draw_object', {
-    object_type: objectType,
-    position: [54, 130],
-    size: [220, 160],
-    label: tokens.label,
-    annotations: [],
-  })); t += 5;
-
-  // Max 2 explanation cards on right side with clear spacing
-  cueCards.slice(0, 2).forEach((cue, index) => {
-    const y = 140 + index * 120;
-    const color = COLORS[index % COLORS.length];
-    const fill = FILLS[index % FILLS.length];
-
-    scenes.push(scene(t, 'draw_rect', {
-      x: 340,
-      y,
-      width: 400,
-      height: 88,
-      label: cue,
-      style: { fill, stroke: color, strokeWidth: 1.5, rx: 16 },
-    })); t += 5;
-  });
-
-  // One connecting arrow from object to first card
-  if (cueCards.length > 0) {
-    scenes.push(scene(t, 'draw_arrow', {
-      from: [274, 210],
-      to: [340, 184],
-      style: { color: COLORS[0], strokeWidth: 2 },
-    })); t += 3;
-  }
-
-  // Bottom callout with key takeaway
-  const bottomCue = sanitizeSceneText(uniqueNormalizedStrings([
-    tokens.summaryCue,
-    tokens.detailCue,
-  ].filter(Boolean), 2).join('. '), 20);
-
-  if (bottomCue) {
-    scenes.push(scene(t, 'draw_callout', {
-      content: bottomCue,
-      position: [50, 400],
-      width: 700,
-      style: { bg: '#f8fafc', stroke: '#64748b', color: '#334155' },
-    })); t += 5;
-  }
-
-  return scenes;
-}
-
-function buildTopicFrameworkBoard(title, concepts, topics, sentences, startTime, field, boardRole = 'overview') {
-  const scenes = [];
-  let t = startTime;
-  const tokens = buildTopicBoardTokens(title, concepts, topics, sentences, field, boardRole);
-  const stackLabels = uniqueNormalizedStrings([
-    tokens.summaryCue,
-    tokens.detailCue,
-  ].filter(Boolean), 2);
-  const objectType = resolveTopicObjectType(tokens.objectType, {
-    gearType: field === 'business' ? 'compass' : 'layers',
-    lightbulbType: 'compass',
-  });
-
-  // Clean layout: object on right, max 2 labeled rects on left, one arrow connecting them
-  scenes.push(scene(t, 'draw_object', {
-    object_type: objectType,
-    position: [500, 140],
-    size: [220, 166],
-    label: tokens.label,
-    annotations: [],
-  })); t += 5;
-
-  stackLabels.forEach((entry, index) => {
-    const y = 150 + index * 120;
-    const color = COLORS[index % COLORS.length];
-    const fill = FILLS[index % FILLS.length];
-
-    scenes.push(scene(t, 'draw_rect', {
-      x: 50,
-      y,
-      width: 340,
-      height: 88,
-      label: entry,
-      style: { fill, stroke: color, strokeWidth: 1.5, rx: 18 },
-    })); t += 5;
-  });
-
-  // One arrow from object to first rect to show relationship
-  if (stackLabels.length > 0) {
-    scenes.push(scene(t, 'draw_arrow', {
-      from: [500, 223],
-      to: [390, 194],
-      style: { color: COLORS[0], strokeWidth: 2 },
-    })); t += 3;
-  }
-
-  return scenes;
-}
-
-function buildTopicStoryBoard(title, concepts, topics, sentences, startTime, field, boardRole = 'overview') {
-  const scenes = [];
-  let t = startTime;
-  const tokens = buildTopicBoardTokens(title, concepts, topics, sentences, field, boardRole);
-  const cardLabels = uniqueNormalizedStrings([
-    tokens.summaryCue,
-    tokens.detailCue,
-  ].filter(Boolean), 2);
-  const objectType = resolveTopicObjectType(tokens.objectType, {
-    gearType: 'dialogue',
-    documentType: 'target',
-  });
-
-  // Clean sequential story layout: concept cards flowing left-to-right with one arrow
-  scenes.push(scene(t, 'draw_object', {
-    object_type: objectType,
-    position: [60, 130],
-    size: [200, 140],
-    label: tokens.label,
-    annotations: [],
-  })); t += 5;
-
-  // Max 2 explanation cards arranged vertically on the right
-  cardLabels.forEach((label, index) => {
-    const y = 130 + index * 130;
-    const color = COLORS[index % COLORS.length];
-    const fill = FILLS[index % FILLS.length];
-
-    scenes.push(scene(t, 'draw_rect', {
-      x: 340,
-      y,
-      width: 400,
-      height: 100,
-      label,
-      style: { fill, stroke: color, strokeWidth: 1.6, rx: 20 },
-    })); t += 5;
-  });
-
-  // One arrow from object to first card (shows flow/causation)
-  if (cardLabels.length > 0) {
-    scenes.push(scene(t, 'draw_arrow', {
-      from: [260, 200],
-      to: [340, 180],
-      style: { color: COLORS[0], strokeWidth: 2 },
-    })); t += 3;
-  }
-
-  // Second arrow between cards (shows sequence) if two cards exist
-  if (cardLabels.length > 1) {
-    scenes.push(scene(t, 'draw_arrow', {
-      from: [540, 230],
-      to: [540, 260],
-      style: { color: COLORS[1], strokeWidth: 2 },
-    })); t += 3;
-  }
-
-  return scenes;
-}
-
-function buildTopicObjectVisualBoard(title, concepts, topics, sentences, startTime, field, boardRole = 'overview') {
-  const variant = pickTopicBoardVariant(title, concepts, field, boardRole);
-
-  if (variant === 'framework') {
-    return buildTopicFrameworkBoard(title, concepts, topics, sentences, startTime, field, boardRole);
-  }
-
-  if (variant === 'story') {
-    return buildTopicStoryBoard(title, concepts, topics, sentences, startTime, field, boardRole);
-  }
-
-  return buildTopicAnchorBoard(title, concepts, topics, sentences, startTime, field, boardRole);
-}
-
-function buildBiologyVisualBoard(title, concepts, topics, sentences, startTime, field = 'biology') {
-  const scenes = [];
-  let t = startTime;
-  const corpus = `${field} ${title} ${(concepts || []).join(' ')} ${(sentences || []).join(' ')}`;
-  const cueContext = [
-    title,
-    ...(concepts || []),
-    ...((topics || []).flatMap((entry) => [entry?.topic || '', entry?.definition || '', ...(entry?.details || [])])),
-    ...(sentences || []),
-  ].filter(Boolean);
-  const normalizedCorpus = corpus.toLowerCase();
-  const objectType = /\b(chloroplast|thylakoid|photosystem|stroma|grana|photosynthesis)\b/.test(normalizedCorpus)
-    ? 'leaf'
-    : /\b(cell|organelle|membrane|nucleus|chromosome|mitosis|meiosis|enzyme|protein|dna|rna|tissue)\b/.test(normalizedCorpus)
-      ? 'cell'
-      : /\b(chemistry|molecule|compound|acid|base|solution|atom|apparatus|reaction|laboratory|lab)\b/.test(normalizedCorpus)
-        ? 'flask'
-        : detectObjectType(corpus, field);
-
-  const labelSource = concepts[0] || title || 'Biology System';
-  const label = compactBoardLabel(labelSource, 4)
-    || normalizeVisualCueWithContext(labelSource, [title], 4)
-    || normalizeVisualCue(labelSource, 4)
-    || truncateWords(labelSource, 4);
-
-  const badgeCues = preferSpecificVisualCues([
-    ...extractTitleCueSegments(title, 3),
-    ...topics.map((entry) => compactBoardLabel(entry?.topic || '', 3)
-      || normalizeVisualCueWithContext(entry?.topic || '', cueContext, 3)
-      || normalizeVisualCue(entry?.topic || '', 3)),
-    ...extractKeyConcepts(sentences.join(' '), concepts, 6)
-      .map((cue) => expandVisualCueFromContext(cue, cueContext, 3)),
-  ], cueContext, 3, 3);
-
-  if (!badgeCues.length && label) {
-    badgeCues.push(label);
-  }
-
-  const annotations = preferSpecificVisualCues([
-    ...badgeCues,
-    ...(topics[0]?.details || []),
-    topics[0]?.definition || '',
-    sentences[0] || '',
-    sentences[1] || '',
-  ], cueContext, 3, 5);
-
-  const relationshipCue = sanitizeSceneText(
-    topics[0]?.importance || sentences[0] || `Focus on how ${label} supports ${badgeCues[0] || 'the process'}.`,
-    20,
-  );
-  const detailCue = sanitizeSceneText(
-    topics[1]?.definition || topics[1]?.importance || sentences[1] || sentences[2] || topics[0]?.definition || '',
-    18,
-  );
-
-  scenes.push(scene(t, 'draw_object', {
-    object_type: objectType,
-    position: [50, 132],
-    size: [250, 186],
-    label,
-    annotations: annotations.slice(0, 2),
-  })); t += 5;
-
-  // Only 2 badges max with arrows to keep board clean
-  const badgePositions = [[380, 148], [380, 278]];
-  badgeCues.slice(0, 2).forEach((cue, index) => {
-    const [x, y] = badgePositions[index];
-    const color = COLORS[(index + 1) % COLORS.length];
-
-    scenes.push(scene(t, 'draw_badge', {
-      content: cue,
-      position: [x, y],
-      style: { bg: color, color: '#fff', fontSize: 14 },
-    })); t += 3;
-
-    scenes.push(scene(t, 'draw_arrow', {
-      from: [300, 200 + index * 50],
-      to: [x - 10, y + 14],
-      style: { color, strokeWidth: 2 },
-    })); t += 3;
-  });
-
-  if (relationshipCue) {
-    scenes.push(scene(t, 'draw_callout', {
-      content: relationshipCue,
-      position: [50, 370],
-      width: 700,
-      style: { bg: '#f0fdf4', stroke: '#16a34a', color: '#166534' },
-    })); t += 5;
-  }
-
-  return scenes;
-}
-
-function buildEconomicsVisualBoard(title, concepts, topics, sentences, startTime) {
-  const scenes = [];
-  let t = startTime;
-  const rows = concepts.slice(0, 3).map((concept, index) => {
-    const topic = topics.find((entry) => entry?.topic === concept) || topics[index];
-    return [truncateWords(concept, 3), truncateWords(topic?.definition || sentences[index] || concept, 6)];
-  }).filter((row) => row[0] && row[1]);
-
-  scenes.push(scene(t, 'draw_line', {
-    from: [110, 340],
-    to: [110, 120],
-    style: { color: '#64748b', strokeWidth: 2 },
-  })); t += 2;
-  scenes.push(scene(t, 'draw_line', {
-    from: [110, 340],
-    to: [420, 340],
-    style: { color: '#64748b', strokeWidth: 2 },
-  })); t += 2;
-  scenes.push(scene(t, 'draw_text', {
-    content: 'Price',
-    position: [88, 110],
-    style: { fontSize: 16, color: '#475569', fontWeight: 'bold' },
-  })); t += 2;
-  scenes.push(scene(t, 'draw_text', {
-    content: 'Quantity',
-    position: [430, 352],
-    style: { fontSize: 16, color: '#475569', fontWeight: 'bold' },
-  })); t += 2;
-
-  scenes.push(scene(t, 'draw_path', {
-    d: 'M 145,150 C 225,190 292,245 390,310',
-    style: { stroke: '#2563eb', strokeWidth: 3, fill: 'none' },
-  })); t += 3;
-  scenes.push(scene(t, 'draw_badge', {
-    content: truncateWords(concepts.find((concept) => /demand/i.test(concept)) || 'Demand', 4),
-    position: [248, 152],
-    style: { bg: '#2563eb', color: '#fff', fontSize: 14 },
-  })); t += 2;
-
-  scenes.push(scene(t, 'draw_path', {
-    d: 'M 145,305 C 225,248 300,198 392,145',
-    style: { stroke: '#16a34a', strokeWidth: 3, fill: 'none' },
-  })); t += 3;
-  scenes.push(scene(t, 'draw_badge', {
-    content: truncateWords(concepts.find((concept) => /supply/i.test(concept)) || 'Supply', 4),
-    position: [285, 96],
-    style: { bg: '#16a34a', color: '#fff', fontSize: 14 },
-  })); t += 2;
-
-  scenes.push(scene(t, 'draw_circle', {
-    center: [272, 228],
-    radius: 20,
-    label: /equilibrium/i.test((concepts || []).join(' ')) ? 'Eq' : 'E',
-    style: { fill: '#fff7ed', stroke: '#ea580c', strokeWidth: 2.5 },
-  })); t += 3;
-  scenes.push(scene(t, 'draw_badge', {
-    content: truncateWords(concepts.find((concept) => /equilibrium/i.test(concept)) || 'Equilibrium', 4),
-    position: [300, 214],
-    style: { bg: '#ea580c', color: '#fff', fontSize: 13 },
-  })); t += 2;
-
-  if (rows.length) {
-    scenes.push(scene(t, 'draw_table', {
-      headers: ['Idea', 'Meaning'],
-      rows,
-      position: [470, 120],
-      cell_width: 140,
-      cell_height: 38,
-    })); t += 5;
-  }
-
-  const takeaway = topics[0]?.importance || sentences[0] || `Track where the main curves meet and what happens when they do not balance.`;
-  scenes.push(scene(t, 'draw_callout', {
-    content: truncateWords(takeaway, 18),
-    position: [60, 404],
-    width: 680,
-    style: { bg: '#fef3c7', stroke: '#d97706', color: '#713f12' },
-  })); t += 4;
-
-  return scenes;
-}
-
-function detectMathEquation(title, concepts, sentences) {
-  const corpus = `${title} ${(concepts || []).join(' ')} ${(sentences || []).join(' ')}`.toLowerCase();
-  if (/\bcos|cosine\b/.test(corpus)) return 'y = cos(x)';
-  if (/\bsin|sine\b/.test(corpus)) return 'y = sin(x)';
-  if (/\btan|tangent\b/.test(corpus)) return 'y = tan(x)';
-  if (/\bquadratic|parabola\b/.test(corpus)) return 'y = x^2';
-  if (/\blinear|slope\b/.test(corpus)) return 'y = mx + b';
-  return concepts.find((concept) => /[=()^]/.test(concept)) || 'f(x)';
-}
-
-function buildConceptMeaningRows(concepts, topics, sentences, limit = 4) {
-  const rows = [];
-  const seen = new Set();
-
-  for (let index = 0; index < Math.min(limit, concepts.length || limit); index += 1) {
-    const concept = concepts[index] || '';
-    const topic = topics.find((entry) => entry?.topic === concept) || topics[index];
-    const conceptTerms = normalizePlannerPhrase(concept).split(/\s+/).filter((term) => term.length > 3);
-    const matchingSentence = sentences.find((sentence) => conceptTerms.some((term) => sentence.toLowerCase().includes(term)));
-    const label = normalizeVisualCue(concept, 4) || truncateWords(concept, 4);
-    const meaning = sanitizeSceneText(firstMeaningfulEntry([
-      topic?.definition || '',
-      topic?.importance || '',
-      ...uniqueNormalizedStrings(topic?.details, 2),
-    ], matchingSentence, sentences[index], concept), 10);
-    if (!label || !meaning) continue;
-    if (meaning.toLowerCase() === label.toLowerCase()) continue;
-
-    const key = `${label.toLowerCase()}|${meaning.toLowerCase()}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    rows.push([label, meaning]);
-  }
-
-  return rows;
-}
-
-function buildMathVisualBoard(title, concepts, topics, sentences, startTime) {
-  const scenes = [];
-  let t = startTime;
-  const corpus = `${title} ${(concepts || []).join(' ')} ${(sentences || []).join(' ')}`;
-  const equation = detectMathEquation(title, concepts, sentences);
-  const highlightCues = buildVisualCueList([
-    ...concepts.slice(1, 5),
-    ...topics.map((entry) => entry?.topic || ''),
-    sentences[0] || '',
-  ], 3, 4).map((cue) => expandVisualCueFromContext(cue, [title, ...concepts, ...sentences], 4));
-  const rows = buildConceptMeaningRows(concepts, topics, sentences, 4);
-
-  scenes.push(scene(t, 'show_equation', {
-    latex: truncateWords(equation, 5),
-    position: [210, 88],
-    style: { fontSize: 24, color: '#1d4ed8' },
-  })); t += 4;
-
-  scenes.push(scene(t, 'draw_arrow', {
-    from: [210, 110],
-    to: [210, 140],
-    label: 'plot',
-    style: { color: '#2563eb', strokeWidth: 2 },
-  })); t += 2;
-
-  scenes.push(scene(t, 'draw_coordinate_system', {
-    origin: [210, 340],
-    size: [250, 220],
-    x_label: 'x',
-    y_label: 'y',
-    plot_points: buildPlotPoints(corpus),
-  })); t += 5;
-
-  const badgePositions = [[500, 96], [620, 136], [500, 182]];
-  highlightCues.slice(0, 3).forEach((cue, index) => {
-    scenes.push(scene(t, 'draw_badge', {
-      content: cue,
-      position: badgePositions[index],
-      style: { bg: COLORS[index % COLORS.length], color: '#fff', fontSize: 14 },
-    })); t += 2;
-  });
-
-  if (rows.length) {
-    scenes.push(scene(t, 'draw_table', {
-      headers: ['Idea', 'Meaning'],
-      rows,
-      position: [430, 250],
-      cell_width: 155,
-      cell_height: 38,
-    })); t += 5;
-  }
-
-  const takeaway = topics[0]?.importance || sentences[0] || `Track how ${equation} changes as x moves across the graph.`;
-  scenes.push(scene(t, 'draw_callout', {
-    content: truncateWords(takeaway, 16),
-    position: [60, 392],
-    width: 320,
-    style: { bg: '#eff6ff', stroke: '#3b82f6', color: '#1e3a8a' },
-  })); t += 4;
-
-  return scenes;
-}
-
-function buildPhysicsVisualBoard(title, concepts, topics, sentences, startTime) {
-  const scenes = [];
-  let t = startTime;
-  const corpus = `${title} ${(concepts || []).join(' ')} ${(sentences || []).join(' ')}`;
-  const shapeType = detectPhysicsShapeType(corpus);
-  const annotations = uniqueNormalizedStrings([
-    ...(topics[0]?.details || []),
-    ...(sentences || []).slice(0, 2),
-  ], 3).map((line) => truncateWords(line, 5));
-  const rows = concepts.slice(0, 4).map((concept, index) => {
-    const explanation = topics[index]?.definition || sentences[index] || concept;
-    return [truncateWords(concept, 3), truncateWords(explanation, 6)];
-  }).filter((row) => row[0] && row[1]);
-
-  scenes.push(scene(t, 'draw_physics_shape', {
-    shape_type: shapeType,
-    position: [70, 105],
-    size: [240, 180],
-    label: truncateWords(concepts[0] || title || 'Physics System', 4),
-    annotations,
-  })); t += 5;
-
-  if (rows.length) {
-    scenes.push(scene(t, 'draw_table', {
-      headers: ['Quantity', 'Meaning'],
-      rows,
-      position: [410, 105],
-      cell_width: 165,
-      cell_height: 42,
-    })); t += 5;
-  }
-
-  const takeaway = topics[0]?.importance || sentences[0] || `Focus on how ${concepts[0] || 'the system'} changes under the forces shown.`;
-  scenes.push(scene(t, 'draw_callout', {
-    content: truncateWords(takeaway, 16),
-    position: [60, 384],
-    width: 680,
-    style: { bg: '#fef3c7', stroke: '#f59e0b', color: '#713f12' },
-  })); t += 4;
-
-  return scenes;
-}
-
-function qbez(ax, ay, bx, by, curve = 28) {
-  const dx = bx - ax, dy = by - ay, len = Math.sqrt(dx * dx + dy * dy) || 1;
-  const mx = (ax + bx) / 2 + (-dy / len) * curve;
-  const my = (ay + by) / 2 + (dx / len) * curve;
-  return `M ${ax},${ay} Q ${mx},${my} ${bx},${by}`;
-}
-
-function scurveH(ax, ay, bx, by) {
-  const mx = (ax + bx) / 2;
-  return `M ${ax},${ay} C ${mx},${ay} ${mx},${by} ${bx},${by}`;
-}
-
-// ── Overview visuals: concept map + definitions ──────────────────────────────
-
-function buildOverviewVisuals(title, concepts, topics, sentences, continuity, field, explanationMode = 'full_lesson') {
-  const scenes = [];
-  let t = 0;
-
-  const displayTitle = truncateWords(title, 6);
-
-  // PAGE 1: Title + Concept Map
-  scenes.push(scene(t, 'draw_text', {
-    content: displayTitle,
-    position: [400, 38], style: { fontSize: 24, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-  })); t += 3;
-
-  if (continuity?.previous) {
-    // Skip generic continuity badge — teacher just starts teaching
-  }
-
-  if (field === 'economics') {
-    scenes.push(...buildEconomicsVisualBoard(title, concepts, topics, sentences, t));
-    t = Math.max(...scenes.map((entry) => entry.time)) + 4;
-  } else if (field === 'history') {
-    scenes.push(...buildTimeline(concepts, topics, sentences, t));
-    t = Math.max(...scenes.map((entry) => entry.time)) + 4;
-  } else if (field === 'cycle') {
-    scenes.push(...buildTopicObjectVisualBoard(title, concepts, topics, sentences, t, field, 'overview'));
-    t = Math.max(...scenes.map((entry) => entry.time)) + 4;
-  } else if (field === 'biology') {
-    scenes.push(...buildBiologyVisualBoard(title, concepts, topics, sentences, t, field));
-    t = Math.max(...scenes.map((entry) => entry.time)) + 4;
-  } else if (field === 'systems') {
-    scenes.push(...buildTopicObjectVisualBoard(title, concepts, topics, sentences, t, field, 'overview'));
-    t = Math.max(...scenes.map((entry) => entry.time)) + 4;
-  } else {
-    scenes.push(...buildTopicObjectVisualBoard(title, concepts, topics, sentences, t, field || 'general', 'overview'));
-    t = Math.max(...scenes.map((entry) => entry.time)) + 4;
-  }
-
-  // PAGE 2: Definitions page
-  scenes.push(scene(t, 'clear', {})); t += 2;
-  scenes.push(scene(t, 'draw_text', {
-    content: buildOverviewPageTitle(explanationMode),
-    position: [400, 38], style: { fontSize: 22, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-  })); t += 3;
-
-  const defTopics = topics.slice(0, 2);
-  if (defTopics.length) {
-    const rowH = 140;
-    for (let i = 0; i < defTopics.length; i++) {
-      const tp = defTopics[i];
-      const y = 90 + i * rowH;
-      const color = COLORS[i % COLORS.length];
-      const fill = FILLS[i % FILLS.length];
-
-      scenes.push(scene(t, 'draw_badge', {
-        content: truncateWords(tp.topic, 4),
-        position: [40, y], style: { bg: color, color: '#fff', fontSize: 15 },
-      })); t += 4;
-
-      scenes.push(scene(t, 'draw_rect', {
-        x: 40, y: y + 44, width: 720, height: 64,
-        label: truncateWords(tp.definition || tp.topic, 18),
-        style: { fill, stroke: color, strokeWidth: 1.5, rx: 8 },
-      })); t += 6;
-    }
-  } else {
-    // Use sentences from narration as definitions — max 2
-    for (let i = 0; i < Math.min(2, sentences.length); i++) {
-      const y = 90 + i * 150;
-      scenes.push(scene(t, 'draw_rect', {
-        x: 40, y, width: 720, height: 80,
-        label: truncateWords(sentences[i], 16),
-        style: { fill: FILLS[i % FILLS.length], stroke: COLORS[i % COLORS.length], strokeWidth: 1.5, rx: 8 },
-      })); t += 7;
-    }
-  }
-
-  // PAGE 3: Relationships
-  scenes.push(scene(t, 'clear', {})); t += 2;
-  scenes.push(scene(t, 'draw_text', {
-    content: buildOverviewConnectionsTitle(explanationMode),
-    position: [400, 38], style: { fontSize: 22, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-  })); t += 3;
-
-  if (concepts.length >= 2) {
-    // Show relationship between two key concepts — clean and clear
-    const connectionCards = concepts.slice(0, 2).map((concept, index) => {
-      const label = truncateWords(concept, 6);
-      const width = estimateContainerWidth(label, 8.1, 250, 340);
-      const height = estimateContainerHeight(label, width, 7.6, 18, 80, 118);
-      const color = COLORS[index % COLORS.length];
-      const fill = FILLS[index % FILLS.length];
-      return { label, width, height, color, fill };
-    });
-
-    const positions = [
-      { x: 50, y: 160 },
-      { x: 800 - 50 - connectionCards[1].width, y: 160 },
-    ];
-
-    connectionCards.forEach((card, index) => {
-      const pos = positions[index];
-      scenes.push(scene(t, 'draw_rect', {
-        x: pos.x,
-        y: pos.y,
-        width: card.width,
-        height: card.height,
-        label: card.label,
-        style: { fill: card.fill, stroke: card.color, strokeWidth: 2, rx: 12 },
-      })); t += 5;
-    });
-
-    // One arrow showing the relationship between concepts
-    scenes.push(scene(t, 'draw_arrow', {
-      from: [positions[0].x + connectionCards[0].width + 14, positions[0].y + connectionCards[0].height / 2],
-      to: [positions[1].x - 14, positions[1].y + connectionCards[1].height / 2],
-      style: { color: COLORS[1], strokeWidth: 2 },
-    })); t += 4;
-
-    // Callout explaining the relationship
-    const relationExplanation = sentences.find((s) =>
-      concepts.slice(0, 2).some((c) => s.toLowerCase().includes(c.toLowerCase()))
-    ) || sentences[0] || '';
-    if (relationExplanation) {
-      scenes.push(scene(t, 'draw_callout', {
-        content: truncateWords(relationExplanation, 20),
-        position: [60, 340], width: 680,
-        style: { bg: '#f0fdf4', stroke: '#16a34a', color: '#166534' },
-      })); t += 5;
-    }
-  }
-
-  // End of overview — no generic badges, teacher moves on naturally
-
-  return scenes;
-}
-
-function buildAdaptiveGenericDetailBoard(title, concepts, topics, sentences, startTime, field, explanationMode = 'full_lesson', contentIndex = 0) {
-  const seed = hashVisualSeed(`${field}|detail|${explanationMode}|${title}|${(concepts || []).join('|')}|${contentIndex}`);
-  const variants = explanationMode === 'text_focus'
-    ? ['note_stack', 'concept_map', 'topic_object', 'process_flow', 'question_ladder']
-    : explanationMode === 'step_by_step'
-      ? ['process_flow', 'topic_object', 'concept_map', 'question_ladder', 'note_stack']
-      : ['process_flow', 'concept_map', 'question_ladder', 'topic_object', 'note_stack'];
-  // Use both seed and contentIndex to ensure consecutive parts always get different visuals
-  const variant = variants[(seed + contentIndex * 2 + 1) % variants.length];
-
-  if (variant === 'note_stack') {
-    return buildNoteStackBoard(concepts, topics, sentences, startTime);
-  }
-
-  if (variant === 'concept_map') {
-    return buildConceptMapBoard(concepts, topics, sentences, startTime);
-  }
-
-  if (variant === 'question_ladder') {
-    return buildQuestionLadderBoard(concepts, topics, sentences, startTime);
-  }
-
-  if (variant === 'topic_object') {
-    return buildTopicObjectVisualBoard(title, concepts, topics, sentences, startTime, field || 'general', 'detail');
-  }
-
-  return buildProcessFlow(concepts, topics, sentences, startTime);
-}
-
-// ── Detail visuals: deep dive with specific diagrams ─────────────────────────
-
-function buildDetailVisuals(lessonTitle, title, concepts, topics, sentences, continuity, field, explanationMode = 'full_lesson', contentIndex = 0) {
-  let scenes = [];
-  let t = 0;
-  const visualField = detectVisualField(field, concepts, sentences, `${lessonTitle} ${title}`);
-
-  const displayTitle = truncateWords(title, 6);
-
-  // PAGE 1: Detailed breakdown of primary concept
-  scenes.push(scene(t, 'draw_text', {
-    content: displayTitle,
-    position: [400, 38], style: { fontSize: 24, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-  })); t += 3;
-
-  // No generic badge — the title speaks for itself
-
-  // Process/flow diagram based on field
-  if (visualField === 'physics') {
-    scenes = scenes.concat(buildPhysicsVisualBoard(title, concepts, topics, sentences, t));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'economics') {
-    scenes = scenes.concat(buildEconomicsVisualBoard(title, concepts, topics, sentences, t));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'history') {
-    scenes = scenes.concat(buildTimeline(concepts, topics, sentences, t));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'cycle') {
-    scenes = scenes.concat(buildTopicObjectVisualBoard(title, concepts, topics, sentences, t, visualField, 'detail'));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'biology') {
-    scenes = scenes.concat(buildBiologyVisualBoard(title, concepts, topics, sentences, t, visualField));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'systems') {
-    scenes = scenes.concat(buildTopicObjectVisualBoard(title, concepts, topics, sentences, t, visualField, 'detail'));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'medical' || visualField === 'science') {
-    scenes = scenes.concat(buildBiologyVisualBoard(title, concepts, topics, sentences, t, visualField));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (field === 'programming') {
-    // Flowchart
-    scenes = scenes.concat(buildFlowchart(concepts, topics, sentences, t));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'mathematics') {
-    // Equation breakdown
-    scenes = scenes.concat(buildMathVisualBoard(title, concepts, topics, sentences, t));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else {
-    scenes = scenes.concat(buildAdaptiveGenericDetailBoard(title, concepts, topics, sentences, t, visualField || field || 'general', explanationMode, contentIndex));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  }
-
-  // PAGE 2: Comparison or breakdown
-  scenes.push(scene(t, 'clear', {})); t += 2;
-  scenes.push(scene(t, 'draw_text', {
-    content: buildDetailPageTitle(explanationMode, concepts[0] || title),
-    position: [400, 38], style: { fontSize: 22, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-  })); t += 3;
-
-  // Two-column comparison if we have enough concepts — single row to keep board clean (max 5 elements)
-  if (concepts.length >= 2) {
-    const colL = 40, colR = 420;
-    scenes.push(scene(t, 'draw_badge', {
-      content: truncateWords(concepts[0], 4), position: [colL + 10, 80],
-      style: { bg: '#2563eb', color: '#fff', fontSize: 15 },
-    })); t += 4;
-    scenes.push(scene(t, 'draw_badge', {
-      content: truncateWords(concepts[1], 4), position: [colR + 10, 80],
-      style: { bg: '#7c3aed', color: '#fff', fontSize: 15 },
-    })); t += 4;
-
-    // One comparison row — clear and readable
-    const leftTopic = topics[0];
-    const rightTopic = topics[1] || topics[0];
-
-    scenes.push(scene(t, 'draw_rect', {
-      x: colL, y: 130, width: 350, height: 100,
-      label: truncateWords(leftTopic?.definition || sentences[0] || concepts[0], 16),
-      style: { fill: '#eff6ff', stroke: '#2563eb', strokeWidth: 1.5, rx: 8 },
-    })); t += 5;
-
-    scenes.push(scene(t, 'draw_rect', {
-      x: colR, y: 130, width: 350, height: 100,
-      label: truncateWords(rightTopic?.definition || sentences[1] || concepts[1], 16),
-      style: { fill: '#f5f3ff', stroke: '#7c3aed', strokeWidth: 1.5, rx: 8 },
-    })); t += 5;
-  }
-
-  // Detail callout
-  const detailSentence = sentences.find((s) =>
-    concepts.some((c) => s.toLowerCase().includes(c.toLowerCase()))
-  ) || sentences[3] || '';
-  if (detailSentence) {
-    scenes.push(scene(t, 'draw_callout', {
-      content: truncateWords(detailSentence, 18),
-      position: [100, 420], width: 600,
-      style: { bg: '#f0fdf4', stroke: '#16a34a', color: '#166534' },
-    })); t += 4;
-  }
-
-  return scenes;
-}
-
-// ── Application visuals: real-world examples ─────────────────────────────────
-
-function buildApplicationVisuals(title, concepts, topics, sentences, continuity, field, explanationMode = 'full_lesson') {
-  const scenes = [];
-  let t = 0;
-  const visualField = detectVisualField(field, concepts, sentences, title);
-  let usedGenericBoard = false;
-
-  // PAGE 1: Application scenarios
-  scenes.push(scene(t, 'draw_text', {
-    content: truncateWords(title, 6),
-    position: [400, 38], style: { fontSize: 24, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-  })); t += 3;
-
-  // No generic badge — teacher starts drawing directly
-
-  if (visualField === 'mathematics') {
-    scenes.push(...buildMathVisualBoard(title, concepts, topics, sentences, t));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'physics') {
-    scenes.push(...buildPhysicsVisualBoard(title, concepts, topics, sentences, t));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'economics') {
-    scenes.push(...buildEconomicsVisualBoard(title, concepts, topics, sentences, t));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'history') {
-    scenes.push(...buildTimeline(concepts, topics, sentences, t));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'cycle') {
-    scenes.push(...buildTopicObjectVisualBoard(title, concepts, topics, sentences, t, visualField, 'application'));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'biology') {
-    scenes.push(...buildBiologyVisualBoard(title, concepts, topics, sentences, t, visualField));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else if (visualField === 'systems') {
-    scenes.push(...buildTopicObjectVisualBoard(title, concepts, topics, sentences, t, visualField, 'application'));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-  } else {
-    scenes.push(...buildTopicObjectVisualBoard(title, concepts, topics, sentences, t, visualField || field || 'general', 'application'));
-    t = Math.max(...scenes.map((s) => s.time)) + 4;
-    usedGenericBoard = true;
-  }
-
-  // Insight callout
-  const insightSentence = sentences.find((s) =>
-    /\b(example|apply|practice|result|outcome|use|important|because)\b/i.test(s)
-  ) || sentences[sentences.length - 2] || '';
-
-  if (insightSentence && !usedGenericBoard) {
-    scenes.push(scene(t, 'draw_callout', {
-      content: truncateWords(insightSentence, 18),
-      position: [60, 380], width: 680,
-      style: { bg: '#fef3c7', stroke: '#d97706', color: '#713f12' },
-    })); t += 5;
-  }
-
-  // PAGE 2: Summary / takeaway
-  scenes.push(scene(t, 'clear', {})); t += 2;
-  scenes.push(scene(t, 'draw_text', {
-    content: buildApplicationTakeawayTitle(explanationMode),
-    position: [400, 38], style: { fontSize: 22, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-  })); t += 3;
-
-  // Takeaway cards — show the actual concepts, no generic numbering
-  for (let i = 0; i < Math.min(3, concepts.length); i++) {
-    const x = 30 + i * 255;
-    const topic = topics[i];
-    const label = topic
-      ? truncateWords(`${topic.topic}: ${topic.importance || topic.definition}`, 16)
-      : truncateWords(concepts[i], 6);
-
-    scenes.push(scene(t, 'draw_rect', {
-      x, y: 104, width: 240, height: 132,
-      label,
-      style: { fill: FILLS[i % FILLS.length], stroke: COLORS[i % COLORS.length], strokeWidth: 2, rx: 12 },
-    })); t += 5;
-  }
-
-  return scenes;
-}
-
-// ── Field-specific diagram builders ──────────────────────────────────────────
-
-function buildLabeledDiagram(concepts, topics, sentences, startTime) {
-  const scenes = [];
-  let t = startTime;
-
-  // Central structure
-  scenes.push(scene(t, 'draw_rect', {
-    x: 230, y: 85, width: 340, height: 210,
-    label: truncateWords(concepts[0] || 'Main Structure', 6),
-    style: { fill: '#eff6ff', stroke: '#2563eb', strokeWidth: 2.5, rx: 16 },
-  })); t += 4;
-
-  // Labels pointing to parts
-  const labelPositions = [
-    { from: [250, 140], to: [120, 120], anchor: 'end' },
-    { from: [550, 140], to: [680, 120], anchor: 'start' },
-    { from: [250, 220], to: [120, 240], anchor: 'end' },
-    { from: [550, 220], to: [680, 240], anchor: 'start' },
-    { from: [400, 290], to: [400, 340], anchor: 'middle' },
-  ];
-
-  for (let i = 0; i < Math.min(5, concepts.length - 1); i++) {
-    const lp = labelPositions[i];
-    const color = COLORS[(i + 1) % COLORS.length];
-    const topic = topics.find((tp) => tp.topic === concepts[i + 1]);
-
-    scenes.push(scene(t, 'draw_line', {
-      from: lp.from, to: lp.to,
-      style: { color, strokeWidth: 1.5 },
-    })); t += 2;
-
-    scenes.push(scene(t, 'draw_text', {
-      content: truncateWords(concepts[i + 1], 5),
-      position: lp.to,
-      style: { fontSize: 14, color, fontWeight: 'bold', textAnchor: lp.anchor },
-    })); t += 2;
-
-    if (topic?.details?.[0]) {
-      scenes.push(scene(t, 'draw_text', {
-        content: truncateWords(topic.details[0], 12),
-        position: [lp.to[0], lp.to[1] + 18],
-        style: { fontSize: 14, color: '#64748b', textAnchor: lp.anchor },
-      })); t += 2;
-    }
-  }
-
-  return scenes;
-}
-
-function buildFlowchart(concepts, topics, sentences, startTime) {
-  const scenes = [];
-  let t = startTime;
-  const stepCount = Math.min(4, concepts.length);
-  const boxW = 170, boxH = 70;
-  const gap = 25;
-  const totalW = stepCount * boxW + (stepCount - 1) * gap;
-  const startX = Math.max(20, (800 - totalW) / 2);
-
-  for (let i = 0; i < stepCount; i++) {
-    const x = startX + i * (boxW + gap);
-    const y = 130;
-    const color = COLORS[i % COLORS.length];
-    const fill = FILLS[i % FILLS.length];
-    const topic = topics.find((tp) => tp.topic === concepts[i]);
-
-    scenes.push(scene(t, 'draw_rect', {
-      x, y, width: boxW, height: boxH,
-      label: truncateWords(concepts[i], 5),
-      style: { fill, stroke: color, strokeWidth: 2, rx: 10 },
-    })); t += 3;
-
-    if (topic?.definition) {
-      scenes.push(scene(t, 'draw_text', {
-        content: truncateWords(topic.definition, 10),
-        position: [x + boxW / 2, y + boxH + 20],
-        style: { fontSize: 14, color: '#475569', textAnchor: 'middle' },
-      })); t += 2;
-    }
-
-    if (i < stepCount - 1) {
-      scenes.push(scene(t, 'draw_arrow', {
-        from: [x + boxW, y + boxH / 2],
-        to: [x + boxW + gap, y + boxH / 2],
-        style: { color: COLORS[(i + 1) % COLORS.length], strokeWidth: 2 },
-      })); t += 2;
-    }
-  }
-
-  return scenes;
-}
-
-function buildTimeline(concepts, topics, sentences, startTime) {
-  const scenes = [];
-  let t = startTime;
-
-  // Horizontal timeline
-  scenes.push(scene(t, 'draw_path', {
-    d: 'M 60,240 L 740,240',
-    markerEnd: 'arr-blue',
-    style: { stroke: '#2563eb', strokeWidth: 3, fill: 'none' },
-  })); t += 3;
-
-  const count = Math.min(5, concepts.length);
-  const spacing = 680 / (count + 0.5);
-
-  for (let i = 0; i < count; i++) {
-    const x = Math.round(60 + spacing * (i + 0.7));
-    const above = i % 2 === 0;
-    const boxY = above ? 110 : 270;
-    const color = COLORS[i % COLORS.length];
-    const fill = FILLS[i % FILLS.length];
-
-    scenes.push(scene(t, 'draw_circle', {
-      center: [x, 240], radius: 6,
-      style: { fill: color, stroke: '#fff', strokeWidth: 2 },
-    })); t += 2;
-
-    scenes.push(scene(t, 'draw_path', {
-      d: qbez(x, 240, x, above ? boxY + 55 : boxY, 10),
-      style: { stroke: color, strokeWidth: 1.5, fill: 'none' },
-    })); t += 2;
-
-    scenes.push(scene(t, 'draw_rect', {
-      x: x - 75, y: boxY, width: 150, height: 60,
-      label: truncateWords(concepts[i], 5),
-      style: { fill, stroke: color, strokeWidth: 1.5, rx: 8 },
-    })); t += 3;
-  }
-
-  return scenes;
-}
-
-function buildEquationBreakdown(concepts, topics, sentences, startTime) {
-  const scenes = [];
-  let t = startTime;
-
-  // Show equation or formula relationships
-  for (let i = 0; i < Math.min(3, concepts.length); i++) {
-    const y = 100 + i * 120;
-    const topic = topics.find((tp) => tp.topic === concepts[i]);
-
-    scenes.push(scene(t, 'show_equation', {
-      latex: truncateWords(concepts[i], 4),
-      position: [400, y],
-      style: { fontSize: 22, color: COLORS[i % COLORS.length] },
-    })); t += 4;
-
-    if (topic?.definition) {
-      scenes.push(scene(t, 'draw_text', {
-        content: truncateWords(topic.definition, 12),
-        position: [400, y + 35],
-        style: { fontSize: 16, color: '#475569', textAnchor: 'middle' },
-      })); t += 3;
-    }
-
-    if (i < Math.min(2, concepts.length - 1)) {
-      scenes.push(scene(t, 'draw_arrow', {
-        from: [400, y + 50], to: [400, y + 70],
-        label: 'therefore',
-        style: { color: '#7c3aed', strokeWidth: 2 },
-      })); t += 2;
-    }
-  }
-
-  return scenes;
-}
-
-function buildProcessFlow(concepts, topics, sentences, startTime) {
-  const scenes = [];
-  let t = startTime;
-
-  const stepCount = Math.min(4, concepts.length);
-  const boxW = 175, boxH = 75;
-  const gap = 18;
-  const totalW = stepCount * boxW + (stepCount - 1) * gap;
-  const startX = Math.max(30, (800 - totalW) / 2);
-  const y = 130;
-
-  for (let i = 0; i < stepCount; i++) {
-    const x = startX + i * (boxW + gap);
-    const color = COLORS[i % COLORS.length];
-    const fill = FILLS[i % FILLS.length];
-    const topic = topics.find((tp) => tp.topic === concepts[i]);
-
-    scenes.push(scene(t, 'draw_rect', {
-      x, y, width: boxW, height: boxH,
-      label: truncateWords(concepts[i], 5),
-      style: { fill, stroke: color, strokeWidth: 2, rx: 10 },
-    })); t += 3;
-
-    scenes.push(scene(t, 'draw_badge', {
-      content: `Step ${i + 1}`,
-      position: [x + 4, y - 14],
-      style: { bg: color, color: '#fff', fontSize: 14 },
-    })); t += 2;
-
-    if (i < stepCount - 1) {
-      const archY = y + boxH / 2 - 30;
-      scenes.push(scene(t, 'draw_path', {
-        d: `M ${x + boxW},${y + boxH / 2} C ${x + boxW + 8},${archY} ${x + boxW + gap - 8},${archY} ${x + boxW + gap},${y + boxH / 2}`,
-        markerEnd: MARKERS[(i + 1) % MARKERS.length],
-        style: { stroke: COLORS[(i + 1) % COLORS.length], strokeWidth: 2.5, fill: 'none' },
-      })); t += 3;
-    }
-
-    // Detail below
-    if (topic?.definition) {
-      scenes.push(scene(t, 'draw_text', {
-        content: truncateWords(topic.definition, 6),
-        position: [x + boxW / 2, y + boxH + 18],
-        style: { fontSize: 15, color: '#475569', textAnchor: 'middle' },
-      })); t += 2;
-    }
-  }
-
-  // Summary callout
-  const summSentence = sentences.find((s) =>
-    /\b(result|outcome|therefore|conclusion|means)\b/i.test(s)
-  ) || sentences[sentences.length - 1] || '';
-
-  if (summSentence) {
-    scenes.push(scene(t, 'draw_callout', {
-      content: truncateWords(summSentence, 16),
-      position: [80, 320], width: 640,
-      style: { bg: '#f0fdf4', stroke: '#16a34a', color: '#166534' },
-    })); t += 4;
-  }
-
-  return scenes;
-}
-
-// ── Deep dive pages (for extending visual timelines) ─────────────────────────
-
-function hasExampleSentences(sentences) {
-  return (sentences || []).some((sentence) => /\b(example|instance|such as|like|consider|case|scenario)\b/i.test(sentence));
-}
-
-function getDeepDivePageTypes(field, explanationMode, sentences) {
-  if (field === 'biology') {
-    if (explanationMode === 'visual_first') {
-      return ['topic_object', 'detail_cards', 'hierarchy', 'comparison', 'summary_grid'];
-    }
-    if (explanationMode === 'step_by_step') {
-      return ['topic_object', 'process_steps', 'detail_cards', 'concept_map', 'summary_grid'];
-    }
-    return ['topic_object', 'detail_cards', 'hierarchy', 'comparison', 'summary_grid'];
-  }
-
-  if (field === 'economics') {
-    if (explanationMode === 'step_by_step') {
-      return ['economics_graph', 'process_steps', 'comparison', 'summary_grid'];
-    }
-    return ['economics_graph', 'comparison', 'detail_cards', 'summary_grid'];
-  }
-
-  if (field === 'history') {
-    if (explanationMode === 'step_by_step') {
-      return ['timeline', 'detail_cards', 'comparison', 'summary_grid'];
-    }
-    return ['timeline', 'comparison', 'detail_cards', 'summary_grid'];
-  }
-
-  if (field === 'cycle') {
-    if (explanationMode === 'step_by_step') {
-      return ['topic_object', 'process_steps', 'comparison', 'summary_grid'];
-    }
-    return ['topic_object', 'comparison', 'detail_cards', 'summary_grid'];
-  }
-
-  if (field === 'systems') {
-    if (explanationMode === 'visual_first') {
-      return ['topic_object', 'concept_map', 'comparison', 'summary_grid'];
-    }
-    return ['topic_object', 'process_steps', 'comparison', 'summary_grid'];
-  }
-
-  if (field === 'mathematics') {
-    if (explanationMode === 'step_by_step') {
-      return ['math_plot', 'process_steps', 'explanation', 'detail_cards', 'summary_grid'];
-    }
-    return ['math_plot', 'detail_cards', 'explanation', 'comparison', 'process_steps', 'summary_grid'];
-  }
-
-  if (field === 'physics') {
-    if (explanationMode === 'visual_first') {
-      return ['physics_diagram', 'concept_map', 'detail_cards', 'comparison', 'summary_grid'];
-    }
-    if (explanationMode === 'step_by_step') {
-      return ['physics_diagram', 'process_steps', 'explanation', 'detail_cards', 'summary_grid'];
-    }
-    return ['physics_diagram', 'detail_cards', 'process_steps', 'comparison', 'summary_grid'];
-  }
-
-  if (explanationMode === 'visual_first') {
-    return ['topic_object', 'concept_map', 'detail_cards', 'hierarchy', 'comparison', 'summary_grid'];
-  }
-  if (explanationMode === 'step_by_step') {
-    return ['topic_object', 'process_steps', 'detail_cards', 'explanation', 'concept_map', 'summary_grid'];
-  }
-  if (explanationMode === 'qa_mode') {
-    return ['question_ladder', 'topic_object', 'detail_cards', 'comparison', 'summary_grid'];
-  }
-  if (explanationMode === 'text_focus') {
-    return ['topic_object', 'note_stack', 'concept_map', 'explanation', 'detail_cards', 'comparison', 'summary_grid'];
-  }
-
-  const baseTypes = ['topic_object', 'detail_cards', 'concept_map', 'hierarchy', 'explanation', 'comparison', 'process_steps', 'summary_grid'];
-  if (field === 'programming' || field === 'computer_science') {
-    baseTypes.splice(5, 0, 'code_display');
-  }
-  if (hasExampleSentences(sentences)) {
-    baseTypes.splice(6, 0, 'question_ladder');
-  }
-  return baseTypes;
-}
-
-function buildConceptMapBoard(pageConcepts, pageTopics, sentences, startTime) {
-  const scenes = [];
-  let t = startTime;
-  const root = pageConcepts[0] || pageTopics[0]?.topic || 'Core Idea';
-  const relatedConcepts = pageConcepts.slice(1).filter(Boolean).slice(0, 2); // Max 2 branches
-
-  // Title
-  scenes.push(scene(t, 'draw_text', {
-    content: `Concept Map: ${truncateWords(root, 4)}`,
-    position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-  })); t += 3;
-
-  // Central concept
-  scenes.push(scene(t, 'draw_rect', {
-    x: 270, y: 120, width: 260, height: 70,
-    label: truncateWords(root, 6),
-    style: { fill: '#eff6ff', stroke: '#2563eb', strokeWidth: 2, rx: 12 },
-  })); t += 5;
-
-  // Two related concept nodes with arrows (max 5 elements: title + center + 2 arrows toward nodes handled as pairs)
-  const nodes = [
-    { x: 60, y: 280, width: 280 },
-    { x: 460, y: 280, width: 280 },
-  ];
-
-  relatedConcepts.forEach((concept, index) => {
-    const color = COLORS[(index + 1) % COLORS.length];
-    const fill = FILLS[(index + 1) % FILLS.length];
-    const node = nodes[index];
-
-    scenes.push(scene(t, 'draw_arrow', {
-      from: [400, 190], to: [node.x + node.width / 2, node.y - 10],
-      style: { color, strokeWidth: 2 },
-    })); t += 3;
-
-    scenes.push(scene(t, 'draw_rect', {
-      x: node.x, y: node.y, width: node.width, height: 80,
-      label: truncateWords(concept, 6),
-      style: { fill, stroke: color, strokeWidth: 1.5, rx: 10 },
-    })); t += 5;
-  });
-
-  return scenes;
-}
-
-function buildQuestionLadderBoard(pageConcepts, pageTopics, sentences, startTime) {
-  const scenes = [];
-  let t = startTime;
-  const prompts = [];
-
-  for (const topic of pageTopics) {
-    if (!topic) continue;
-    if (topic.definition) {
-      prompts.push({
-        question: `What is ${truncateWords(topic.topic || pageConcepts[0] || 'this idea', 4)}?`,
-        answer: truncateWords(topic.definition, 14),
-      });
-    }
-    if (topic.importance) {
-      prompts.push({
-        question: `Why does ${truncateWords(topic.topic || pageConcepts[0] || 'it', 4)} matter?`,
-        answer: truncateWords(topic.importance, 14),
-      });
-    }
-    if (prompts.length >= 3) break;
-  }
-
-  if (!prompts.length) {
-    const backup = (sentences || []).slice(0, 3);
-    backup.forEach((sentence, index) => {
-      prompts.push({
-        question: `Question ${index + 1}`,
-        answer: truncateWords(sentence, 14),
-      });
-    });
-  }
-
-  scenes.push(scene(t, 'draw_text', {
-    content: `Guided Questions`,
-    position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-  })); t += 3;
-
-  prompts.slice(0, 3).forEach((prompt, index) => {
-    const y = 80 + index * 120;
-    const color = COLORS[index % COLORS.length];
-    const fill = FILLS[index % FILLS.length];
-
-    scenes.push(scene(t, 'draw_badge', {
-      content: `Q${index + 1}`,
-      position: [45, y], style: { bg: color, color: '#fff', fontSize: 14 },
-    })); t += 2;
-
-    scenes.push(scene(t, 'draw_rect', {
-      x: 100, y: y - 6, width: 640, height: 52,
-      label: truncateWords(prompt.question, 12),
-      style: { fill: '#ffffff', stroke: color, strokeWidth: 1.5, rx: 10 },
-    })); t += 3;
-
-    scenes.push(scene(t, 'draw_callout', {
-      content: prompt.answer,
-      position: [120, y + 56], width: 600,
-      style: { bg: fill, stroke: color, color: '#334155' },
-    })); t += 4;
-  });
-
-  return scenes;
-}
-
-function buildNoteStackBoard(pageConcepts, pageTopics, sentences, startTime) {
-  const scenes = [];
-  let t = startTime;
-  scenes.push(scene(t, 'draw_text', {
-    content: `Study Notes`,
-    position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-  })); t += 3;
-
-  const noteSources = pageTopics.length
-    ? pageTopics.map((topic, index) => ({
-        heading: topic?.topic || pageConcepts[index] || `Note ${index + 1}`,
-        body: topic?.definition || topic?.importance || sentences[index] || pageConcepts[index],
-      }))
-    : (sentences || []).slice(0, 4).map((sentence, index) => ({
-        heading: pageConcepts[index] || `Note ${index + 1}`,
-        body: sentence,
-      }));
-
-  noteSources.slice(0, 4).forEach((note, index) => {
-    const y = 76 + index * 92;
-    const color = COLORS[index % COLORS.length];
-    const fill = FILLS[index % FILLS.length];
-
-    scenes.push(scene(t, 'draw_badge', {
-      content: truncateWords(note.heading, 4),
-      position: [48, y], style: { bg: color, color: '#fff', fontSize: 13 },
-    })); t += 2;
-
-    scenes.push(scene(t, 'draw_rect', {
-      x: 40, y: y + 16, width: 720, height: 64,
-      label: truncateWords(note.body, 20),
-      style: { fill, stroke: color, strokeWidth: 1.5, rx: 10 },
-    })); t += 3;
-  });
-
-  return scenes;
-}
-
-function buildDeepDivePages(concepts, topics, sentences, startTime, count, field, explanationMode = 'full_lesson') {
-  const extra = [];
-  let t = startTime;
-  let ci = 0;
-
-  const PAGE_TYPES = getDeepDivePageTypes(field, explanationMode, sentences);
-  let pageIdx = 0;
-
-  while (extra.length < count) {
-    const pageType = PAGE_TYPES[pageIdx % PAGE_TYPES.length];
-    pageIdx++;
-
-    extra.push(scene(t, 'clear', {})); t += 2;
-
-    const pageConcepts = [];
-    const pageTopics = [];
-    for (let k = 0; k < 6; k++) {
-      pageConcepts.push(concepts[(ci + k) % Math.max(concepts.length, 1)]);
-      pageTopics.push(topics[(ci + k) % Math.max(topics.length, 1)]);
-    }
-    ci = (ci + 3) % Math.max(concepts.length, 1);
-
-    if (pageType === 'math_plot') {
-      extra.push(...buildMathVisualBoard(pageConcepts[0] || 'Math Concept', pageConcepts, pageTopics, sentences, t));
-      t = Math.max(...extra.map((s) => s.time)) + 4;
-
-    } else if (pageType === 'physics_diagram') {
-      extra.push(...buildPhysicsVisualBoard(pageConcepts[0] || 'Physics System', pageConcepts, pageTopics, sentences, t));
-      t = Math.max(...extra.map((s) => s.time)) + 4;
-
-    } else if (pageType === 'topic_object') {
-      extra.push(...buildTopicObjectVisualBoard(pageConcepts[0] || 'Core Idea', pageConcepts, pageTopics, sentences, t, field, `deep_dive_${pageIdx}`));
-      t = Math.max(...extra.map((s) => s.time)) + 4;
-
-    } else if (pageType === 'economics_graph') {
-      extra.push(...buildEconomicsVisualBoard(pageConcepts[0] || 'Market Model', pageConcepts, pageTopics, sentences, t));
-      t = Math.max(...extra.map((s) => s.time)) + 4;
-
-    } else if (pageType === 'timeline') {
-      extra.push(...buildTimeline(pageConcepts, pageTopics, sentences, t));
-      t = Math.max(...extra.map((s) => s.time)) + 4;
-
-    } else if (pageType === 'concept_map') {
-      extra.push(...buildConceptMapBoard(pageConcepts, pageTopics, sentences, t));
-      t = Math.max(...extra.map((s) => s.time)) + 4;
-
-    } else if (pageType === 'question_ladder') {
-      extra.push(...buildQuestionLadderBoard(pageConcepts, pageTopics, sentences, t));
-      t = Math.max(...extra.map((s) => s.time)) + 4;
-
-    } else if (pageType === 'note_stack') {
-      extra.push(...buildNoteStackBoard(pageConcepts, pageTopics, sentences, t));
-      t = Math.max(...extra.map((s) => s.time)) + 4;
-
-    } else if (pageType === 'detail_cards') {
-      extra.push(scene(t, 'draw_text', {
-        content: truncateWords(pageConcepts[0], 5),
-        position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-      })); t += 3;
-
-      // Only 2 cards per page to prevent overlap — teacher explains one, then the next
-      for (let i = 0; i < Math.min(2, pageConcepts.length); i++) {
-        const x = 40;
-        const y = 80 + i * 190;
-        const tp = pageTopics[i];
-        const color = COLORS[i % COLORS.length];
-        const fill = FILLS[i % FILLS.length];
-
-        extra.push(scene(t, 'draw_rect', {
-          x, y, width: 720, height: 140,
-          label: truncateWords(tp?.definition || sentences[i] || pageConcepts[i], 20),
-          style: { fill, stroke: color, strokeWidth: 1.5, rx: 10 },
-        })); t += 5;
-      }
-
-    } else if (pageType === 'hierarchy') {
-      extra.push(scene(t, 'draw_text', {
-        content: truncateWords(pageConcepts[0], 5),
-        position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-      })); t += 3;
-
-      // Root
-      extra.push(scene(t, 'draw_rect', {
-        x: 280, y: 80, width: 240, height: 55,
-        label: truncateWords(pageConcepts[0], 5),
-        style: { fill: '#eff6ff', stroke: '#2563eb', strokeWidth: 2, rx: 10 },
-      })); t += 4;
-
-      // Only 2 children max to prevent overlap
-      const childCount = Math.min(2, pageConcepts.length - 1);
-      const childWidth = 280;
-      const childStartX = 400 - (childCount * (childWidth + 40)) / 2;
-
-      for (let i = 0; i < childCount; i++) {
-        const cx = childStartX + i * (childWidth + 40);
-        const color = COLORS[(i + 1) % COLORS.length];
-        const fill = FILLS[(i + 1) % FILLS.length];
-
-        extra.push(scene(t, 'draw_arrow', {
-          from: [400, 130], to: [cx + childWidth / 2, 180],
-          style: { color, strokeWidth: 2 },
-        })); t += 3;
-
-        extra.push(scene(t, 'draw_rect', {
-          x: cx, y: 180, width: childWidth, height: 60,
-          label: truncateWords(pageConcepts[i + 1], 5),
-          style: { fill, stroke: color, strokeWidth: 1.5, rx: 8 },
-        })); t += 4;
-      }
-
-    } else if (pageType === 'code_display') {
-      // Display commands/code from the document — limited to 3 lines to stay under 5 elements
-      extra.push(scene(t, 'draw_text', {
-        content: `Commands & Syntax`,
-        position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-      })); t += 3;
-
-      // Find command-like sentences from the text
-      const cmdSentences = sentences.filter((s) =>
-        /\b(docker|npm|git|kubectl|sudo|apt|pip|curl|wget|ssh|cd|ls|mkdir|chmod|systemctl|nginx|node|python|java|go)\b/i.test(s)
-        || /[a-z]+ [a-z-]+ [a-z-]+/i.test(s) && s.length < 80
-      ).slice(0, 3);
-      const useCmds = cmdSentences.length >= 2 ? cmdSentences : sentences.filter((s) => s.length < 60).slice(0, 3);
-
-      // Dark code background
-      extra.push(scene(t, 'draw_rect', {
-        x: 30, y: 60, width: 740, height: 380,
-        style: { fill: '#1e293b', stroke: '#334155', strokeWidth: 2, rx: 12 },
-      })); t += 3;
-
-      // Max 3 command lines to stay under 5 elements total
-      for (let i = 0; i < Math.min(3, useCmds.length); i++) {
-        const y = 115 + i * 100;
-        extra.push(scene(t, 'show_equation', {
-          latex: truncateWords(useCmds[i], 8),
-          position: [400, y],
-          style: { fontSize: 15, color: '#67e8f9' },
-        })); t += 5;
-      }
-
-    } else if (pageType === 'comparison') {
-      extra.push(scene(t, 'draw_text', {
-        content: `${truncateWords(pageConcepts[0], 4)} vs ${truncateWords(pageConcepts[1] || pageConcepts[0], 4)}`,
-        position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-      })); t += 3;
-
-      // Vertical divider
-      extra.push(scene(t, 'draw_line', {
-        from: [400, 65], to: [400, 440],
-        style: { color: '#e2e8f0', strokeWidth: 2, dashed: true },
-      })); t += 3;
-
-      // Single row comparison (title + divider + 2 rects = 4 elements)
-      const leftTp = pageTopics[0];
-      const rightTp = pageTopics[1] || pageTopics[0];
-
-      extra.push(scene(t, 'draw_rect', {
-        x: 30, y: 100, width: 350, height: 200,
-        label: truncateWords(leftTp?.definition || pageConcepts[0] || '', 18),
-        style: { fill: '#eff6ff', stroke: '#2563eb', strokeWidth: 1.5, rx: 8 },
-      })); t += 5;
-
-      extra.push(scene(t, 'draw_rect', {
-        x: 420, y: 100, width: 350, height: 200,
-        label: truncateWords(rightTp?.definition || pageConcepts[1] || '', 18),
-        style: { fill: '#f5f3ff', stroke: '#7c3aed', strokeWidth: 1.5, rx: 8 },
-      })); t += 5;
-
-    } else if (pageType === 'explanation') {
-      // Teacher writes key sentences one at a time — max 2 per page
-      extra.push(scene(t, 'draw_text', {
-        content: truncateWords(pageConcepts[0], 5),
-        position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-      })); t += 3;
-
-      // Use narration sentences that relate to current concepts
-      const conceptLower = (pageConcepts[0] || '').toLowerCase();
-      const relevant = sentences.filter((s) => s.toLowerCase().includes(conceptLower)).slice(0, 2);
-      const useLines = relevant.length >= 1 ? relevant : sentences.slice(ci % Math.max(sentences.length, 1), ci % Math.max(sentences.length, 1) + 2);
-
-      for (let i = 0; i < Math.min(2, useLines.length); i++) {
-        const y = 100 + i * 160;
-
-        extra.push(scene(t, 'draw_callout', {
-          content: truncateWords(useLines[i], 18),
-          position: [50, y], width: 700,
-          style: { bg: FILLS[i % FILLS.length], stroke: COLORS[i % COLORS.length], color: '#1f2937' },
-        })); t += 7;
-      }
-
-    } else if (pageType === 'process_steps') {
-      // Teacher draws steps one at a time — max 2 per page (title + 2 rects + 1 arrow = 4)
-      extra.push(scene(t, 'draw_text', {
-        content: truncateWords(pageConcepts[0], 5),
-        position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-      })); t += 3;
-
-      const stepCount = Math.min(2, pageConcepts.length);
-      for (let i = 0; i < stepCount; i++) {
-        const y = 90 + i * 170;
-        const color = COLORS[i % COLORS.length];
-        const fill = FILLS[i % FILLS.length];
-        const tp = pageTopics[i];
-        const label = tp?.definition ? truncateWords(tp.definition, 16) : truncateWords(pageConcepts[i], 6);
-
-        extra.push(scene(t, 'draw_rect', {
-          x: 60, y, width: 680, height: 110,
-          label,
-          style: { fill, stroke: color, strokeWidth: 1.5, rx: 8 },
-        })); t += 6;
-
-        // Arrow down to next step
-        if (i < stepCount - 1) {
-          extra.push(scene(t, 'draw_arrow', {
-            from: [400, y + 110], to: [400, y + 150],
-            style: { color: '#94a3b8', strokeWidth: 2 },
-          })); t += 3;
-        }
-      }
-
-    } else { // summary_grid — reduced to 2 items
-      extra.push(scene(t, 'draw_text', {
-        content: truncateWords(pageConcepts[0], 5),
-        position: [400, 38], style: { fontSize: 21, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
-      })); t += 3;
-
-      for (let i = 0; i < Math.min(2, pageConcepts.length); i++) {
-        const x = 48 + i * 384;
-        const y = 110;
-        const color = COLORS[i % COLORS.length];
-        const fill = FILLS[i % FILLS.length];
-        const tp = pageTopics[i];
-
-        extra.push(scene(t, 'draw_rect', {
-          x, y, width: 340, height: 150,
-          label: truncateWords(tp?.definition || sentences[i] || pageConcepts[i], 16),
-          style: { fill, stroke: color, strokeWidth: 2, rx: 12 },
-        })); t += 5;
-      }
-    }
-
-    if (extra.length >= count) break;
-  }
-
-  return extra;
-}
 
 // ── Quiz visuals ─────────────────────────────────────────────────────────────
 
@@ -6502,6 +4151,19 @@ async function callAIRace(prompt, maxTokens, timeoutMs = AI_TIMEOUT_MS, aiProvid
     aiCircuitReason = '';
     return result;
   } catch (error) {
+    // Check if all errors are gateway sentinels
+    const allErrors = error?.errors || [error];
+    const gatewayErrors = allErrors.filter(e => {
+      const msg = String(e?.message || e || '');
+      return /gateway|sentinel|retrying|simplified prompt|upstream/i.test(msg);
+    });
+
+    // If all errors are gateway issues, provide a clearer message
+    if (gatewayErrors.length === allErrors.length && gatewayErrors.length > 0) {
+      console.error('[aiPlanner] All models returned gateway errors - upstream API issues');
+      throw new Error('AI service temporarily unavailable. The upstream models are experiencing issues. Please try again in a moment.');
+    }
+
     if (!hasExplicitModelSelection && shouldTripCircuit(error)) {
       const limits = PROVIDER_LIMITS.blaze;
       circuit.openUntil = Date.now() + limits.cooldown;
@@ -6574,7 +4236,18 @@ ABSOLUTE RULES:
     }
 
     const data = await response.json();
-    const parsed = parseJSON(data.choices?.[0]?.message?.content);
+    const rawContent = data.choices?.[0]?.message?.content;
+    // Guard: upstream gateways (e.g. Grok proxy) sometimes return a plain-English
+    // STATUS string as the message content when the real model failed upstream
+    // — e.g. "...is retrying with a simplified prompt after an upstream failure".
+    // That text must NEVER reach the lesson. Treat it as a hard failure so the
+    // race/retry logic falls through to a different model.
+    const sentinel = detectGatewaySentinel(rawContent);
+    if (sentinel) {
+      console.error(`[aiPlanner] gateway sentinel from ${model}: "${sentinel}"`);
+      throw new Error(`Upstream gateway error (model=${model}): ${sentinel}`);
+    }
+    const parsed = parseJSON(rawContent);
     console.log(`[aiPlanner] <<< OK ${model} finish=${data.choices?.[0]?.finish_reason} usage=${JSON.stringify(data.usage || {})}`);
     return parsed;
   } finally {
@@ -7046,6 +4719,58 @@ function describeAIError(error) {
     return error.errors.map((e) => e?.message || String(e)).join('; ');
   }
   return error?.message || 'unknown AI error';
+}
+
+// Patterns that indicate an upstream GATEWAY status/error message was returned
+// in place of real model output. If any matches, the content is not a lesson.
+const GATEWAY_SENTINEL_PATTERNS = [
+  /retrying with a simplified prompt/i,
+  /upstream failure/i,
+  /is retrying/i,
+  /upstream error/i,
+  /\bblazeai\b.*\b(retry|failed|error|unavailable)\b/i,
+  /the (model|provider|upstream) (is|was) (unavailable|overloaded|busy)/i,
+  /please try again (later|in a moment)/i,
+  /rate.?limit(ed|ing)?/i,
+  /\b(grok|qwen|deepseek|gpt)[\w.\- ]*\b(is|was) (retrying|unavailable|failing)/i,
+];
+
+/**
+ * Returns the offending snippet if `raw` looks like a gateway status message
+ * rather than a real (JSON) model response, else null.
+ */
+function detectGatewaySentinel(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return null;
+  // Real lesson output is JSON — it starts with { or [. A gateway status line
+  // is prose. Only scrutinise non-JSON-leading content for sentinels.
+  const looksJson = /^[\[{]/.test(text) || /```/.test(text) || text.includes('{');
+
+  // If it looks like JSON, don't flag it as a sentinel
+  if (looksJson && text.length > 100) return null;
+
+  const head = text.slice(0, 400);
+  for (const re of GATEWAY_SENTINEL_PATTERNS) {
+    if (re.test(head)) return head.replace(/\s+/g, ' ').slice(0, 160);
+  }
+  // Pure prose with no JSON object at all and no useful structure → suspicious.
+  if (!looksJson && text.length < 500 && /\b(retry|failure|error|unavailable|upstream)\b/i.test(text)) {
+    return head.replace(/\s+/g, ' ').slice(0, 160);
+  }
+  return null;
+}
+
+/**
+ * Strip any gateway-status sentences that may have leaked into narration text.
+ * Used as a final safety net before persisting lesson content.
+ */
+function stripGatewaySentinels(text) {
+  let s = String(text || '');
+  if (!s) return s;
+  const sentences = s.split(/(?<=[.!?])\s+/);
+  const kept = sentences.filter((sent) => !GATEWAY_SENTINEL_PATTERNS.some((re) => re.test(sent)));
+  s = kept.join(' ').trim();
+  return s;
 }
 
 function parseJSON(raw) {

@@ -6,6 +6,7 @@ import { saveLessonPlan } from '../services/storyboardGenerator.js';
 import { synthesize } from '../services/ttsService.js';
 import { uploadAudio } from '../services/storageService.js';
 import { getBlazeConfig, resolveBlazeModel } from '../services/blazeConfig.js';
+import { toUserFacingError } from '../utils/errors.js';
 
 const router = Router();
 
@@ -153,7 +154,7 @@ async function processDirectText(lessonId, seriesId, rawText, userInstructions, 
     await LessonSeries.findByIdAndUpdate(seriesId, { $inc: { completedLessons: 1 } });
   } catch (err) {
     console.error(`Direct-text lesson processing failed for ${lessonId}:`, err);
-    await Lesson.findByIdAndUpdate(lessonId, { status: 'error', errorMessage: err.message });
+    await Lesson.findByIdAndUpdate(lessonId, { status: 'error', errorMessage: toUserFacingError(err) });
   }
 }
 

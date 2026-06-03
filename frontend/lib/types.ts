@@ -32,7 +32,9 @@ export type ActionType =
   | "draw_coordinate_system"
   | "draw_physics_shape"
   | "draw_table"
-  | "draw_highlight";
+  | "draw_highlight"
+  | "draw_caption"
+  | "camera";
 
 export interface LessonPart {
   id: string;
