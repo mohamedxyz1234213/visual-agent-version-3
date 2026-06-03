@@ -41,15 +41,6 @@ const LESSON_INTENTS: Array<{ id: LessonIntent; label: string; desc: string; pro
   },
 ];
 
-// ─── Explanation modes ────────────────────────────────────────────────────────
-const EXPLANATION_MODES: Array<{ id: string; label: string; desc: string }> = [
-  { id: "full_lesson",  label: "Balanced Lesson", desc: "Full walkthrough with narration, visuals, and recap." },
-  { id: "visual_first", label: "Visual First",   desc: "Board-led teaching with diagrams, graphs, and movement." },
-  { id: "step_by_step", label: "Step by Step",   desc: "One concept at a time with slower progression." },
-  { id: "qa_mode",      label: "Q\u0026A Practice", desc: "Frequent questions, checks, and quiz moments." },
-  { id: "text_focus",   label: "Text Focus",     desc: "Long-form explanation supported by selective visuals." },
-];
-
 const LESSON_PRESETS: LessonPreset[] = [
   {
     id: "explain_clearly",
@@ -347,6 +338,11 @@ export default function UploadZone({ onReady }: UploadZoneProps) {
   const [aiProvider, setAiProvider] = useState<string>("blaze");
   const [providers, setProviders] = useState<AiProviderOption[]>([]);
 
+  // UI control state
+  const [customModels, setCustomModels] = useState<Array<{ id: string; label: string; modelName: string; desc: string; badge: string | null }>>([]);
+  const [newModelName, setNewModelName] = useState("");
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
+
   // Processing state
   const [isTextMode, setIsTextMode] = useState(false);
   const [uiStatus, setUiStatus] = useState<"idle" | "uploading" | "processing" | "error">("idle");
@@ -378,6 +374,10 @@ export default function UploadZone({ onReady }: UploadZoneProps) {
     }
     return PROVIDER_MODELS[aiProvider] || PROVIDER_MODELS.blaze;
   }, [providers, aiProvider]);
+
+  const allModels = useMemo(() => {
+    return [...modelOptionsForProvider, ...customModels];
+  }, [modelOptionsForProvider, customModels]);
 
   useEffect(() => {
     if (modelOptionsForProvider.length > 0) setAnalysisModel(modelOptionsForProvider[0].id);
@@ -486,18 +486,25 @@ export default function UploadZone({ onReady }: UploadZoneProps) {
 
   function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
-    if (f) startUpload(f);
+    if (f) setFile(f);
   }
 
   const selectedProvider = providers.find((p) => p.id === aiProvider)
     ?? { id: aiProvider, label: "BlazeAI", icon: "", name: "", desc: "", badge: null };
-  const selectedModel = modelOptionsForProvider.find((m) => m.id === analysisModel) ?? modelOptionsForProvider[0];
   const providerLabel = selectedProvider.label || selectedProvider.name;
+const selectedModel = allModels.find((m) => m.id === analysisModel) ?? modelOptionsForProvider[0];
+
   const modelDisplayName = selectedModel?.label ?? analysisModel;
-  const selectedIntent = LESSON_INTENTS.find((intent) => intent.id === lessonIntent) ?? LESSON_INTENTS[0];
-  const selectedMode = EXPLANATION_MODES.find((mode) => mode.id === explanationMode) ?? EXPLANATION_MODES[0];
   const selectedPreset = LESSON_PRESETS.find((preset) => preset.intent === lessonIntent && preset.mode === explanationMode) ?? null;
   const processingStages = buildStages(providerLabel, modelDisplayName, isTextMode);
+
+  function handleAddCustomModel() {
+    const name = newModelName.trim();
+    if (!name || allModels.some((m) => m.id === name)) return;
+    setCustomModels((prev) => [...prev, { id: name, label: name, modelName: name, desc: "Custom model (Blaze API)", badge: null }]);
+    setNewModelName("");
+    setAnalysisModel(name);
+  }
 
   // ── Processing screen ─────────────────────────────────────────────────────
   if (uiStatus === "uploading" || uiStatus === "processing" || uiStatus === "error") {
@@ -520,349 +527,232 @@ export default function UploadZone({ onReady }: UploadZoneProps) {
 
   // ── Idle form ─────────────────────────────────────────────────────────────
   const fallbackProviders: AiProviderOption[] = [
-    { id: "blaze",    label: "BlazeAI",     icon: "", name: "BlazeAI (Multi-model)", desc: "Free tier with multiple models",    badge: null },
+    { id: "blaze", label: "BlazeAI", icon: "", name: "BlazeAI (Multi-model)", desc: "Free tier with multiple models", badge: null },
   ];
-  const displayProviders = providers.length > 0 ? providers : fallbackProviders;
 
   return (
     <div className="w-full rounded-[28px] border border-slate-200/90 bg-white/95 px-4 py-5 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur sm:px-5">
-      <div className="mb-6 border-b border-slate-200/80 pb-5">
+      {/* Header */}
+      <div className="mb-5 border-b border-slate-200/80 pb-5">
         <span className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">Lesson Builder</span>
-        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-900 sm:text-3xl">Create a lesson in three clear steps</h1>
+        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-900 sm:text-3xl">Create a lesson</h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-          Pick the input method, choose one teaching preset, then add any extra guidance. Advanced AI settings stay out of the way unless you need them.
+          Type a topic or attach a source file. Pick a teaching style and the AI will build your lesson.
         </p>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="space-y-4">
-          <section className="rounded-[24px] border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Step 1</p>
-            <h2 className="mt-1 text-base font-semibold tracking-[-0.03em] text-slate-900">Choose where the lesson comes from</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-500">Pick the option that matches what you have right now.</p>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              {[
-                {
-                  id: "upload",
-                  title: "Use a file",
-                  desc: "Best when the lesson must stay tied to a PDF, worksheet, notes, or image.",
-                  note: "Upload a source and the planner will read from it.",
-                  icon: IconUpload,
-                },
-                {
-                  id: "explain",
-                  title: "Describe a topic",
-                  desc: "Best when you want a direct explanation from a written prompt.",
-                  note: "Type the concept or question in your own words.",
-                  icon: IconText,
-                },
-              ].map((option) => {
-                const active = activeTab === option.id;
-                const Icon = option.icon;
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => setActiveTab(option.id as "upload" | "explain")}
-                    className={`rounded-[24px] border px-4 py-4 text-left transition ${
-                      active
-                        ? "border-slate-900 bg-slate-900 text-white shadow-sm"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className={`rounded-2xl border p-3 ${active ? "border-white/10 bg-white/10 text-white" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
-                        <Icon className="h-5 w-5" />
+      {/* Model selector row */}
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        {/* Model selector dropdown */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => { setShowModelDropdown(!showModelDropdown); }}
+            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 sm:px-4 py-2.5 text-sm transition hover:border-slate-300 min-w-0"
+          >
+            <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Model</span>
+            <span className="w-px h-4 bg-slate-200" />
+            <span className="font-semibold text-slate-700 max-w-[80px] sm:max-w-none truncate">{selectedModel?.label ?? analysisModel}</span>
+            <svg className="w-4 h-4 text-slate-400 transition-transform" style={{ transform: showModelDropdown ? 'rotate(180deg)' : 'rotate(0deg)' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+          {showModelDropdown && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowModelDropdown(false)} />
+              <div className="absolute top-full mt-2 left-0 w-[calc(100vw-2rem)] sm:w-72 rounded-2xl border border-slate-200 bg-white shadow-[0_18px_48px_rgba(15,23,42,0.12)] p-2 z-20">
+                <p className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Blaze API Models</p>
+                {allModels.map((opt) => {
+                  const active = analysisModel === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => { setAnalysisModel(opt.id); setShowModelDropdown(false); }}
+                      className={`w-full rounded-xl px-4 py-2.5 text-left transition ${
+                        active
+                          ? "bg-slate-900 text-white"
+                          : "text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-sm font-semibold tracking-[-0.02em]">{opt.label}</span>
+                        {opt.badge && (
+                          <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${active ? "bg-white/10 text-white" : "bg-slate-100 text-slate-500"}`}>
+                            {opt.badge}
+                          </span>
+                        )}
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-semibold tracking-[-0.02em]">{option.title}</div>
-                        <div className={`mt-1 text-xs leading-5 ${active ? "text-slate-200" : "text-slate-500"}`}>{option.desc}</div>
-                        <div className={`mt-2 text-[11px] leading-5 ${active ? "text-slate-300" : "text-slate-400"}`}>{option.note}</div>
+                      <div className={`mt-0.5 text-xs ${active ? "text-slate-200" : "text-slate-400"}`}>
+                        {opt.modelName}
                       </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
-          <section className="rounded-[24px] border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Step 2</p>
-            <h2 className="mt-1 text-base font-semibold tracking-[-0.03em] text-slate-900">Pick the teaching method</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-500">Choose one preset. It sets both the lesson goal and the whiteboard style for you.</p>
-
-            <div className="mt-4 grid gap-3 lg:grid-cols-2">
-              {LESSON_PRESETS.map((preset) => {
-                const active = selectedPreset?.id === preset.id;
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => {
-                      setLessonIntent(preset.intent);
-                      setExplanationMode(preset.mode);
-                    }}
-                    className={`rounded-[24px] border px-4 py-4 text-left transition ${
-                      active
-                        ? "border-slate-900 bg-slate-900 text-white shadow-sm"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-semibold tracking-[-0.02em]">{preset.label}</div>
-                        <div className={`mt-1 text-xs leading-5 ${active ? "text-slate-200" : "text-slate-500"}`}>{preset.desc}</div>
+                      <div className={`mt-0.5 text-[11px] leading-5 ${active ? "text-slate-300" : "text-slate-400"}`}>
+                        {opt.desc}
                       </div>
-                      {active && <span className="rounded-full bg-white/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white">Selected</span>}
-                    </div>
-                    <div className={`mt-3 rounded-2xl px-3 py-2 text-[11px] leading-5 ${active ? "bg-white/10 text-slate-200" : "bg-slate-50 text-slate-500"}`}>
-                      {preset.useWhen}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm leading-6 ${selectedPreset ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
-              {selectedPreset
-                ? `Current teaching method: ${selectedPreset.label}.`
-                : `Current teaching method is custom: ${selectedIntent.label} + ${selectedMode.label}.`}
-            </div>
-
-            <details className="mt-4 rounded-[24px] border border-slate-200 bg-white p-4">
-              <summary className="cursor-pointer list-none text-sm font-semibold tracking-[-0.02em] text-slate-900 [&::-webkit-details-marker]:hidden">
-                Fine-tune the lesson behavior
-              </summary>
-              <p className="mt-2 text-xs leading-5 text-slate-500">Only open this if a preset is close but not exact. Changing these options can switch the request into a custom setup.</p>
-
-              <div className="mt-4 grid gap-5 xl:grid-cols-2">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Lesson Goal</p>
-                  <div className="mt-3 grid gap-2">
-                    {LESSON_INTENTS.map((intent) => {
-                      const active = lessonIntent === intent.id;
-                      return (
-                        <button
-                          key={intent.id}
-                          type="button"
-                          onClick={() => setLessonIntent(intent.id)}
-                          className={`rounded-2xl border px-4 py-3 text-left transition ${
-                            active
-                              ? "border-slate-900 bg-slate-900 text-white shadow-sm"
-                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                          }`}
-                        >
-                          <div className="text-sm font-semibold tracking-[-0.02em]">{intent.label}</div>
-                          <div className={`mt-1 text-xs leading-5 ${active ? "text-slate-200" : "text-slate-500"}`}>{intent.desc}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Board Style</p>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">This controls how the explanation feels once the teaching goal is set.</p>
-                    </div>
-                    <div className="hidden rounded-full bg-slate-50 px-3 py-1 text-xs text-slate-400 md:block">{selectedMode.label}</div>
-                  </div>
-                  <div className="mt-3 grid gap-2">
-                    {EXPLANATION_MODES.map((mode) => {
-                      const active = explanationMode === mode.id;
-                      return (
-                        <button
-                          key={mode.id}
-                          type="button"
-                          onClick={() => setExplanationMode(mode.id)}
-                          className={`rounded-2xl border px-4 py-4 text-left transition ${
-                            active
-                              ? "border-emerald-500 bg-emerald-50 shadow-sm"
-                              : "border-slate-200 bg-white hover:border-slate-300"
-                          }`}
-                        >
-                          <div className={`text-sm font-semibold tracking-[-0.02em] ${active ? "text-emerald-900" : "text-slate-800"}`}>{mode.label}</div>
-                          <div className={`mt-1 text-xs leading-5 ${active ? "text-emerald-700" : "text-slate-500"}`}>{mode.desc}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                    </button>
+                  );
+                })}
               </div>
-            </details>
-          </section>
-
-          {activeTab === "upload" ? (
-            <section className="rounded-[24px] border border-slate-200 bg-white p-4 sm:p-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Step 3</p>
-              <h2 className="mt-1 text-base font-semibold tracking-[-0.03em] text-slate-900">Add the source and any extra guidance</h2>
-              <p className="mt-1 text-sm leading-6 text-slate-500">Use the notes box only for special constraints such as difficulty level, examples to include, or whether to focus on answers.</p>
-              <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)]">
-                <label
-                  onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-                  onDragLeave={() => setDragging(false)}
-                  onDrop={handleDrop}
-                  className={`flex min-h-[280px] cursor-pointer flex-col items-center justify-center rounded-[28px] border border-dashed px-6 py-8 text-center transition ${
-                    dragging
-                      ? "border-slate-900 bg-slate-900 text-white"
-                      : "border-slate-300 bg-slate-50 hover:border-slate-500 hover:bg-slate-100"
-                  }`}
-                >
-                  <input type="file" accept={ACCEPTED} className="hidden" onChange={handleFileInput} />
-                  <div className={`mb-5 rounded-2xl border p-4 ${dragging ? "border-white/20 bg-white/10 text-white" : "border-slate-200 bg-white text-slate-700"}`}>
-                    <IconUpload className="h-10 w-10" />
-                  </div>
-                  <p className={`text-lg font-semibold tracking-[-0.02em] ${dragging ? "text-white" : "text-slate-900"}`}>Drop your source file here</p>
-                  <p className={`mt-2 max-w-sm text-sm leading-6 ${dragging ? "text-slate-200" : "text-slate-500"}`}>Click or drag a PDF, notes file, worksheet, or image.</p>
-                  <p className={`mt-4 text-xs uppercase tracking-[0.24em] ${dragging ? "text-slate-300" : "text-slate-400"}`}>PDF · DOCX · TXT · MD · PNG · JPG</p>
-                </label>
-
-                <div className="flex flex-col gap-4">
-                  <input
-                    type="text"
-                    placeholder="Subject or topic label (optional)"
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 placeholder-slate-400 outline-none transition focus:border-slate-400 focus:bg-white"
-                  />
-                  <textarea
-                    placeholder="Extra guidance (optional): beginner level, focus on worked answers, use more diagrams, include more notes, slow down the explanation..."
-                    value={instructions}
-                    onChange={(e) => setInstructions(e.target.value)}
-                    rows={7}
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700 placeholder-slate-400 outline-none transition focus:border-slate-400 focus:bg-white resize-none"
-                  />
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-500">
-                    The selected teaching method and these notes are automatically combined before the planner runs.
-                  </div>
-                </div>
-              </div>
-            </section>
-          ) : (
-            <section className="rounded-[24px] border border-slate-200 bg-white p-4 sm:p-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Step 3</p>
-              <h2 className="mt-1 text-base font-semibold tracking-[-0.03em] text-slate-900">Describe the topic clearly</h2>
-              <p className="mt-1 text-sm leading-6 text-slate-500">Write the concept, problem, or question in the left panel. Use the notes box only if the student needs a specific level or style.</p>
-              <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.85fr)]">
-                <div className="flex flex-col gap-4">
-                  <textarea
-                    placeholder="Type a short topic like 'Photosynthesis', 'Cosine', or 'Newton's second law' and the AI will expand it into a full lesson automatically."
-                    value={textInput}
-                    onChange={(e) => setTextInput(e.target.value)}
-                    rows={10}
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700 placeholder-slate-400 outline-none transition focus:border-slate-400 focus:bg-white resize-none"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-4 rounded-[28px] border border-slate-200 bg-slate-50 p-4">
-                  <input
-                    type="text"
-                    placeholder="Subject or topic label (optional)"
-                    value={textSubject}
-                    onChange={(e) => setTextSubject(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 placeholder-slate-400 outline-none transition focus:border-slate-400"
-                  />
-                  <textarea
-                    placeholder="Extra guidance (optional): student level, more questions, more notes, slower steps, more graphs, more diagrams..."
-                    value={textInstructions}
-                    onChange={(e) => setTextInstructions(e.target.value)}
-                    rows={6}
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700 placeholder-slate-400 outline-none transition focus:border-slate-400 resize-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={startExplain}
-                    disabled={textInput.trim().length < 2}
-                    className="mt-auto inline-flex items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    Generate Lesson
-                  </button>
-                </div>
-              </div>
-            </section>
+            </>
           )}
         </div>
-
-        <aside className="flex flex-col gap-4 lg:sticky lg:top-6 lg:self-start">
-          <section className="rounded-[24px] border border-slate-200 bg-slate-900 p-4 text-slate-200">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Request Summary</p>
-            <div className="mt-4 space-y-4 text-sm leading-6">
-              <div>
-                <div className="text-slate-400">Source</div>
-                <div className="font-medium text-white">{activeTab === "upload" ? "File-based lesson" : "Prompt-based lesson"}</div>
-              </div>
-              <div>
-                <div className="text-slate-400">Teaching Method</div>
-                <div className="font-medium text-white">{selectedPreset ? selectedPreset.label : "Custom setup"}</div>
-                <div className="text-xs leading-5 text-slate-400">{selectedPreset ? selectedPreset.desc : `${selectedIntent.label} + ${selectedMode.label}`}</div>
-              </div>
-              <div>
-                <div className="text-slate-400">Model</div>
-                <div className="font-medium text-white">{providerLabel} · {modelDisplayName}</div>
-              </div>
-            </div>
-          </section>
-
-          <details className="rounded-[24px] border border-slate-200 bg-slate-50/70 p-4">
-            <summary className="cursor-pointer list-none text-sm font-semibold tracking-[-0.02em] text-slate-900 [&::-webkit-details-marker]:hidden">
-              Advanced AI settings
-            </summary>
-            <p className="mt-2 text-xs leading-5 text-slate-500">Only change these when you need a different provider or model. The defaults are already selected.</p>
-
-            <div className="mt-4 grid gap-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Provider</p>
-              {displayProviders.map((opt) => {
-                const selected = aiProvider === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => setAiProvider(opt.id)}
-                    className={`rounded-2xl border px-4 py-3 text-left transition ${
-                      selected
-                        ? "border-slate-900 bg-slate-900 text-white"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm font-semibold tracking-[-0.02em]">{opt.label}</span>
-                      {opt.badge && <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${selected ? "bg-white/10 text-white" : "bg-slate-100 text-slate-500"}`}>{opt.badge}</span>}
-                    </div>
-                    <div className={`mt-1 text-xs leading-5 ${selected ? "text-slate-200" : "text-slate-500"}`}>{opt.desc}</div>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="mt-4 grid gap-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Model</p>
-              {modelOptionsForProvider.map((opt) => {
-                const selected = analysisModel === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => setAnalysisModel(opt.id)}
-                    className={`rounded-2xl border px-4 py-3 text-left transition ${
-                      selected
-                        ? "border-emerald-500 bg-emerald-50 text-emerald-900"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm font-semibold tracking-[-0.02em]">{opt.label}</span>
-                      {opt.badge && <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${selected ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>{opt.badge}</span>}
-                    </div>
-                    <div className={`mt-1 text-xs leading-5 ${selected ? "text-emerald-700" : "text-slate-500"}`}>{opt.modelName}</div>
-                    <div className={`mt-1 text-[11px] leading-5 ${selected ? "text-emerald-800" : "text-slate-400"}`}>{opt.desc}</div>
-                  </button>
-                );
-              })}
-            </div>
-          </details>
-        </aside>
       </div>
+
+      {/* Teaching presets (chips/pills) */}
+      <div className="mb-5">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400 mb-3">Teaching Style</p>
+        <div className="flex flex-wrap gap-2">
+          {LESSON_PRESETS.map((preset) => {
+            const active = selectedPreset?.id === preset.id;
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => {
+                  setLessonIntent(preset.intent);
+                  setExplanationMode(preset.mode);
+                }}
+                className={`rounded-full px-4 py-2 text-xs font-medium transition ${
+                  active
+                    ? "bg-slate-900 text-white shadow-sm"
+                    : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                }`}
+              >
+                {preset.label}
+              </button>
+            );
+          })}
+        </div>
+        {selectedPreset && (
+          <p className="mt-2 text-xs leading-5 text-slate-400">{selectedPreset.useWhen}</p>
+        )}
+      </div>
+
+      {/* File attachment indicator */}
+      {file && (
+        <div className="mb-3 flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 shrink-0">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z" />
+              <polyline points="13 2 13 9 20 9" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-emerald-800 truncate">{file.name}</div>
+            <div className="text-xs text-emerald-600 font-mono">{formatFileSize(file.size)}</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFile(null)}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-emerald-500 hover:bg-emerald-100 hover:text-emerald-700 transition"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {/* Chat input area */}
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) { setFile(f); } }}
+        className={`rounded-[24px] border px-4 py-3 transition ${
+          dragging
+            ? "border-slate-900 bg-slate-50 ring-2 ring-slate-900/10"
+            : "border-slate-200 bg-slate-50/70"
+        }`}
+      >
+        <textarea
+          placeholder={file ? "Add extra instructions or guidance (optional)..." : "Describe what you want to learn about — or drop a file here..."}
+          value={textInput}
+          onChange={(e) => setTextInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              if (file) startUpload(file);
+              else if (textInput.trim().length >= 2) startExplain();
+            }
+          }}
+          rows={3}
+          className="w-full bg-transparent text-sm leading-6 text-slate-700 placeholder-slate-400 outline-none resize-none"
+        />
+        <div className="flex items-center justify-between pt-1">
+          <div className="flex items-center gap-1.5">
+            {/* File attach button */}
+            <label className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-white border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700 cursor-pointer transition">
+              <input type="file" accept={ACCEPTED} className="hidden" onChange={handleFileInput} />
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
+              </svg>
+            </label>
+            {/* Drag hint */}
+            <span className="hidden sm:inline text-xs text-slate-400">or drop a file</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (file) startUpload(file);
+              else startExplain();
+            }}
+            disabled={!file && textInput.trim().length < 2}
+            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Generate
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="12" y1="19" x2="12" y2="5" />
+              <polyline points="5 12 12 5 19 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Custom model input */}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400 shrink-0">Add Blaze Model</span>
+        <input
+          type="text"
+          placeholder="Model name (e.g., gpt-4o)"
+          value={newModelName}
+          onChange={(e) => setNewModelName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") handleAddCustomModel(); }}
+          className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 placeholder-slate-400 outline-none transition focus:border-slate-400"
+        />
+        <button
+          type="button"
+          onClick={handleAddCustomModel}
+          disabled={!newModelName.trim()}
+          className="rounded-xl bg-white border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed transition"
+        >
+          + Add
+        </button>
+      </div>
+
+      {/* Preferences collapsible */}
+      <details className="mt-4 rounded-[24px] border border-slate-200 bg-slate-50/70 p-4">
+        <summary className="cursor-pointer list-none text-sm font-semibold tracking-[-0.02em] text-slate-900 [&::-webkit-details-marker]:hidden">
+          Preferences
+        </summary>
+        <p className="mt-2 text-xs leading-5 text-slate-500">Optional settings for subject labeling and special guidance.</p>
+        <div className="mt-4 grid gap-3">
+          <input
+            type="text"
+            placeholder="Subject or topic label (optional)"
+            value={subject}
+            onChange={(e) => { setSubject(e.target.value); setTextSubject(e.target.value); }}
+            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 placeholder-slate-400 outline-none transition focus:border-slate-400"
+          />
+          <textarea
+            placeholder="Extra guidance (optional): difficulty level, focus areas, examples to include, more diagrams, slower steps..."
+            value={instructions}
+            onChange={(e) => { setInstructions(e.target.value); setTextInstructions(e.target.value); }}
+            rows={3}
+            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm leading-6 text-slate-700 placeholder-slate-400 outline-none transition focus:border-slate-400 resize-none"
+          />
+        </div>
+      </details>
     </div>
   );
 }
