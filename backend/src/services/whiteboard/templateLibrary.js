@@ -47,7 +47,7 @@ const PALETTES = [
 function txt(content, x, y, opts = {}) {
   return {
     type: 'draw_text',
-    content: String(content || ''),
+    content: displayText(content),
     position: [x, y],
     style: {
       fontSize: opts.fontSize ?? 16,
@@ -82,10 +82,10 @@ function circle(cx, cy, r, opts = {}) {
   return { type: 'draw_circle', center: [cx, cy], radius: r, label: opts.label, style: { fill: opts.fill ?? '#ffffff', stroke: opts.stroke ?? '#cbd5e1', strokeWidth: opts.strokeWidth ?? 2 } };
 }
 function badge(content, x, y, opts = {}) {
-  return { type: 'draw_badge', content: String(content || ''), position: [x, y], style: { bg: opts.bg ?? '#1e293b', color: opts.color ?? '#ffffff', fontSize: opts.fontSize ?? 13 } };
+  return { type: 'draw_badge', content: displayText(content), position: [x, y], style: { bg: opts.bg ?? '#1e293b', color: opts.color ?? '#ffffff', fontSize: opts.fontSize ?? 13 } };
 }
 function callout(content, x, y, w, opts = {}) {
-  return { type: 'draw_callout', content: String(content || ''), position: [x, y], width: w, style: { bg: opts.bg ?? '#fffbeb', stroke: opts.stroke ?? '#f59e0b', color: opts.color ?? '#92400e' } };
+  return { type: 'draw_callout', content: displayText(content), position: [x, y], width: w, style: { bg: opts.bg ?? '#fffbeb', stroke: opts.stroke ?? '#f59e0b', color: opts.color ?? '#92400e' } };
 }
 function obj(object_type, x, y, w, h, opts = {}) {
   return { type: 'draw_object', object_type, position: [x, y], size: [w, h], label: opts.label, annotations: opts.annotations, accent: opts.accent };
@@ -178,9 +178,27 @@ function header(ctx, accent) {
   return out;
 }
 
+// Read a slot item's display text whether it's a string or a {title,text,...}.
+function displayText(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map(displayText).filter(Boolean).join(', ');
+  }
+  if (typeof value === 'object') {
+    if (value.from || value.to) return [value.from, value.to].map(displayText).filter(Boolean).join(' to ');
+    return value.title || value.text || value.label || value.name || value.term
+      || value.symbol || value.meaning || value.detail || value.value || value.number
+      || value.answer || value.question || value.range || value.content || '';
+  }
+  return '';
+}
+
 // Truncate a phrase to keep boards clean (anchor keywords, not paragraphs).
 function anchor(text, maxWords = 7) {
-  const words = String(text || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  const words = displayText(text).replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
   if (words.length <= maxWords) return words.join(' ');
   return words.slice(0, maxWords).join(' ');
 }
@@ -191,10 +209,8 @@ function asArr(v) {
   return Array.isArray(v) ? v : v == null ? [] : [v];
 }
 
-// Read a slot item's display text whether it's a string or a {title,text,...}.
 function itemText(it) {
-  if (it && typeof it === 'object') return it.title || it.text || it.label || it.name || '';
-  return it == null ? '' : String(it);
+  return displayText(it);
 }
 
 // Shared L-shaped axes for graph/economics templates. Returns fragments for a

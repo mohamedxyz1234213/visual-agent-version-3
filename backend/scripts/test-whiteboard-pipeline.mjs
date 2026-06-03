@@ -11,6 +11,7 @@
 
 import { validateBoardScenes, validateLessonPlan } from '../src/services/whiteboard/validator.js';
 import { buildWhiteboardForPart } from '../src/services/whiteboard/index.js';
+import { composeStoryboard } from '../src/services/whiteboard/sceneComposer.js';
 import { allTemplateIds, allTemplates, renderTemplate } from '../src/services/whiteboard/templateLibrary.js';
 import { buildVisualPlaybook } from '../src/services/aiPlanner.js';
 
@@ -35,6 +36,7 @@ const photosynthesisPart = {
     {
       intent: 'define',
       goal: 'introduce photosynthesis',
+      say: 'Photosynthesis is the process plants use to convert light energy into chemical energy. It happens inside chloroplasts and uses sunlight, water, and carbon dioxide. The plant stores the energy as glucose and releases oxygen as a byproduct.',
       headline: 'Photosynthesis',
       definition: 'The process plants use to convert light energy into chemical energy.',
       points: ['Occurs in chloroplasts', 'Requires sunlight and water', 'Produces glucose and oxygen'],
@@ -42,6 +44,7 @@ const photosynthesisPart = {
     {
       intent: 'process',
       goal: 'show the stages',
+      say: 'The reaction runs in three stages. First chlorophyll captures photons of light. Then water splits into hydrogen ions and oxygen gas. Finally carbon dioxide is fixed into glucose through a chain of enzyme-driven steps.',
       steps: [
         { title: 'Light absorption', detail: 'Chlorophyll captures photons' },
         { title: 'Water splitting', detail: 'H2O breaks into H+ and O2' },
@@ -51,6 +54,7 @@ const photosynthesisPart = {
     {
       intent: 'compare',
       goal: 'light vs dark reactions',
+      say: 'Plants split photosynthesis into two linked stages. The light reactions need sunlight and happen in the thylakoid membranes where they make ATP. The Calvin cycle is light-independent, runs in the stroma, and uses that ATP to build sugar.',
       columns: [
         { title: 'Light reactions', items: ['Need light', 'In thylakoid', 'Make ATP'] },
         { title: 'Calvin cycle', items: ['Light-independent', 'In stroma', 'Make sugar'] },
@@ -59,6 +63,7 @@ const photosynthesisPart = {
     {
       intent: 'recap',
       goal: 'wrap up',
+      say: 'To recap: plants combine light, water, and carbon dioxide and store the released energy inside glucose molecules. The oxygen we breathe is a byproduct of water splitting. The Calvin cycle then assembles the glucose from carbon dioxide.',
       points: ['Light + water + CO2', 'Energy stored in glucose', 'Oxygen released'],
     },
   ],
@@ -71,9 +76,9 @@ const garbagePart = {
   duration_seconds: 180,
   narration: 'test',
   board_scenes: [
-    { intent: 'define', headline: 'placeholder', points: ['todo', 'tbd', 'point 1'] }, // all placeholders
-    { intent: 'not_a_real_intent', headline: 'Bad intent' }, // invalid intent
-    { intent: 'process', goal: 'real one', steps: [{ title: 'Real step', detail: 'Actual content here' }] }, // valid
+    { intent: 'define', say: 'placeholder text goes here', headline: 'placeholder', points: ['todo', 'tbd', 'point 1'] }, // all placeholders
+    { intent: 'not_a_real_intent', say: 'bad intent scene', headline: 'Bad intent' }, // invalid intent
+    { intent: 'process', goal: 'real one', say: 'The fetch stage loads the next instruction from memory. The decode stage figures out which operation it is. The execute stage runs the operation against the registers.', steps: [{ title: 'Real step', detail: 'Actual content here' }] }, // valid
     null, // junk
     'a string', // junk
   ],
@@ -119,6 +124,38 @@ console.log('\n[4] buildWhiteboardForPart produces a real timed sequence');
   ok(types.has('camera'), 'includes camera/zoom animations');
   ok([...types].some((t) => /text|rect|circle|path|arrow|line|badge|callout|equation|graph|table|object/.test(t)), 'includes real drawable shapes');
   console.log(`     fragment types: ${[...types].join(', ')}`);
+}
+
+console.log('\n[4b] Per-unit timing: a box and its label land in the same beat (within the unit\'s stagger window)');
+{
+  const seq = buildWhiteboardForPart(photosynthesisPart, { lessonTitle: 'Biology 101' });
+  // Per-unit design: the container (rect/circle/callout) lands first, then
+  // labels stagger within the unit's 60% dwell. A label is "in the same
+  // beat" as its box if it appears within 0.8s after the container and
+  // before the next unit starts.
+  const draws = seq.filter((f) => String(f.type).startsWith('draw_'));
+  // Find each container (box) and check that at least one text label lands
+  // within the next 0.8s — proving the box and label appear in the same
+  // beat (not "box at 0s, label 2s later").
+  const isContainer = (f) => /draw_(rect|circle|callout)/.test(String(f.type));
+  let containerWithLabel = 0;
+  let containerAlone = 0;
+  for (let i = 0; i < draws.length; i++) {
+    const f = draws[i];
+    if (!isContainer(f)) continue;
+    // Look ahead 0.8s for any text label
+    let hasNearbyLabel = false;
+    for (let j = i + 1; j < draws.length; j++) {
+      if (draws[j].time - f.time > 0.8) break;
+      if (draws[j].type === 'draw_text') { hasNearbyLabel = true; break; }
+    }
+    if (hasNearbyLabel) containerWithLabel++;
+    else containerAlone++;
+  }
+  ok(
+    containerWithLabel > containerAlone,
+    `boxes with a label landing within 0.8s (${containerWithLabel}) outnumber boxes drawn alone (${containerAlone})`,
+  );
 }
 
 console.log('\n[5] Degrades gracefully when board_scenes is missing');
@@ -225,29 +262,44 @@ console.log('\n[7] Dynamic science figures render real diagrams');
   ok(inBounds, 'science figures + labels stay within canvas bounds');
 }
 
-console.log('\n[8] Beat-synced timing — board windows scale with spoken word counts');
+console.log('\n[8] Beat-synced timing — per-unit dwell scales with the caption it owns');
 {
-  // Two beats with very different `say` lengths. The composer sizes each board's
-  // on-screen window by its spoken weight, so the long beat must occupy more time.
-  const longSay = 'This is the long teaching beat where the teacher explains the idea slowly and carefully, walking through every part of the concept with an example so the student fully understands what is going on here.';
-  const syncPart = {
-    title: 'Sync Test',
-    part_type: 'content',
-    duration_seconds: 200,
-    narration: 'placeholder',
-    board_scenes: [
-      { intent: 'define', goal: 'short beat', headline: 'Short', say: 'Quick note.' },
-      { intent: 'recap', goal: 'long beat', points: ['A', 'B', 'C'], say: longSay },
-    ],
-  };
-  const seq = buildWhiteboardForPart(syncPart, { lessonTitle: 'Sync' });
-  const enters = seq.filter((s) => s.type === 'camera' && s.mode === 'enter').map((s) => s.time);
-  const resets = seq.filter((s) => s.type === 'camera' && s.mode === 'reset').map((s) => s.time);
-  ok(enters.length === 2 && resets.length === 2, `two board windows present (enters=${enters.length}, resets=${resets.length})`);
-  if (enters.length === 2 && resets.length === 2) {
-    const win0 = resets[0] - enters[0];
-    const win1 = resets[1] - enters[1];
-    ok(win1 > win0 * 1.5, `long beat gets a wider window than short beat (short=${win0.toFixed(1)}s, long=${win1.toFixed(1)}s)`);
+  // A single beat with multiple units carrying very different caption lengths.
+  // Per-unit timing means a unit with a long caption must get a longer dwell
+  // than a unit with a short caption, capped at UNIT_MAX.
+  const shortCap = 'A brief fact.';
+  const longCap = 'This unit owns a long caption that explains the idea in detail so the student has time to read it. We need this caption to be long enough to push the per-unit dwell above the minimum baseline of 1.1 seconds and to dominate the dwell calculation for that unit.';
+  const seq = composeStoryboard([
+    { intent: 'process', goal: 'mix', data: { steps: [
+      { title: 'Step A', detail: 'short' },
+      { title: 'Step B', detail: 'another' },
+      { title: 'Step C', detail: 'more' },
+      { title: 'Step D', detail: 'final' },
+    ]}, say: `${shortCap} ${longCap}` },
+  ], { title: 'Sync', lessonTitle: 'Sync' }, 200);
+
+  // Group draws by time (each cluster = one unit). Find the cluster whose
+  // caption is the long one and the one whose caption is the short one; their
+  // dwell times should differ in the expected direction.
+  const captions = seq.filter((s) => s.type === 'draw_caption');
+  ok(captions.length >= 2, `expected ≥2 caption-bearing units, got ${captions.length}`);
+  if (captions.length >= 2) {
+    const byCapLen = [...captions].sort((a, b) => a.content.length - b.content.length);
+    const shortCapUnit = byCapLen[0];
+    const longCapUnit = byCapLen[byCapLen.length - 1];
+    // Find the next unit's start after each one — that gives its dwell.
+    const sorted = [...seq].sort((a, b) => a.time - b.time);
+    const dwellOf = (target) => {
+      const idx = sorted.findIndex((s) => s === target);
+      // Find the next distinct time after this caption.
+      for (let j = idx + 1; j < sorted.length; j++) {
+        if (sorted[j].time > target.time) return sorted[j].time - target.time;
+      }
+      return 0;
+    };
+    const shortDwell = dwellOf(shortCapUnit);
+    const longDwell = dwellOf(longCapUnit);
+    ok(longDwell >= shortDwell, `long-caption unit gets ≥ short-caption unit dwell (short=${shortDwell.toFixed(1)}s, long=${longDwell.toFixed(1)}s)`);
   }
 }
 

@@ -16,7 +16,7 @@ import dagre from '@dagrejs/dagre';
 import { getBlazeConfig, resolveBlazeModel } from './blazeConfig.js';
 import { buildWhiteboardForPart, assessLessonVisuals, assessPartVisuals } from './whiteboard/index.js';
 import { COMPREHENSION_PROMPT, DECOMPOSITION_PROMPT, REFINEMENT_PROMPT, TEACHING_PROMPT, TOPIC_SCAFFOLD_PROMPT, VISUAL_COMPOSITION_PROMPT, TUTOR_PHILOSOPHY } from './prompts/index.js';
-import { validateBoardScenes } from './whiteboard/validator.js';
+import { validateBoardScenes, cleanSay } from './whiteboard/validator.js';
 
 const STOPWORDS = new Set([
   'about', 'after', 'again', 'against', 'almost', 'also', 'although', 'always',
@@ -319,8 +319,8 @@ function buildTopicTitle(rawText) {
   return clampText(titleCasePhrase(limited), 72) || makeReadableTitle(candidate, normalized) || 'Requested Topic';
 }
 
-const INSTRUCTIONAL_META_PREFIX_RE = /^(the learner should be able to|the learner will|the learner can|learners? will (?:understand|learn|be able to)|learners should(?: practice)?|the explanation should|a good explanation of|a complete explanation of|the lesson should|by the end of this lesson|specifically[, ]+they should be able to|according to the source material|to make that visible|on the board, this means|this stage matters because|this matters because)/;
-const INSTRUCTIONAL_META_INLINE_RE = /\b(the learner should|the learner will|learners will|the explanation should|according to the source material)\b/;
+const INSTRUCTIONAL_META_PREFIX_RE = /^(the learner should be able to|the learner will|the learner can|learners? will (?:understand|learn|be able to)|learners should(?: practice)?|the explanation should|a good explanation of|a complete explanation of|the lesson should|by the end of this lesson|specifically[, ]+they should be able to|according to the source material|to make that visible|on the board, this means|this stage matters because|this matters because|connect .* so the learner|link .* to .* to show|.* should be (?:explained|taught|shown)|.* should (?:first )?be understood)/;
+const INSTRUCTIONAL_META_INLINE_RE = /\b(the learner should|the learner will|learners will|the explanation should|according to the source material|should be explained|should be taught|should be shown|not in isolation|move from definition to mechanism|one coherent explanation|clear learnable sequence)\b/;
 const STRUCTURAL_SCENE_TYPES = new Set([
   'draw_object',
   'draw_physics_shape',
@@ -464,6 +464,11 @@ function dedupePromptConcepts(values, limit = 6) {
 function buildShortTopicExpansionConcepts(rootConcept, field) {
   const root = titleCasePhrase(normalizeText(rootConcept));
   if (!root) return [];
+  const rootLower = root.toLowerCase();
+
+  if (/\b(web|browser|http|https|request[-\s]?response|request|response|server|client)\b/.test(rootLower)) {
+    return ['Browser', 'HTTP Request', 'Server', 'HTTP Response', 'Page Update'];
+  }
 
   switch (field) {
     case 'biology':
@@ -524,9 +529,9 @@ function detectPromptAwareConceptRole(concept, field, rootConcept = '') {
     return isRootConcept ? 'process_cycle' : 'scientific_factor';
   }
 
-  if (field === 'programming' || /\b(api|service|server|database|algorithm|workflow|pipeline|client|cache|network|state|deployment)\b/.test(conceptCorpus) || (isRootConcept && /\b(api|service|server|database|algorithm|workflow|pipeline|client|cache|network|state|deployment)\b/.test(rootCorpus))) {
-    if (/\b(api|service|server|database|client|cache|node|validator)\b/.test(conceptCorpus)) return 'system_component';
-    if (/\b(protocol|workflow|pipeline|deployment|request|state|algorithm)\b/.test(conceptCorpus)) return 'system_process';
+  if (field === 'programming' || /\b(api|service|server|database|algorithm|workflow|pipeline|client|cache|network|state|deployment|browser|http|https|web|request|response)\b/.test(conceptCorpus) || (isRootConcept && /\b(api|service|server|database|algorithm|workflow|pipeline|client|cache|network|state|deployment|browser|http|https|web|request|response)\b/.test(rootCorpus))) {
+    if (/\b(api|service|server|database|client|cache|node|validator|browser)\b/.test(conceptCorpus)) return 'system_component';
+    if (/\b(protocol|workflow|pipeline|deployment|request|response|state|algorithm|http|https|web)\b/.test(conceptCorpus)) return 'system_process';
     return 'system_component';
   }
 
@@ -540,7 +545,22 @@ function buildPromptAwareDefinition(concept, role, rootConcept, concepts) {
   const relatedText = related.length ? related.join(' and ') : rootConcept;
 
   if (isRootConcept) {
-    return `${concept} is the central idea that connects ${relatedText} into one coherent explanation.`;
+    if (role.startsWith('system') || role.startsWith('distributed') || role.startsWith('record') || role.startsWith('coordination')) {
+      return `${concept} is an information exchange between connected components: one side sends a request, another side handles it, and a response comes back.`;
+    }
+    if (role.startsWith('biology')) {
+      return `${concept} is a biological structure or process where specific parts interact to create a visible outcome.`;
+    }
+    if (role.startsWith('market')) {
+      return `${concept} is a market situation shaped by forces such as price, supply, demand, and incentives.`;
+    }
+    if (role.startsWith('history')) {
+      return `${concept} is a historical sequence where earlier pressures lead to events, choices, and consequences.`;
+    }
+    if (role.startsWith('cycle') || role.startsWith('process') || role.startsWith('scientific')) {
+      return `${concept} is a process made of connected stages, where each stage changes what happens next.`;
+    }
+    return `${concept} is the main idea that ties together ${relatedText}.`;
   }
 
   const roleCategory = role.split('_')[0];
@@ -571,10 +591,13 @@ function buildPromptAwareImportance(concept, role, rootConcept, concepts) {
   const relatedText = related.length ? related.join(' and ') : rootConcept;
 
   if (isRootConcept) {
-    return `Understanding ${concept} is essential because it organizes ${relatedText} into a clear, learnable sequence.`;
+    if (role.startsWith('system') || role.startsWith('distributed') || role.startsWith('record') || role.startsWith('coordination')) {
+      return `The key pattern is request, processing, and response; ${relatedText} are easier to follow when they are placed in that order.`;
+    }
+    return `${concept} matters because it gives ${relatedText} a clear order instead of leaving them as disconnected terms.`;
   }
 
-  return `${concept} matters because it reveals how one part of ${rootConcept} connects to or drives another.`;
+  return `${concept} matters because it has a specific job inside ${rootConcept} and changes what the next part does.`;
 }
 
 function buildPromptAwareDetails(concept, role, rootConcept, concepts) {
@@ -582,17 +605,32 @@ function buildPromptAwareDetails(concept, role, rootConcept, concepts) {
   const related = concepts.filter((entry) => entry !== concept).slice(0, 2);
 
   if (isRootConcept) {
+    if (role.startsWith('system') || role.startsWith('distributed') || role.startsWith('record') || role.startsWith('coordination')) {
+      return uniqueNormalizedStrings([
+        `${concept} starts with a sender and a receiver.`,
+        `A request carries what the sender wants, and a response carries what came back.`,
+        related[0] ? `${related[0]} is one part of the exchange, not a separate topic.` : '',
+      ], 3);
+    }
     return uniqueNormalizedStrings([
-      `${concept} should be taught as a connected system rather than isolated facts.`,
-      related[0] ? `Connect ${related[0]} to the next visible change in the process.` : '',
-      `The learner should be able to describe how the parts work together.`,
+      `${concept} has parts that depend on one another.`,
+      related[0] ? `${related[0]} changes what the next part does.` : '',
+      `The outcome becomes clear when the parts are followed in order.`,
+    ], 3);
+  }
+
+  if (role.startsWith('system') || role.startsWith('distributed') || role.startsWith('record') || role.startsWith('coordination')) {
+    return uniqueNormalizedStrings([
+      `${concept} is one component in the ${rootConcept} exchange.`,
+      related[0] ? `${concept} passes information toward ${related[0]} or receives information from it.` : '',
+      `${concept} either sends, handles, stores, or returns information.`,
     ], 3);
   }
 
   return uniqueNormalizedStrings([
-    `${concept} should be shown in relation to ${rootConcept}, not in isolation.`,
-    related[0] ? `Link ${concept} to ${related[0]} to show how they interact.` : '',
-    `The learner should understand what ${concept} contributes to the whole.`,
+    `${concept} is one part of ${rootConcept}.`,
+    related[0] ? `${concept} interacts with ${related[0]}.` : '',
+    `${concept} contributes to the final outcome of the whole process.`,
   ], 3);
 }
 
@@ -653,16 +691,16 @@ function buildPromptAwareTopicComprehension(topicText, field, title) {
   });
 
   const coreThesis = resolvedField === 'biology'
-    ? `${rootConcept} is best understood as a biological system or sequence rather than a list of isolated terms. This lesson will track ${supportSummary} so the learner can explain what changes, what interacts, and what outcome the process produces.`
+    ? `${rootConcept} works as a biological system or sequence rather than a list of isolated terms. ${supportSummary} show what changes, what interacts, and what outcome the process produces.`
     : resolvedField === 'economics'
-      ? `${rootConcept} is best understood by tracking how market forces interact instead of memorizing isolated definitions. This lesson will connect ${supportSummary} so the learner can predict how the outcome shifts when conditions change.`
+      ? `${rootConcept} becomes clear when market forces are tracked together instead of memorized as isolated definitions. ${supportSummary} show how the outcome shifts when conditions change.`
       : resolvedField === 'history'
-        ? `${rootConcept} is best understood as a chain of causes, phases, and consequences rather than as a single event name. This lesson will connect ${supportSummary} so the learner can explain what triggered the change, what happened across the timeline, and what remained afterward.`
+        ? `${rootConcept} is a chain of causes, phases, and consequences rather than a single event name. ${supportSummary} show what triggered the change, what happened across the timeline, and what remained afterward.`
         : isCycleTopic
-          ? `${rootConcept} is best understood as a repeating process instead of a loose set of vocabulary words. This lesson will connect ${supportSummary} so the learner can track what changes at each stage and how the cycle continues.`
-      : /\b(blockchain|validator|ledger|consensus|distributed|transaction|network|protocol)\b/i.test(cleaned)
-        ? `${rootConcept} is best understood as a coordinated system with participants, records, and decision rules. This lesson will connect ${supportSummary} so the learner can explain how information moves and why one result becomes accepted.`
-        : `${rootConcept} should be explained through its concrete components, relationships, and visible changes over time. This lesson will connect ${supportSummary} so the learner can move from definition to mechanism to application.`;
+          ? `${rootConcept} is a repeating process instead of a loose set of vocabulary words. ${supportSummary} show what changes at each stage and how the cycle continues.`
+      : /\b(blockchain|validator|ledger|consensus|distributed|transaction|network|protocol|api|server|browser|client|request|response|web)\b/i.test(cleaned)
+        ? `${rootConcept} is a coordinated information exchange between components. ${supportSummary} show who sends the message, who handles it, and what comes back.`
+        : `${rootConcept} becomes clear by following its concrete parts and relationships. ${supportSummary} show the basic meaning, the mechanism, and the practical outcome.`;
 
   return {
     document_subject: title || rootConcept,
@@ -1207,6 +1245,20 @@ async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, ana
       finalPlan = await refineLessonVisuals(finalPlan, lessonSpec, aiProvider, analysisModel);
       // Re-validate after visual edits so narration syncs with refined beats
       finalPlan = validateAndFixPlan(finalPlan, lessonSpec);
+
+      // Last-resort quality gate: if the AI's plan is mostly meta-language
+      // scaffolding (the "super duplicated, no meaning" failure mode), rebuild
+      // the parts from the comprehension `details` — the real source-grounded
+      // teaching content. We don't fall through to the local-text fallback;
+      // we keep the AI's structure but replace its paraphrases with verbatim
+      // source sentences. Only triggers if the comprehension pass actually
+      // produced details to work with.
+      if (looksLikeMetaOnlyPlan(finalPlan, lessonSpec)) {
+        const before = JSON.stringify(finalPlan).length;
+        finalPlan = rebuildPlanFromComprehension(finalPlan, lessonSpec);
+        finalPlan = validateAndFixPlan(finalPlan, lessonSpec);
+        console.log(`[aiPlanner] Plan was meta-only; rebuilt from comprehension (${before} → ${JSON.stringify(finalPlan).length} chars)`);
+      }
     } catch (visualErr) {
       console.warn('[aiPlanner] Phase 3 Pass 2.5 visual refinement skipped:', visualErr.message);
     }
@@ -1639,6 +1691,10 @@ function containsPlannerControlPhrase(text, lessonSpec) {
   const normalized = normalizePlannerPhrase(text);
   if (!normalized) return false;
 
+  if (/\b(should be explained|should be taught|should be shown|this lesson will|so the learner can|move from definition to mechanism|one coherent explanation|not in isolation|visible changes over time|clear learnable sequence)\b/.test(normalized)) {
+    return true;
+  }
+
   const hasStructuredPrefix = /^(primary lesson goal|preferred delivery style|specific user requirements|lesson intent|teaching preset)\b/.test(normalized);
   const matched = [...PLANNER_META_CONCEPTS].some((phrase) => normalized.includes(phrase));
   if (!hasStructuredPrefix && !matched) return false;
@@ -1650,7 +1706,15 @@ function containsPlannerControlPhrase(text, lessonSpec) {
 }
 
 function sanitizeNarration(narration, lessonSpec, concepts) {
-  const sentences = extractSentences(stripGatewaySentinels(narration || ''));
+  // The AI sometimes returns narration where two duplicate sentences have been
+  // concatenated without a separator ("...and review How X begins with..."). The
+  // sentence splitter sees it as one long sentence and the dedup below can't
+  // help. Normalize "review.<duplicate>" → "review. <duplicate>" first so the
+  // splitter actually splits them and the dedup drops the second.
+  const splitReady = String(narration || '')
+    .replace(/([.!?])\s*(?=[A-Z])/g, '$1 ')
+    .replace(/(review|conclusion|summary)\.\s*([A-Z])/g, '$1. $2');
+  const sentences = extractSentences(stripGatewaySentinels(splitReady));
   const seen = new Set();
   const cleaned = [];
 
@@ -1661,12 +1725,18 @@ function sanitizeNarration(narration, lessonSpec, concepts) {
     if (seen.has(key)) continue;
     if (containsPlannerControlPhrase(normalized, lessonSpec)) continue;
     if (isInstructionalMetaSentence(normalized)) continue;
-    if (/^(this is important|understanding this matters|it is important to understand|now let'?s dive in|let'?s dive in|in conclusion|to summarize)\b/i.test(normalized)) {
+    // Reuse the validator's stronger meta-stripper so phrases like
+    // "is a central concept in this lesson" or "supports the rest of the
+    // topic" don't leak into the visible narration. The validator's
+    // patterns catch what the narrow INSTRUCTIONAL_META_* regexes miss.
+    const sayClean = cleanSay(normalized, 800);
+    if (!sayClean.text || sayClean.isMetaOnly) continue;
+    if (/^(this is important|understanding this matters|it is important to understand|now let'?s dive in|let'?s dive in|in conclusion|to summarize)\b/i.test(sayClean.text)) {
       continue;
     }
 
     seen.add(key);
-    cleaned.push(normalized);
+    cleaned.push(sayClean.text);
   }
 
   if (!cleaned.length) return normalizeText(narration || '');
@@ -1677,7 +1747,14 @@ function sanitizeNarration(narration, lessonSpec, concepts) {
 }
 
 function sanitizeNarrationWithoutEnrichment(narration, lessonSpec, concepts = [], sourceText = '') {
-  const sentences = extractSentences(narration || '');
+  // Same split-tied-sentences fix as sanitizeNarration: when the AI concatenates
+  // a duplicate sentence onto the previous one without punctuation, the splitter
+  // merges them and dedup never fires. Normalize "review.<dup>" → "review. <dup>"
+  // so the splitter splits them and the dedup below drops the second.
+  const splitReady = String(narration || '')
+    .replace(/([.!?])\s*(?=[A-Z])/g, '$1 ')
+    .replace(/(review|conclusion|summary)\.\s*([A-Z])/g, '$1. $2');
+  const sentences = extractSentences(splitReady);
   const seen = new Set();
   const cleaned = [];
 
@@ -1688,12 +1765,18 @@ function sanitizeNarrationWithoutEnrichment(narration, lessonSpec, concepts = []
     if (seen.has(key)) continue;
     if (containsPlannerControlPhrase(normalized, lessonSpec)) continue;
     if (isInstructionalMetaSentence(normalized)) continue;
-    if (/^(this is important|understanding this matters|it is important to understand|now let'?s dive in|let'?s dive in|in conclusion|to summarize)\b/i.test(normalized)) {
+    // Apply the validator's stronger meta-stripper so phrases like
+    // "is a central concept in this lesson" don't leak into the visible
+    // narration. The validator has 27+ meta-sentence patterns that catch
+    // what the narrow INSTRUCTIONAL_META_* regexes here miss.
+    const sayClean = cleanSay(normalized, 800);
+    if (!sayClean.text || sayClean.isMetaOnly) continue;
+    if (/^(this is important|understanding this matters|it is important to understand|now let'?s dive in|let'?s dive in|in conclusion|to summarize)\b/i.test(sayClean.text)) {
       continue;
     }
 
     seen.add(key);
-    cleaned.push(normalized);
+    cleaned.push(sayClean.text);
   }
 
   const rebuilt = cleaned.length ? collapseRepeatedWordRuns(cleaned.join(' ')) : collapseRepeatedWordRuns(normalizeText(narration || ''));
@@ -3225,6 +3308,84 @@ function isWeakTopicPlan(plan, lessonSpec) {
   return false;
 }
 
+/**
+ * True if the AI's plan is mostly meta-language scaffolding instead of
+ * actual teaching. Detected by counting how many of the part's `say` and
+ * `narration` sentences survive the meta filter, and how much of the
+ * remaining word-count is real teaching content (no meta connector). Used
+ * to gate the last-resort rebuild-from-source pass.
+ */
+function looksLikeMetaOnlyPlan(plan, lessonSpec) {
+  if (!plan || !Array.isArray(plan.parts) || !plan.parts.length) return false;
+  const contentParts = plan.parts.filter((p) => p.part_type === 'content');
+  if (!contentParts.length) return false;
+  for (const part of contentParts) {
+    // Look at every `say` the AI produced across the part's board_scenes.
+    const says = Array.isArray(part.board_scenes) ? part.board_scenes.map((s) => s?.say || '').filter(Boolean) : [];
+    if (!says.length) return true;
+    let totalWords = 0;
+    let metaWords = 0;
+    for (const s of says) {
+      const sentences = String(s).split(/(?<=[.!?])\s+/).map((x) => x.trim()).filter(Boolean);
+      for (const sent of sentences) {
+        const words = sent.split(/\s+/).filter(Boolean);
+        totalWords += words.length;
+        if (containsPlannerControlPhrase(sent, lessonSpec) || isInstructionalMetaSentence(sent)) {
+          metaWords += words.length;
+        }
+      }
+    }
+    if (totalWords < 60) return true;            // barely any real teaching
+    if (metaWords / totalWords > 0.4) return true; // >40% of the words are meta scaffolding
+  }
+  return false;
+}
+
+/**
+ * Rebuild a plan's content parts from the comprehension `details` (real
+ * source-grounded facts the comprehension pass extracted from the user's
+ * document). Each part gets fresh `narration` and `board_scenes` built
+ * directly from those facts — no chance of the AI's prompt-shaped copy
+ * making it onto the board. Called when `looksLikeMetaOnlyPlan` flags
+ * the AI's output as mostly scaffolding.
+ */
+function rebuildPlanFromComprehension(plan, lessonSpec) {
+  const comprehension = lessonSpec.comprehension || {};
+  const compTopics = Array.isArray(comprehension.key_topics) ? comprehension.key_topics : [];
+  const compDetails = [];
+  for (const topic of compTopics) {
+    if (!topic || typeof topic !== 'object') continue;
+    const def = (topic.definition || '').toString().trim();
+    if (def) compDetails.push(def);
+    for (const d of (Array.isArray(topic.details) ? topic.details : [])) {
+      const s = String(d || '').trim();
+      if (s) compDetails.push(s);
+    }
+  }
+  if (!compDetails.length) return plan;
+
+  for (const part of plan.parts || []) {
+    if (part.part_type !== 'content') continue;
+    // Re-slice the comprehension details across the part's beats.
+    const sentences = compDetails.slice();
+    const scenes = Array.isArray(part.board_scenes) ? part.board_scenes : [];
+    const n = scenes.length || 4;
+    scenes.forEach((scene, i) => {
+      if (!scene || typeof scene !== 'object') return;
+      const start = Math.floor((i * sentences.length) / n);
+      const end = Math.floor(((i + 1) * sentences.length) / n);
+      const chunk = sentences.slice(start, end).join(' ').trim();
+      if (chunk) scene.say = chunk;
+    });
+    // Rebuild part narration as the joined say chunks so the side panel
+    // shows real teaching content.
+    const joined = scenes.map((s) => s?.say).filter(Boolean).join(' ');
+    if (joined) part.narration = joined;
+    part.board_scenes = scenes;
+  }
+  return plan;
+}
+
 function enrichNarration(narration, concepts, lessonSpec) {
   const sourceText = lessonSpec.section_text || '';
   const sentences = extractSentences(sourceText);
@@ -3233,21 +3394,41 @@ function enrichNarration(narration, concepts, lessonSpec) {
     && s.length > 35
   ).slice(0, 8);
 
-  const CONNECTORS = [
-    'More precisely,', 'To expand on this,', 'A related point is that',
-    'Additionally,', 'Looking deeper,', 'In practical terms,',
-    'From the source material,', 'Specifically,',
-  ];
+  // Source sentences stand alone — NO prompt-shaped connectors ("From the
+  // source material, ...", "Specifically, ...") because the AI parrots them
+  // back as content. The source sentence is the teaching; the connector adds
+  // nothing.
+  const CONNECTORS = [];
 
+  // Jaccard-based dedup: skip a source sentence if it overlaps the already-
+  // built narration by ≥60% of its first 12 content words. The old
+  // `.slice(0, 24)` substring check let many near-duplicates through.
+  const firstNTokens = (s, n = 12) => String(s || '').toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length > 2)
+    .slice(0, n);
+  const tokensOverlap = (a, b) => {
+    const A = new Set(firstNTokens(a));
+    const B = new Set(firstNTokens(b));
+    if (!A.size || !B.size) return 0;
+    let inter = 0;
+    A.forEach((t) => { if (B.has(t)) inter += 1; });
+    return inter / Math.min(A.size, B.size);
+  };
+  const seenKey = (s) => firstNTokens(s, 8).join(' ');
   const usedPhrases = new Set();
   const enriched = [narration];
-  conceptSentences.forEach((s, i) => {
+  conceptSentences.forEach((s) => {
     const normalized = normalizeSentence(s);
-    const key = normalized.toLowerCase().slice(0, 40);
+    const key = seenKey(normalized);
     if (usedPhrases.has(key)) return;
-    if (narration.toLowerCase().includes(normalized.toLowerCase().slice(0, 30))) return;
+    if (tokensOverlap(normalized, narration) >= 0.6) return;
     usedPhrases.add(key);
-    enriched.push(`${CONNECTORS[i % CONNECTORS.length]} ${normalized.charAt(0).toLowerCase()}${normalized.slice(1)}`);
+    // Append the source sentence verbatim. The connector slot is intentionally
+    // empty — adding scaffolding here is what taught the AI to write
+    // "From the source material, ..." in the first place.
+    enriched.push(normalized);
   });
 
   const result = enriched.filter(Boolean).join(' ');
@@ -3255,13 +3436,9 @@ function enrichNarration(narration, concepts, lessonSpec) {
 
   const extraSource = sentences
     .filter((sentence) => !containsPlannerControlPhrase(sentence, lessonSpec))
-    .filter((sentence) => !result.toLowerCase().includes(sentence.toLowerCase().slice(0, 24)))
+    .filter((sentence) => tokensOverlap(sentence, result) < 0.6)
     .slice(0, 3)
-    .map((sentence, index) => {
-      const connector = CONNECTORS[(index + conceptSentences.length) % CONNECTORS.length];
-      const normalized = normalizeSentence(sentence);
-      return `${connector} ${normalized.charAt(0).toLowerCase()}${normalized.slice(1)}`;
-    });
+    .map((sentence) => normalizeSentence(sentence));
 
   return assembleNarration([result, ...extraSource]);
 }
@@ -4355,7 +4532,7 @@ ABSOLUTE RULES:
       throw new Error(`HTTP ${response.status}: ${errText.slice(0, 200)}`);
     }
 
-    const data = await response.json();
+    const data = await readChatCompletion(response);
     const rawContent = data.choices?.[0]?.message?.content;
     // Guard: upstream gateways (e.g. Grok proxy) sometimes return a plain-English
     // STATUS string as the message content when the real model failed upstream
@@ -4376,6 +4553,62 @@ ABSOLUTE RULES:
 }
 
 // ── Text utilities ───────────────────────────────────────────────────────────
+
+// Read an OpenAI-compatible chat.completion response that may arrive either as
+// a single JSON body OR as a Server-Sent-Events stream. The BLAZE gateway sends
+// SSE for slower models (e.g. moonshotai/kimi-k2.6): one or more `: waiting…`
+// heartbeat comment lines, then `data:` lines, then `data: [DONE]`. A direct
+// `response.json()` throws on the leading `:`. We handle both transports:
+//   • plain JSON  → parse as-is
+//   • SSE non-streamed → the single `data:` line carries the COMPLETE object
+//   • SSE delta-streamed → accumulate choices[].delta.content into a message
+async function readChatCompletion(response) {
+  const ctype = (response.headers?.get?.('content-type') || '').toLowerCase();
+  const body = await response.text();
+
+  const looksSSE = ctype.includes('event-stream')
+    || /^\s*(?::|data:)/m.test(body);
+  if (!looksSSE) {
+    return JSON.parse(body);
+  }
+
+  // Collect every `data:` payload (ignoring `:` heartbeat comments and [DONE]).
+  const payloads = [];
+  for (const line of body.split(/\r?\n/)) {
+    const m = line.match(/^data:\s?(.*)$/);
+    if (!m) continue;
+    const chunk = m[1].trim();
+    if (!chunk || chunk === '[DONE]') continue;
+    try { payloads.push(JSON.parse(chunk)); } catch { /* skip partial */ }
+  }
+  if (!payloads.length) {
+    throw new Error('Empty SSE stream (no parseable data: payloads)');
+  }
+
+  // Non-streamed-over-SSE: the last payload already has a full message.
+  const full = [...payloads].reverse().find(
+    (p) => p?.choices?.[0]?.message?.content != null,
+  );
+  if (full) return full;
+
+  // Delta-streamed: stitch the incremental content together.
+  let content = '';
+  let finish_reason = null;
+  let template = null;
+  for (const p of payloads) {
+    const ch = p?.choices?.[0];
+    if (!ch) continue;
+    if (typeof ch.delta?.content === 'string') content += ch.delta.content;
+    if (ch.finish_reason) finish_reason = ch.finish_reason;
+    if (!template) template = p;
+  }
+  const usage = payloads[payloads.length - 1]?.usage || {};
+  return {
+    ...(template || {}),
+    choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason }],
+    usage,
+  };
+}
 
 function normalizeText(text) {
   return String(text || '')
@@ -4806,7 +5039,7 @@ function containsFiniteVerb(text) {
 function detectField(text) {
   const n = text.toLowerCase();
   const fields = {
-    programming: /\b(algorithm|code|programming|software|data structure|array|variable|class|object|database|api|compiler|syntax|devops|docker|kubernetes|deployment|server|backend|frontend|pipeline|git|linux|nginx|blockchain|validator|ledger|consensus|distributed|transaction|protocol|cache|service|client|router)\b/g,
+    programming: /\b(algorithm|code|programming|software|data structure|array|variable|class|object|database|api|compiler|syntax|devops|docker|kubernetes|deployment|server|backend|frontend|pipeline|git|linux|nginx|blockchain|validator|ledger|consensus|distributed|transaction|protocol|cache|service|client|router|browser|http|https|web request|request-response|request response)\b/g,
     mathematics: /\b(theorem|proof|equation|algebra|geometry|calculus|trigonometry|matrix|vector|integral|derivative|polynomial|mathematical)\b/g,
     biology: /\b(biology|cell|mitosis|meiosis|chromosome|chromatid|spindle|dna|rna|gene|protein|enzyme|organelle|nucleus|membrane|chloroplast|photosynthesis|tissue|microtubule)\b/g,
     medical: /\b(anatomy|medical|disease|patient|surgery|diagnosis|symptom|treatment|organ|cell|tissue|blood|heart|brain|muscle|bone|nerve|clinical)\b/g,

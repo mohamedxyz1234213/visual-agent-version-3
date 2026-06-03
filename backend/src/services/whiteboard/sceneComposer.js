@@ -23,6 +23,7 @@ import {
   getTemplatesByIntent,
 } from './templateLibrary.js';
 import { fitTextToSlots, pruneEmptyContainers, dropCollidingText, CAPTION_TOP } from './layout.js';
+import { cleanString } from './validator.js';
 
 const CANVAS = { w: 800, h: 500 };
 
@@ -68,28 +69,6 @@ const FLOW_DIAGRAM_TEMPLATES = new Set([
   'distributed_arrow_flow', 'hub_spoke_icons', 'icon_pipeline',
   'decision_flow', 'concept_panel_flow', 'branching_outcomes',
 ]);
-
-// A scene-fragment "kind" → entrance animation ordering weight so that the
-// renderer reveals scaffolding (frames, axes) before content (labels, text).
-function revealOrder(frag) {
-  switch (frag.type) {
-    case 'draw_line': return 0;
-    case 'draw_rect': return 1;
-    case 'draw_circle': return 1;
-    case 'draw_path': return 1;
-    case 'draw_coordinate_system': return 1;
-    case 'draw_object':
-    case 'draw_physics_shape':
-    case 'draw_table':
-    case 'draw_graph': return 2;
-    case 'draw_arrow': return 3;
-    case 'draw_badge': return 4;
-    case 'draw_text':
-    case 'show_equation':
-    case 'draw_callout': return 5;
-    default: return 3;
-  }
-}
 
 /**
  * Coerce loose model slot data into the shape each template expects.
@@ -189,25 +168,26 @@ function enrichData(intent, data, ctx) {
     if (!d[k]) d[k] = anchorVal;
   }
 
-  // BACKFILL content panels from the beat's own narration so a template's
-  // definition/example/detail regions are FULL of real explanation rather than
-  // empty (which would otherwise be pruned, leaving a thin board). Distinct
-  // sentences per slot so panels don't repeat the same line.
+  // BACKFILL only a SINGLE primary content panel from the beat's narration so a
+  // template's main definition/takeaway region isn't empty. We deliberately do
+  // NOT spray narration across many slots or into list-item details: the board
+  // shows keyword ANCHORS, the full teaching lives in the spoken `say`. Reusing
+  // sentences across slots is what produced the "super duplicated, no meaning"
+  // on-board text — so each sentence is consumed at most once and we stop as
+  // soon as we run out.
   const sentences = String(ctx.say || '')
     .split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter((s) => s.length > 18);
   if (sentences.length) {
     let si = 0;
-    const next = () => sentences[si++ % sentences.length];
-    for (const slot of ['definition', 'sub', 'outcome', 'takeaway', 'answer', 'example', 'problem']) {
-      if (!d[slot]) d[slot] = next();
-    }
-    // Give bare list items a supporting detail line so cards aren't one-word.
-    for (const slot of candidates) {
-      if (!Array.isArray(d[slot])) continue;
-      d[slot] = d[slot].map((it) => {
-        if (it && typeof it === 'object') { if (!it.detail && !it.text && sentences.length > 2) return { ...it, detail: next() }; return it; }
-        return it;
-      });
+    const next = () => (si < sentences.length ? sentences[si++] : undefined);
+    // Fill at most one genuinely-empty primary slot, in priority order. Once a
+    // sentence is placed, later slots stay empty (templates prune them).
+    for (const slot of ['definition', 'takeaway', 'outcome', 'answer', 'example', 'problem', 'sub']) {
+      if (!d[slot]) {
+        const s = next();
+        if (s) d[slot] = s;
+        break;
+      }
     }
   }
 
@@ -242,7 +222,9 @@ function composeScene(pscene, ctx, used, seed) {
   });
   const sceneCtx = {
     title: pscene.title || ctx.title,
-    subtitle: pscene.goal || pscene.subtitle || '',
+    // `goal` is a planner directive ("Contrast X with Y"), never teaching
+    // content — never put it on the board. Only a genuine `subtitle` survives.
+    subtitle: cleanString(pscene.subtitle, 80) || '',
   };
 
   // Build the candidate order: explicit template first (if valid), then the
@@ -373,8 +355,12 @@ export function composeStoryboard(pscenes, ctx, durationSeconds) {
   const round = (x) => Math.round(x * 10) / 10;
   const CLEAR = 0.7;
   const CAMERA = 0.4;
-  const PACE_MIN = 0.9;
-  const PACE_MAX = 2.4;
+  // Per-unit base time. Units are the "draw one concept together" beats — a
+  // shape + its label(s) all share the same timestamp so they appear in
+  // lockstep rather than the box being drawn, then the label 1.2s later.
+  const UNIT_MIN = 1.1;
+  const UNIT_MAX = 3.2;
+  const CONNECTOR_TIME = 0.55;
 
   const out = [];
   let t = 0;
@@ -384,31 +370,121 @@ export function composeStoryboard(pscenes, ctx, durationSeconds) {
     out.push({ time: round(t), type: 'camera', mode: 'enter', zoom: 1.0 });
     t += CAMERA;
 
-    const ordered = board.fragments
-      .map((f, idx) => ({ f, idx, order: revealOrder(f) }))
-      .sort((a, b) => (a.order - b.order) || (a.idx - b.idx))
-      .map((x) => x.f);
-    const n = ordered.length || 1;
-
-    const captions = splitCaption(board.say);
-    const capAt = captions.map((_, ci) => Math.floor((n * ci) / Math.max(captions.length, 1)));
-
-    // Pace this board so drawing fills the spoken explanation (explanation creates the visual).
     const seg = String(board.segment || '').toLowerCase();
     const segMult = SEGMENT_PACE[seg] || 1.0;
-    const boardDwell = sayDwellSeconds(board.say) * segMult;
-    const drawBudget = Math.max(n * PACE_MIN, boardDwell * 0.6);
-    const basePace = Math.min(PACE_MAX, Math.max(PACE_MIN, drawBudget / n));
 
-    ordered.forEach((frag, i) => {
-      const ci = capAt.indexOf(i);
-      if (ci >= 0) out.push({ type: 'draw_caption', content: captions[ci], index: ci, total: captions.length, time: round(t) });
-      out.push({ ...frag, time: round(t), step_index: out.length });
-      t += basePace;
+    // Group the template-authored fragments into "units" — each unit is a single
+    // teaching beat: a shape (box/circle/callout) plus every fragment that lives
+    // inside it (badge, title text, detail text). Connectors (arrow/line) sit
+    // between units. The header band (title + underline + subtitle) is its own
+    // opening unit. This makes the user see "box 1 with its label, then box 2
+    // with its label" instead of "every box, then every label".
+    const ordered = board.fragments;
+    const units = groupIntoUnits(ordered);
+
+    // The unit's time window scales with the amount of `say` text it carries —
+    // a heavily-explained unit earns more screen time, a quick one doesn't
+    // drag. We weight by the caption slot the unit owns, not raw fragment count.
+    const captions = splitCaption(board.say);
+    const captionByUnit = distributeCaptions(units, captions);
+
+    // Sum total time the board needs = sum of (per-unit time) + connector gaps.
+    const perUnitTime = units.map((u, ui) => {
+      const cap = captionByUnit[ui] || '';
+      const capWords = cap ? cap.split(/\s+/).filter(Boolean).length : 0;
+      // Decorative single-fragment units (a header underline, a divider
+      // line) are quick — they don't carry teaching content, so giving
+      // them a full UNIT_MIN would leave 1.1s of dead air. Pin them to a
+      // short dwell so the next content unit appears promptly.
+      const isDecorative = u.fragments.length === 1
+        && /^draw_(line|path)$/.test(String(u.fragments[0].type));
+      if (isDecorative) return 0.3;
+      // Each unit gets at least UNIT_MIN; bigger `say` → up to UNIT_MAX.
+      const dwell = sayDwellSeconds(cap) * segMult;
+      return Math.min(UNIT_MAX, Math.max(UNIT_MIN, dwell));
     });
-    for (let ci = 0; ci < captions.length; ci++) {
-      if (capAt[ci] >= n) out.push({ type: 'draw_caption', content: captions[ci], index: ci, total: captions.length, time: round(t) });
+    const boardDwell = sayDwellSeconds(board.say) * segMult;
+    const totalUnitTime = perUnitTime.reduce((a, b) => a + b, 0);
+    const connectorCount = countConnectors(units);
+    const naturalBudget = totalUnitTime + connectorCount * CONNECTOR_TIME;
+    // Don't expand the board past the spoken budget — but don't shrink below
+    // the units' per-element minimums either.
+    const targetBudget = Math.max(naturalBudget, boardDwell * 0.85);
+    const scale = targetBudget / Math.max(naturalBudget, 0.001);
+
+    // Emit each unit in order. The container shape (box/circle/callout) draws
+    // first, then its primary label as ONE tight beat; any extra fragments
+    // (badge, detail line) trickle across the dwell so the board keeps moving.
+    //
+    // Critical for MUTED playback: a unit that draws everything early (e.g. the
+    // header, or a bare box+label) must NOT then hold for its full narration
+    // dwell — that reads as a frozen board. So we advance to the next unit no
+    // later than MAX_DEAD_GAP past the unit's actual LAST draw (accounting for
+    // the connector lead-in), even if the spoken budget is longer. Units rich
+    // enough to keep drawing through their dwell are unaffected.
+    const FRAG_STAGGER = 0.16;
+    const MAX_DEAD_GAP = 3.0;   // ceiling on frozen-board time between draws
+    let prevUnitEnd = t;
+    units.forEach((unit, ui) => {
+      if (ui > 0) prevUnitEnd += CONNECTOR_TIME;
+      const uTime = prevUnitEnd;
+      const uDwell = perUnitTime[ui] * scale;
+      // Order: containers (rect/circle/callout/object) first, then labels
+      // (text/badge) — "draw the box, then label it", not "label a void".
+      const ordered = unit.fragments.slice().sort((a, b) => {
+        const aw = /draw_(rect|circle|callout|object|physics_shape)/.test(String(a.type)) ? 0 : 1;
+        const bw = /draw_(rect|circle|callout|object|physics_shape)/.test(String(b.type)) ? 0 : 1;
+        return aw - bw;
+      });
+      const HEAD = Math.min(2, ordered.length);            // container + primary label
+      const head = ordered.slice(0, HEAD);
+      const tail = ordered.slice(HEAD);
+      const headEnd = (HEAD - 1) * FRAG_STAGGER;
+      head.forEach((frag, fi) => {
+        out.push({ ...frag, time: round(uTime + fi * FRAG_STAGGER), step_index: out.length });
+      });
+      let lastOffset = headEnd;
+      if (tail.length) {
+        // Spread the remainder over up to 80% of the unit dwell, but never
+        // leave a gap larger than ~2.4s between successive draws.
+        const tailSpan = Math.max(0, uDwell * 0.8 - headEnd);
+        const tailStride = Math.min(2.4, tail.length ? tailSpan / tail.length : 0);
+        tail.forEach((frag, fi) => {
+          const offset = headEnd + (fi + 1) * tailStride;
+          out.push({ ...frag, time: round(uTime + offset), step_index: out.length });
+          lastOffset = offset;
+        });
+      }
+      // Hold for the narration, but cap the frozen tail so the board never
+      // sits longer than MAX_DEAD_GAP after its last draw (minus the connector
+      // lead-in to the next unit's first draw).
+      const maxAdvance = lastOffset + MAX_DEAD_GAP - CONNECTOR_TIME;
+      prevUnitEnd = uTime + Math.min(uDwell, Math.max(lastOffset, maxAdvance));
+    });
+    const finalT = prevUnitEnd;
+
+    // Lay the narration caption chunks evenly across the board's draw window so
+    // the subtitle band updates continuously — one short clause at a time, at a
+    // readable pace — instead of dumping a paragraph at one unit and freezing.
+    // Because the window is sized from the same word count, evenly spreading the
+    // chunks yields a natural ~2-3s cadence that also fills the holds between
+    // widely-spaced unit draws, so the board never sits frozen (audio muted).
+    if (captions.length) {
+      const winStart = t;
+      const span = Math.max(0.001, finalT - winStart);
+      captions.forEach((cap, ci) => {
+        const frac = captions.length > 1 ? ci / captions.length : 0;
+        out.push({
+          type: 'draw_caption',
+          content: cap,
+          index: ci,
+          total: captions.length,
+          time: round(winStart + frac * span),
+        });
+      });
     }
+
+    t = finalT;
 
     if (board.focus && typeof board.focus === 'string' && board.focus.length > 1) {
       out.push({ time: round(t), type: 'camera', mode: 'focus', zoom: 1.15, hint: board.focus });
@@ -421,8 +497,226 @@ export function composeStoryboard(pscenes, ctx, durationSeconds) {
   return out;
 }
 
-// Split a beat's narration into short, readable caption chunks (≤ ~14 words)
-// that are written along the bottom band as the board draws.
+/**
+ * Group a template's fragment list into "draw units" — one shape + its inner
+ * labels per unit. Connectors (arrow/line) become their own micro-units so
+ * the user sees "shape, arrow, shape" rather than "every shape, then every
+ * arrow". The header band (title text + underline + subtitle) is always the
+ * first unit; any pre-container decoration joins it.
+ *
+ * Rules (applied in template-authored order):
+ *   - A filled `draw_rect` / `draw_circle` / `draw_object` / `draw_callout`
+ *     starts a new unit and owns the fragments that follow it until the next
+ *     filled container begins.
+ *   - A header-anchored `draw_text` (y < 110, fontSize ≥ 18, centered) starts
+ *     the header unit; everything before any container goes there.
+ *   - `draw_arrow` and `draw_line` (other than the header underline) form a
+ *     single connector unit each.
+ *   - Everything else (badges, text, equations, tables, graphs) attaches to
+ *     the unit that contains its spatial position; if it doesn't fit any unit
+ *     and isn't a header, it falls into the most-recent unit so it doesn't
+ *     drift in after the next unit starts.
+ */
+export function groupIntoUnits(fragments) {
+  if (!Array.isArray(fragments) || !fragments.length) return [];
+
+  const HEADER_BAND_Y = 110;
+  const HEADER_MIN_FONT = 16;
+  const HEADER_CENTER = 760; // near canvas x-center → header band
+
+  const isFilledContainer = (f) => {
+    if (!f || typeof f !== 'object') return false;
+    if (f.type === 'draw_rect') {
+      const fill = f.style && f.style.style && f.style.style.fill;
+      const ff = f.style && f.style.fill;
+      const realFill = fill || ff;
+      if (!realFill || realFill === 'none') return false;
+      const w = Number(f.width) || 0;
+      const h = Number(f.height) || 0;
+      // Skip the full-canvas background and tiny accent strips.
+      if (w >= 740 && h >= 430) return false;
+      if (h < 16 || w < 40) return false;
+      return true;
+    }
+    if (f.type === 'draw_circle') {
+      const ff = f.style && f.style.fill;
+      if (!ff || ff === 'none') return false;
+      const r = Number(f.radius) || 0;
+      if (r < 16) return false;
+      return true;
+    }
+    if (f.type === 'draw_object') return !!(f.object_type);
+    if (f.type === 'draw_physics_shape') return !!(f.shape_type);
+    if (f.type === 'draw_callout') return true;
+    return false;
+  };
+
+  const isHeaderText = (f) => {
+    if (!f || f.type !== 'draw_text') return false;
+    const [x, y] = f.position || [0, 0];
+    const fs = (f.style && f.style.fontSize) || 14;
+    const anchor = (f.style && f.style.textAnchor) || 'start';
+    if (anchor !== 'middle') return false;
+    if (y > HEADER_BAND_Y) return false;
+    if (fs < HEADER_MIN_FONT) return false;
+    if (Math.abs(x - 400) > HEADER_CENTER) return false;
+    return true;
+  };
+
+  const isConnector = (f) => {
+    if (!f || typeof f !== 'object') return false;
+    if (f.type !== 'draw_arrow' && f.type !== 'draw_line') return false;
+    // The header underline is a draw_line, not a connector — let it join the
+    // header unit (it lives in y ≤ 60).
+    if (f.type === 'draw_line' && Array.isArray(f.from) && Array.isArray(f.to)) {
+      const avgY = (f.from[1] + f.to[1]) / 2;
+      if (avgY <= 70) return false;
+    }
+    return true;
+  };
+
+  const units = [];
+  let headerFragments = [];
+  let current = null;
+
+  const pushCurrent = () => {
+    if (!current) return;
+    if (current.fragments.length) units.push(current);
+    current = null;
+  };
+
+  for (const frag of fragments) {
+    if (!frag || typeof frag !== 'object') continue;
+
+    // Camera / clear / draw_caption never appear here (the composer filters
+    // them out before), but if any sneak in, skip them.
+    if (frag.type === 'camera' || frag.type === 'clear' || frag.type === 'draw_caption') continue;
+
+    if (isHeaderText(frag)) {
+      // First header text opens the header unit.
+      if (current && current.role !== 'header') pushCurrent();
+      if (!current) {
+        current = { role: 'header', fragments: [...headerFragments] };
+        headerFragments = [];
+      }
+      current.fragments.push(frag);
+      continue;
+    }
+
+    if (isFilledContainer(frag)) {
+      // Sub-element check: a colored header strip drawn *inside* the current
+      // unit's container (e.g. a column's accent bar at its top) is part of
+      // that same unit — not a new one. We require the new rect to fit
+      // *inside* the current unit's open container (≤20 px margin) AND
+      // overlap horizontally. This stops compare_two / compare_three
+      // templates from splitting each column into 2 units.
+      if (current && current.role === 'content' && current.openContainer) {
+        const oc = current.openContainer;
+        if (frag.type === 'draw_rect') {
+          const fx = Number(frag.x) || 0;
+          const fy = Number(frag.y) || 0;
+          const fw = Number(frag.width) || 0;
+          const fh = Number(frag.height) || 0;
+          const inside =
+            fx >= oc.x - 20 &&
+            fy >= oc.y - 20 &&
+            fx + fw <= oc.x + oc.w + 20 &&
+            fy + fh <= oc.y + oc.h + 20;
+          if (inside) {
+            current.fragments.push(frag);
+            continue;
+          }
+        }
+      }
+
+      // A new top-level container closes the prior unit and opens a new one.
+      if (current && current.role !== 'header') pushCurrent();
+      if (current && current.role === 'header') {
+        // Promote header into its own unit before opening a content unit.
+        pushCurrent();
+      }
+      if (!current) current = { role: 'content', fragments: [] };
+      // Remember the open container so subsequent sub-element rects can
+      // recognize they belong to this unit.
+      if (frag.type === 'draw_rect') {
+        current.openContainer = {
+          x: Number(frag.x) || 0,
+          y: Number(frag.y) || 0,
+          w: Number(frag.width) || 0,
+          h: Number(frag.height) || 0,
+        };
+      } else if (frag.type === 'draw_circle') {
+        const [cx, cy] = frag.center || [0, 0];
+        const r = Number(frag.radius) || 0;
+        current.openContainer = { x: cx - r, y: cy - r, w: r * 2, h: r * 2 };
+      }
+      current.fragments.push(frag);
+      continue;
+    }
+
+    if (isConnector(frag)) {
+      // A connector is its own micro-unit sitting between the two content
+      // units it connects — gives the user a "→" beat between ideas.
+      if (current) pushCurrent();
+      units.push({ role: 'connector', fragments: [frag] });
+      continue;
+    }
+
+    // Anything else (text, badge, callout already handled above, equation,
+    // table, graph, highlight) attaches to the most recent open unit so it
+    // doesn't dangle. If no unit is open yet (no header, no container seen),
+    // start a header/lead unit so early labels don't trail.
+    if (!current) current = { role: 'header', fragments: [...headerFragments] };
+    if (current.role === 'header') {
+      current.fragments.push(frag);
+      continue;
+    }
+    current.fragments.push(frag);
+  }
+
+  if (current) pushCurrent();
+  if (headerFragments.length && !units.length) {
+    units.unshift({ role: 'header', fragments: headerFragments });
+  }
+
+  // If the result is one giant unit (e.g. a single-shape template), still
+  // return it — the timing loop will pace it normally.
+  return units;
+}
+
+/**
+ * Evenly distribute caption chunks across the units of a board. Caption 0
+ * goes to the first content unit (or the only unit, if there's just one).
+ * Captions span the full teaching arc of the beat, so the first chunk lands
+ * at the opening unit and the last lands at the closing unit. Each unit
+ * gets at most one chunk; extras fold into the last unit so we never lose
+ * teaching text silently.
+ */
+function distributeCaptions(units, captions) {
+  const out = units.map(() => '');
+  if (!captions.length || !units.length) return out;
+
+  // Identify the content units (skip connectors for caption placement — the
+  // student is reading the explanation, not the arrow between concepts).
+  const contentIdx = [];
+  units.forEach((u, i) => { if (u.role !== 'connector') contentIdx.push(i); });
+  if (!contentIdx.length) contentIdx.push(0);
+
+  captions.forEach((cap, ci) => {
+    const target = contentIdx[Math.min(ci, contentIdx.length - 1)];
+    out[target] = out[target] ? `${out[target]} ${cap}` : cap;
+  });
+  return out;
+}
+
+function countConnectors(units) {
+  return units.filter((u) => u.role === 'connector').length;
+}
+
+// Split a beat's narration into short, readable caption clauses (≤ ~12 words)
+// that scroll along the bottom band as the board draws. These ARE the narration
+// the student reads (no audio), so we keep enough chunks to avoid truncating
+// the explanation, but each chunk stays short so the band never becomes a wall.
 function splitCaption(say) {
   const text = String(say || '').replace(/\s+/g, ' ').trim();
   if (!text) return [];
@@ -430,10 +724,10 @@ function splitCaption(say) {
   const chunks = [];
   for (const sentence of sentences) {
     const words = sentence.split(' ');
-    if (words.length <= 16) { chunks.push(sentence); continue; }
-    for (let i = 0; i < words.length; i += 14) chunks.push(words.slice(i, i + 14).join(' '));
+    if (words.length <= 12) { chunks.push(sentence); continue; }
+    for (let i = 0; i < words.length; i += 11) chunks.push(words.slice(i, i + 11).join(' '));
   }
-  return chunks.slice(0, 6);
+  return chunks.slice(0, 14);
 }
 
 /**
@@ -450,10 +744,7 @@ export function composeSingleBoard(templateId, slotData, ctx, startTime = 0) {
   } catch {
     return [];
   }
-  const ordered = fragments
-    .map((f, idx) => ({ f, idx, order: revealOrder(f) }))
-    .sort((a, b) => (a.order - b.order) || (a.idx - b.idx))
-    .map((x) => x.f);
+  const ordered = fragments;
   let t = startTime;
   return ordered.map((frag) => {
     const s = { ...frag, time: Math.round(t * 10) / 10 };

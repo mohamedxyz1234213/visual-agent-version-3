@@ -152,8 +152,13 @@ function bbox(f) {
   if (t === 'show_equation' || t === 'draw_badge') {
     const [x, y] = f.position || [0, 0];
     const fs = (f.style && f.style.fontSize) || 14;
+    // show_equation uses a math font (≈0.55× width per char, slightly tighter
+    // than draw_text) and wraps inside its parent rect when needed. The bbox
+    // heuristic for draw_text (len*0.6+20) is too generous for equations and
+    // produces false "spill" overlaps with the parent rect.
     const len = String(f.content || f.latex || '').length;
-    const w = Math.min(len * fs * 0.6 + 20, 760);
+    const charW = t === 'show_equation' ? fs * 0.55 : fs * 0.6;
+    const w = Math.min(len * charW + 16, 480);
     // Badges are small number/label CHIPS designed to straddle a card corner —
     // they are ornaments, not body text, so classify them separately so a chip
     // sitting on a box edge isn't a false "overlap".

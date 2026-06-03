@@ -16,16 +16,116 @@ const VALID_INTENTS = new Set([
 // Generic/placeholder text the AI sometimes emits that we should reject.
 const PLACEHOLDER_PATTERNS = [
   /^(lorem ipsum|placeholder|example text|sample|todo|tbd|n\/a)$/i,
+  /^\[object object\]$/i,
+  /^object object$/i,
   /^(point|step|item|concept|topic)\s*\d*$/i,
   /^(text here|content here|add .* here)$/i,
   /^\.+$/,
   /^-+$/,
 ];
 
+const PROMPT_CONTROL_PATTERNS = [
+  /\bshould be (?:explained|taught|shown|demonstrated|introduced|covered)\b/i,
+  /\bthis lesson will\b/i,
+  /\bthis (?:part|section|beat) (?:will|aims to|seeks to)\b/i,
+  /\bso the learner can\b/i,
+  /\bmove from definition to mechanism\b/i,
+  /\bone coherent explanation\b/i,
+  /\bnot in isolation\b/i,
+  /\btoday we (?:will|are going to|learn)\b/i,
+  /\bin this (?:lesson|part|section|beat)\b/i,
+  /\bas (?:we|a reminder|you can see|mentioned|noted|you'll see)\b/i,
+  /\bmore precisely,?\b/i,
+  /\bto put it (?:simply|another way),?\b/i,
+  /\bin other words,?\b/i,
+  /\baccording to (?:the )?(?:source|document|material)\b/i,
+  /\bbased on (?:the )?(?:source|document|material)\b/i,
+  /\bfrom the source material\b/i,
+  /\blet me (?:explain|show|walk you through|introduce)\b/i,
+  /\bnote that\b/i,
+  /\bdecorative motion\b/i,
+  /\bno teaching purpose\b/i,
+  /\bplaceholder label\b/i,
+  /\bgeneric placeholder\b/i,
+  /\bsame intent sequence\b/i,
+  /\bby the end of (?:this|the) (?:lesson|part|section)\b/i,
+  /\bunderstanding .* is essential\b/i,
+  /\bthe (?:key|main|important) (?:point|idea|thing|takeaway) is\b/i,
+  /\bspecifically,?\s+(?:the|they|we|this)\b/i,
+  /\b(skipped|missing) (?:steps?|algebra|derivations?)\b/i,
+  /\b(?:text|bullet) walls?\b/i,
+  /\bdecoration(?:al)?\b/i,
+  /\bfade[ -]in\b/i,
+  /\bpre-?appeared\b/i,
+  /\bvisual (?:grammar|playbook)\b/i,
+  /\bpre-?built templates?\b/i,
+  /\bteacher[- ]like pacing\b/i,
+  /\btutor (?:identity|philosophy)\b/i,
+  /\b(?:5|five) (?:unrelated )?concepts\b/i,
+  /\bhidden (?:prerequisite|gap)\b/i,
+];
+
+// Whole-sentence meta patterns — these drop the ENTIRE sentence from `say` if
+// it matches. Broader than the inline list: catches the whole "this section
+// will explain X to the learner" family of meta-sentences the AI emits when
+// it's parroting the system prompt instead of actually teaching.
+const META_SENTENCE_PATTERNS = [
+  /^(today|now|here|in this|as we|to begin|let's begin)\b.*\b(we will|we'll|let us|i will|i'll|aim to|seek to|going to)\b/i,
+  /^(specifically,?\s+)\b/i,
+  /^(lorem ipsum|placeholder text)\b/i,
+  /^(the learner|students?|readers?)\s+(?:will|should|need to|must|can)\b/i,
+  /^(is a central (?:concept|idea) in (?:this|the) (?:lesson|part|section))\b/i,
+  /^(understanding .* (?:supports?|ties? (?:into|together)) the (?:rest|whole) of (?:the )?(?:topic|lesson))\b/i,
+  /^(to elaborate,? this (?:document|lesson|section|part) (?:covers?|explains?|introduces?|describes?|presents?))\b/i,
+  /^(how (?:a |the )?.+ (?:begins?|starts?|opens?) with the core idea|then breaks? the topic|then finishes? with application)\b/i,
+  /^(.+ )?begins with the core idea,? then breaks? the topic into its main components,? then finishes? with application and review\.?$/i,
+  /^(this (?:document|lesson|section|part) (?:covers?|explains?|introduces?|describes?|presents?|outlines?))\b/i,
+  /^(the (?:goal|aim|purpose) (?:of (?:this|the))? (?:lesson|part|section|beat) is)\b/i,
+  /^(this (?:lesson|part|section|beat) (?:aims to|seeks to|will|is designed to|is meant to))\b/i,
+  /^(by the end of (?:this|the)? ?(?:lesson|part|section))\b/i,
+  /^(let'?s (?:start|begin|explore|dive in|look at))\b/i,
+  /^(note that|keep in mind|remember that|as a reminder)\b/i,
+  /^(according to|based on|per) (?:the )?(?:source|document|material|passage)\b/i,
+  /^(in (?:this|the) (?:following|next) (?:section|part|beat|segment))\b/i,
+  /^(we (?:will|are going to|shall) (?:now )?(?:see|look|examine|explore|discuss|cover|introduce))\b/i,
+  /^(first,? let'?s|first,? we)\b.*\b(see|look|examine|introduce|define)\b/i,
+  /^(now (?:that|let's))\b/i,
+  /^(to (?:summarize|conclude|wrap up|recap))\b/i,
+  /^(in (?:summary|conclusion|short))\b/i,
+  /^(let me (?:explain|show|introduce|walk))\b/i,
+  /^(understanding .* is essential)\b/i,
+  /^(the (?:key|main|important) (?:point|idea|takeaway) is)\b/i,
+  /^(this (?:shows|demonstrates|illustrates) (?:that|how))\b/i,
+  /^(a (?:good|complete) explanation of)\b/i,
+  /^(this (?:means|is) that)\b/i,
+  /^(so,?\s+the learner)\b/i,
+  /^(consequently|therefore),?\s+the (?:learner|student)\b/i,
+  /^(moving (?:on|forward))\b/i,
+  /^(with (?:that|this) in mind)\b/i,
+  /^(it'?s (?:important|worth noting) (?:to|that))\b/i,
+  /^((?:step|point|item|concept) \d+)$/i,
+  /^((?:definition|explanation|description):)$/i,
+];
+
 function isPlaceholder(text) {
   const t = String(text || '').trim();
   if (!t || t.length < 2) return true;
   return PLACEHOLDER_PATTERNS.some((re) => re.test(t));
+}
+
+function displayText(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map(displayText).filter(Boolean).join(', ');
+  }
+  if (typeof value === 'object') {
+    return value.title || value.text || value.label || value.name || value.term
+      || value.symbol || value.meaning || value.detail || value.value || value.content || '';
+  }
+  return '';
 }
 
 // ── Drawn-text length policy ────────────────────────────────────────────────
@@ -47,10 +147,89 @@ function capForKey(key) {
 }
 
 function cleanString(value, maxLen = 200) {
-  const s = String(value || '').trim().replace(/\s+/g, ' ');
+  const s = displayText(value).trim().replace(/\s+/g, ' ');
   if (isPlaceholder(s)) return '';
+  if (PROMPT_CONTROL_PATTERNS.some((re) => re.test(s))) return '';
+  // Drawn slot text (headline, definition, points, steps, columns, terms, …)
+  // ALSO needs the meta-stripper. The AI parrots the same prompt-shaped
+  // phrases into every field, not just `say` — "How X begins with the core
+  // idea, then breaks the topic…" appearing as a `headline` or `points[0]`
+  // is what fills the boxes with non-teaching scaffolding. Reject any slot
+  // whose text is a meta-sentence; the template will fall back to its
+  // concept-name anchor instead.
+  if (isMetaSentence(s)) return '';
+  // If the slot contains a meta-phrase embedded in longer text (e.g.
+  // "In this lesson we will see that the CPU fetches instructions"), strip
+  // the meta segment so what survives is teaching content only.
+  const stripped = stripMetaClauses(s).trim();
+  if (stripped && stripped !== s) return stripped.slice(0, maxLen);
   return s.slice(0, maxLen);
 }
+
+// Remove a meta-language clause from the start or middle of a string,
+// returning the teaching-content portion. Used by cleanString when a drawn
+// slot is mostly teaching but has a meta prefix/phrase glued on
+// ("In this lesson we will see that the CPU fetches instructions" →
+// "the CPU fetches instructions").
+function stripMetaClauses(s) {
+  let out = s;
+  for (const re of META_SENTENCE_PATTERNS) {
+    out = out.replace(re, ' ').replace(/\s+/g, ' ').trim();
+  }
+  for (const re of PROMPT_CONTROL_PATTERNS) {
+    out = out.replace(re, ' ').replace(/\s+/g, ' ').trim();
+  }
+  return out;
+}
+
+/**
+ * Strip every meta-language sentence out of a `say` value, then return what's
+ * left. This is the primary defense against the AI producing prompt-shaped
+ * narration ("In this section, we will explore how...") instead of actual
+ * teaching sentences.
+ *
+ * Returns the cleaned `say` (or '' if nothing real survives). The caller can
+ * check `cleaned.isMetaOnly` to know whether the AI was producing only meta
+ * scaffolding and the scene should be rebuilt from source content instead.
+ */
+export function cleanSay(value, maxLen = 800) {
+  const raw = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!raw) return { text: '', isMetaOnly: true, metaRatio: 1, inputWordCount: 0 };
+
+  const sentences = raw.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
+  if (!sentences.length) return { text: '', isMetaOnly: true, metaRatio: 1, inputWordCount: 0 };
+
+  const realSentences = sentences.filter((s) => !isMetaSentence(s));
+  const totalWords = raw.split(/\s+/).filter(Boolean).length;
+  const metaWords = sentences
+    .filter((s) => isMetaSentence(s))
+    .reduce((sum, s) => sum + s.split(/\s+/).filter(Boolean).length, 0);
+  const metaRatio = totalWords > 0 ? metaWords / totalWords : 0;
+  const isMetaOnly = realSentences.length === 0 || metaRatio > 0.5;
+
+  const rejoined = realSentences.join(' ').trim();
+  if (!rejoined) return { text: '', isMetaOnly: true, metaRatio, inputWordCount: totalWords };
+
+  return {
+    text: rejoined.slice(0, maxLen),
+    isMetaOnly,
+    metaRatio,
+    inputWordCount: totalWords,
+  };
+}
+
+function isMetaSentence(sentence) {
+  const s = String(sentence || '').trim();
+  if (!s) return true;
+  if (META_SENTENCE_PATTERNS.some((re) => re.test(s))) return true;
+  // Also catch anything containing the inline prompt-control phrases even if
+  // it's not a clean sentence-prefix match.
+  if (PROMPT_CONTROL_PATTERNS.some((re) => re.test(s))) return true;
+  // Whole-string placeholder check.
+  if (isPlaceholder(s)) return true;
+  return false;
+}
+
 
 // `anchor: true` enforces the drawn-text policy: plain strings + title-like
 // object keys become keyword anchors, detail-like keys get a short line. When
@@ -59,6 +238,10 @@ function cleanArray(arr, maxItems = 8, maxLen = 120, anchor = false) {
   if (!Array.isArray(arr)) return [];
   return arr
     .map((item) => {
+      if (Array.isArray(item)) {
+        const row = cleanArray(item, maxItems, maxLen, anchor);
+        return row.length ? row : null;
+      }
       if (item && typeof item === 'object') {
         // Preserve {title, detail} shapes after cleaning their fields
         const cleaned = {};
@@ -69,6 +252,10 @@ function cleanArray(arr, maxItems = 8, maxLen = 120, anchor = false) {
             if (cv) cleaned[k] = cv;
           } else if (Array.isArray(v)) {
             cleaned[k] = cleanArray(v, maxItems, maxLen, anchor);
+          } else if (v && typeof v === 'object') {
+            const cap = anchor ? capForKey(k) : maxLen;
+            const cv = cleanString(v, cap);
+            if (cv) cleaned[k] = cv;
           } else if (v != null) {
             cleaned[k] = v;
           }
@@ -104,12 +291,15 @@ export function validateBoardScene(scene) {
   if (focus) cleaned.focus = focus;
 
   // Spoken teacher line for this beat. This is NARRATION (the voice), not drawn
-  // on the board, so it is preserved in full — not capped to the short keyword
-  // length the drawn slots use. The narration assembler joins these in order to
-  // form the part's spoken script, and the composer uses each beat's word count
-  // to time the drawing so the board draws exactly what the voice is saying.
-  const say = cleanString(scene.say || scene.narration || scene.spoken, 800);
-  if (say) cleaned.say = say;
+  // on the board. We strip every meta-language sentence first (the AI parrots
+  // the system prompt's "this lesson will explain..." phrasing back as content
+  // if we don't), then keep what's left up to the cap. If stripping leaves
+  // nothing real, the scene is marked `metaOnly` so upstream code can rebuild
+  // it from source-grounded content instead of the AI's paraphrase.
+  const sayRaw = scene.say || scene.narration || scene.spoken;
+  const sayClean = cleanSay(sayRaw, 800);
+  if (sayClean.text) cleaned.say = sayClean.text;
+  if (sayClean.isMetaOnly) cleaned.metaOnly = true;
 
   const segment = cleanString(scene.segment, 20);
   if (segment) cleaned.segment = segment;
@@ -185,23 +375,49 @@ export function validateBoardScene(scene) {
 
 /**
  * Validate an array of board scenes for a part.
- * Removes invalid scenes and ensures variety.
+ * Removes invalid scenes, drops scenes whose `say` collapsed to meta-only
+ * content, deduplicates consecutive scenes that open with the same boilerplate
+ * (the "super duplicated" failure mode), and ensures intent variety.
  */
 export function validateBoardScenes(scenes) {
   if (!Array.isArray(scenes)) return [];
 
   const validated = scenes
     .map(validateBoardScene)
-    .filter(Boolean);
+    .filter(Boolean)
+    // A scene that lost all its teaching text to the meta strip is a sign the
+    // AI was producing only prompt-shaped content for this beat. Drop it
+    // upstream code will regenerate from source content if needed.
+    .filter((s) => !s.metaOnly);
 
   if (!validated.length) return [];
+
+  // Cross-scene deduplication: if two consecutive scenes open with the same
+  // first ~40 characters of normalized text, the second is a copy — drop it.
+  // The user reported seeing the same opening sentence repeated across
+  // beats; this catches both exact repeats and "same opener, different
+  // second clause" duplicates ("The CPU is the brain of the computer. It
+  // executes…" → "The CPU is the brain of the computer. It has a control…").
+  // 40 chars covers the first full sentence in nearly every case.
+  const PREFIX_LEN = 40;
+  const seenPrefixes = new Set();
+  const deduped = [];
+  for (const scene of validated) {
+    const prefix = firstNCharsKey(scene.say || scene.goal || scene.title || '', PREFIX_LEN);
+    if (prefix) {
+      if (seenPrefixes.has(prefix)) continue;
+      seenPrefixes.add(prefix);
+    }
+    deduped.push(scene);
+  }
+  if (!deduped.length) return validated;
 
   // Ensure intent variety — avoid 3+ identical intents in a row
   const result = [];
   let lastIntent = null;
   let sameCount = 0;
 
-  for (const scene of validated) {
+  for (const scene of deduped) {
     if (scene.intent === lastIntent) {
       sameCount++;
       // Allow up to 2 consecutive same intents
@@ -214,6 +430,19 @@ export function validateBoardScenes(scenes) {
   }
 
   return result;
+}
+
+// Normalized first N characters of text — collapses case, whitespace, and
+// punctuation so "The CPU is the brain..." and "the cpu is the  brain..."
+// produce the same key.
+function firstNCharsKey(text, n) {
+  const s = String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!s) return '';
+  return s.slice(0, n);
 }
 
 /**
