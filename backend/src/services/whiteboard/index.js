@@ -20,12 +20,20 @@ export function buildWhiteboardForPart(part, opts = {}) {
   const lessonTitle = opts.lessonTitle || part?.title || '';
   const duration = Number(part?.duration_seconds) || 300;
   const field = opts.field || part?.field || '';
+  const partIndex = opts.partIndex ?? 0;
 
   const pscenes = partToPscenes(part);
   if (!pscenes.length) return [];
 
-  const sequence = composeStoryboard(pscenes, { title: part?.title || lessonTitle, field }, duration);
+  const sequence = composeStoryboard(pscenes, {
+    title: part?.title || lessonTitle,
+    lessonTitle,
+    field,
+    partIndex,
+  }, duration);
   return sequence;
 }
 
-export { partToPscenes, composeStoryboard };
+export { partToPscenes } from './pedagogyAdapter.js';
+export { composeStoryboard, previewPartComposition } from './sceneComposer.js';
+export { assessPartVisuals, assessLessonVisuals } from './visualComposition.js';

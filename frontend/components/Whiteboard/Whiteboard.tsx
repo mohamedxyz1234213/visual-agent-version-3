@@ -80,15 +80,15 @@ interface DrawGraphP {
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
-// Varied entrance animations for dynamic teacher-like whiteboard feel
+// Draw-first animations — elements are written/drawn, never pasted in via fade.
 const ENTRANCE_ANIMATIONS = [
-  "wb-appear", "wb-zoom-in", "wb-teach", "wb-slide-u", "wb-expand", "wb-drop",
+  "wb-write-on", "wb-teach", "wb-write", "wb-draw",
 ];
 const SHAPE_ANIMATIONS = [
-  "wb-scale", "wb-zoom-in", "wb-bounce", "wb-teach",
+  "wb-draw", "wb-write-on", "wb-scale",
 ];
 const LABEL_ANIMATIONS = [
-  "wb-appear", "wb-zoom-out", "wb-teach", "wb-slide-u",
+  "wb-write-on", "wb-teach", "wb-write",
 ];
 
 function pickAnimation(id: string, pool: string[]): string {

@@ -111,7 +111,10 @@ export function validateBoardScene(scene) {
   const say = cleanString(scene.say || scene.narration || scene.spoken, 800);
   if (say) cleaned.say = say;
 
-  // Copy over all slot-bearing fields, cleaned to the drawn-text policy.
+  const segment = cleanString(scene.segment, 20);
+  if (segment) cleaned.segment = segment;
+
+  // Copy over all slot-bearing fields
   // ANCHOR fields are keyword headlines/labels; LINE fields are brief one-line
   // supporting clauses. Both are DRAWN, so both are short — the full teaching is
   // in `say`. `formula` keeps a longer cap (equations can be wide but single-line).

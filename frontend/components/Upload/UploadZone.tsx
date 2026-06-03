@@ -121,6 +121,7 @@ function buildStages(providerLabel: string, modelName: string, textMode = false)
     { key: "ai_generating",       label: "Generating Lesson",           desc: `${agent} is writing narration, explanations, and quizzes…` },
     { key: "ai_retry",            label: "Optimizing Generation",       desc: `${agent} is refining the approach for better results…` },
     { key: "ai_refining",         label: "Refining Output",             desc: `${agent} is reviewing and improving for accuracy…` },
+    { key: "ai_visual_refining",  label: "Composing Visuals",           desc: `${agent} is designing SVG diagrams and varied whiteboard scenes…` },
     { key: "planning_outline",    label: "Building Lesson Structure",   desc: `${agent} is structuring parts and key concepts…` },
     { key: "planning_visuals_1",  label: "Drawing Part 1",              desc: `${agent} is creating whiteboard animations for Part 1…` },
     { key: "planning_visuals_2",  label: "Drawing Part 2",              desc: `${agent} is creating whiteboard animations for Part 2…` },

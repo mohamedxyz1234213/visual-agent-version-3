@@ -14,8 +14,8 @@
 
 import dagre from '@dagrejs/dagre';
 import { getBlazeConfig, resolveBlazeModel } from './blazeConfig.js';
-import { buildWhiteboardForPart } from './whiteboard/index.js';
-import { COMPREHENSION_PROMPT, DECOMPOSITION_PROMPT, REFINEMENT_PROMPT, TEACHING_PROMPT, TOPIC_SCAFFOLD_PROMPT } from './prompts/index.js';
+import { buildWhiteboardForPart, assessLessonVisuals, assessPartVisuals } from './whiteboard/index.js';
+import { COMPREHENSION_PROMPT, DECOMPOSITION_PROMPT, REFINEMENT_PROMPT, TEACHING_PROMPT, TOPIC_SCAFFOLD_PROMPT, VISUAL_COMPOSITION_PROMPT, TUTOR_PHILOSOPHY } from './prompts/index.js';
 import { validateBoardScenes } from './whiteboard/validator.js';
 
 const STOPWORDS = new Set([
@@ -995,6 +995,114 @@ export async function planLesson(rawText, onProgress) {
   return _planLessonContent(spec, onProgress);
 }
 
+// ── Visual composition refinement (Pass 2.5) ─────────────────────────────────
+// Dry-runs the template pipeline, scores each part's board_scenes, then asks the
+// AI to REWRITE the visuals — richer "say" lines, SVG diagram beats, varied
+// intents — before the final render pass.
+
+async function refinePartBoardScenes(part, ctx, aiProvider, analysisModel, limits) {
+  const assessment = assessPartVisuals(part, ctx);
+  if (!assessment.needsRefinement && assessment.score >= 85) {
+    return part.board_scenes;
+  }
+
+  const crossPartNote = ctx.priorSignatures?.length
+    ? `Prior parts used these intent sequences (DO NOT repeat): ${ctx.priorSignatures.join(' | ')}`
+    : '';
+
+  const prompt = `${TUTOR_PHILOSOPHY}${VISUAL_COMPOSITION_PROMPT}
+
+PART TITLE: ${part.title}
+LEARNING OBJECTIVE: ${part.learning_objective || part.scene_goal || ''}
+KEY CONCEPTS: ${(part.key_concepts || []).join(', ')}
+FIELD: ${ctx.field || 'general'}
+${buildVisualPlaybook(ctx.field)}
+
+COMPOSITION PREVIEW (templates the renderer would pick):
+${JSON.stringify(assessment.preview.boards, null, 1)}
+
+ISSUES DETECTED:
+${assessment.issues.length ? assessment.issues.map((i) => `- ${i}`).join('\n') : '- General quality improvement needed'}
+
+${crossPartNote}
+
+CURRENT board_scenes:
+${JSON.stringify(part.board_scenes || [], null, 1)}
+
+SOURCE MATERIAL (teach from this):
+${String(ctx.sourceSnippet || '').slice(0, 6000)}
+
+Return ONLY JSON: { "board_scenes": [ ... ] }`;
+
+  try {
+    const result = await callAIRace(
+      prompt,
+      Math.min(limits.contentTok, 8000),
+      limits.contentTimeout,
+      aiProvider,
+      analysisModel,
+    );
+    const refined = validateBoardScenes(result?.board_scenes || []);
+    if (refined.length >= 3) {
+      const recheck = assessPartVisuals({ ...part, board_scenes: refined }, ctx);
+      if (recheck.score >= assessment.score || recheck.issues.length < assessment.issues.length) {
+        console.log(`[aiPlanner] Visual refine "${part.title}": ${assessment.score}→${recheck.score} (${refined.length} boards)`);
+        return refined;
+      }
+    }
+  } catch (err) {
+    console.warn(`[aiPlanner] Visual refine failed for "${part.title}": ${err.message}`);
+  }
+  return part.board_scenes;
+}
+
+async function refineLessonVisuals(plan, lessonSpec, aiProvider, analysisModel) {
+  const field = lessonSpec.comprehension?.field || '';
+  const limits = PROVIDER_LIMITS[aiProvider] || PROVIDER_LIMITS.blaze;
+  const { assessments, needsRefinement } = assessLessonVisuals(plan, field);
+
+  if (!needsRefinement) {
+    const avg = assessments.length
+      ? assessments.reduce((s, a) => s + a.score, 0) / assessments.length
+      : 100;
+    console.log(`[aiPlanner] Visual composition OK (avg score ${Math.round(avg)})`);
+    return plan;
+  }
+
+  console.log(`[aiPlanner] Phase 3 Pass 2.5: Refining visuals for ${assessments.filter((a) => a.needsRefinement).length}/${assessments.length} parts...`);
+
+  const priorSignatures = [];
+  const contentParts = plan.parts.filter((p) => p.part_type === 'content');
+
+  for (let i = 0; i < contentParts.length; i++) {
+    const part = contentParts[i];
+    const assessment = assessments.find((a) => a.partIndex === i);
+    if (!assessment?.needsRefinement && assessment?.score >= 80) {
+      priorSignatures.push(assessment.signature);
+      continue;
+    }
+
+    const refinedScenes = await refinePartBoardScenes(part, {
+      lessonTitle: plan.title,
+      field,
+      partIndex: i,
+      priorSignatures: [...priorSignatures],
+      sourceSnippet: lessonSpec.section_text,
+    }, aiProvider, analysisModel, limits);
+
+    if (refinedScenes?.length) {
+      part.board_scenes = refinedScenes;
+      const beatNarration = refinedScenes.map((s) => s.say).filter(Boolean).join(' ');
+      if (beatNarration) part.narration = beatNarration;
+    }
+
+    const after = assessPartVisuals(part, { lessonTitle: plan.title, field, partIndex: i, priorSignatures });
+    priorSignatures.push(after.signature);
+  }
+
+  return plan;
+}
+
 // ---- Planning pipeline -------------------------------------------------------
 
 async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, analysisModel = null) {
@@ -1040,7 +1148,7 @@ async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, ana
     const modePrefix = buildModePrefix(lessonSpec.explanation_mode);
     const sourceModePrefix = buildSourceModePrefix(lessonSpec.source_mode);
     const aiPlan = await callAIRace(
-      `${intentPrefix}${modePrefix}${sourceModePrefix}${TEACHING_PROMPT}${comprehensionContext}${visualPlaybook}\n\nLESSON SPEC:\n${specText}`,
+      `${intentPrefix}${modePrefix}${sourceModePrefix}${TUTOR_PHILOSOPHY}${TEACHING_PROMPT}${comprehensionContext}${visualPlaybook}\n\nLESSON SPEC:\n${specText}`,
       limits.contentTok,
       limits.contentTimeout,
       aiProvider,
@@ -1065,7 +1173,7 @@ async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, ana
       await report('ai_refining');
       console.log(`[aiPlanner] Phase 3 Pass 2: Refining lesson "${lessonSpec.title}"...`);
       const refinedPlan = await callAIRace(
-        REFINEMENT_PROMPT + `\n\nORIGINAL LESSON PLAN:\n${JSON.stringify(finalPlan, null, 1).slice(0, refinePlanLimit)}\n\nSOURCE MATERIAL:\n${(lessonSpec.section_text || '').slice(0, refineSourceLimit)}`,
+        REFINEMENT_PROMPT + `\n\n${TUTOR_PHILOSOPHY}\n\nORIGINAL LESSON PLAN:\n${JSON.stringify(finalPlan, null, 1).slice(0, refinePlanLimit)}\n\nSOURCE MATERIAL:\n${(lessonSpec.section_text || '').slice(0, refineSourceLimit)}`,
         limits.contentTok,
         limits.contentTimeout,
         aiProvider,
@@ -1089,6 +1197,18 @@ async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, ana
       }
     } catch (refineErr) {
       console.warn('[aiPlanner] Phase 3 Pass 2 refinement skipped:', refineErr.message);
+    }
+  }
+
+  // ── Pass 2.5: Visual composition — AI edits board_scenes for rich SVG teaching ──
+  if (finalPlan) {
+    try {
+      await report('ai_visual_refining');
+      finalPlan = await refineLessonVisuals(finalPlan, lessonSpec, aiProvider, analysisModel);
+      // Re-validate after visual edits so narration syncs with refined beats
+      finalPlan = validateAndFixPlan(finalPlan, lessonSpec);
+    } catch (visualErr) {
+      console.warn('[aiPlanner] Phase 3 Pass 2.5 visual refinement skipped:', visualErr.message);
     }
   }
 
@@ -3741,7 +3861,7 @@ function generateContentVisuals({ lessonTitle, part, contentIndex, comprehension
   // each board so nothing flashes by. This is the ONLY way visuals are built —
   // there is no coordinate-placing fallback that could reintroduce overlap.
   try {
-    const composed = buildWhiteboardForPart(part, { lessonTitle, field });
+    const composed = buildWhiteboardForPart(part, { lessonTitle, field, partIndex: contentIndex });
     if (Array.isArray(composed) && composed.length) {
       console.log(`[aiPlanner] template pipeline produced ${composed.length} scenes for "${part.title}"`);
       return finalizeComposedSequence(composed);
@@ -3790,7 +3910,7 @@ function generateContentVisuals({ lessonTitle, part, contentIndex, comprehension
   };
 
   try {
-    const composed = buildWhiteboardForPart(syntheticPart, { lessonTitle, field });
+    const composed = buildWhiteboardForPart(syntheticPart, { lessonTitle, field, partIndex: contentIndex });
     if (Array.isArray(composed) && composed.length) {
       console.log(`[aiPlanner] template pipeline (synthesized) produced ${composed.length} scenes for "${part.title}"`);
       return finalizeComposedSequence(composed);

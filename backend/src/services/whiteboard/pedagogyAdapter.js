@@ -52,7 +52,7 @@ function normalizeBoardScene(b) {
   // fields are excluded so they never leak into drawn slots.
   const data = {};
   for (const [k, v] of Object.entries(b)) {
-    if (['intent', 'type', 'semantic_role', 'goal', 'objective', 'focus', 'template', 'say', 'narration', 'spoken'].includes(k)) continue;
+    if (['intent', 'type', 'semantic_role', 'goal', 'objective', 'focus', 'template', 'say', 'narration', 'spoken', 'segment'].includes(k)) continue;
     data[k] = v;
   }
 
@@ -70,6 +70,7 @@ function normalizeBoardScene(b) {
     goal,
     say: say || undefined,
     weight: weight || undefined,
+    segment: str(b.segment) || undefined,
     title: str(b.title) || undefined,
     data,
     focus: str(b.focus) || undefined,
@@ -91,9 +92,8 @@ function pickRelationIntent(part, vl, corpus) {
 }
 
 // Derive pscenes from legacy visual_logic when board_scenes is missing.
-// Builds a real teaching ARC (hook → define → how-it-works → contrast/example →
-// recap) with intents chosen from content cues, so different lessons vary and
-// each board carries genuine content — not the same define→recap every time.
+// Builds a teaching arc with intents chosen from content cues AND a content hash
+// so different parts never all get define→process→recap.
 function deriveFromVisualLogic(part) {
   const vl = asArray(part.visual_logic);
   const concepts = asArray(part.key_concepts).map(str).filter(Boolean);
@@ -101,71 +101,46 @@ function deriveFromVisualLogic(part) {
   const sentences = narration.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter((s) => s.length > 12);
   const corpus = `${str(part.title)} ${narration}`;
   const title = str(part.title);
+  const relIntent = pickRelationIntent(part, vl, corpus);
+  const arcSeed = (title + narration).split('').reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0);
+  const arcVariant = Math.abs(arcSeed) % 4;
+
   const pscenes = [];
 
-  // 1 — Hook: the part's central idea as a single strong statement.
-  pscenes.push({
-    intent: 'recap', goal: 'the big idea',
-    data: { statement: str(part.scene_goal || title), sub: sentences[0] || concepts.slice(0, 3).join(' · ') },
-  });
+  // Arc variants — each opens differently and uses different middle beats.
+  const openers = [
+    { segment: 'hook', intent: 'recap', goal: 'spark curiosity', data: { statement: str(part.scene_goal || title), sub: sentences[0] || '' } },
+    { segment: 'core', intent: 'define', goal: 'core concept', data: { concept: title, headline: concepts[0] || title, definition: sentences[0] || '', points: concepts.slice(0, 4) } },
+    { segment: 'core', intent: 'map', goal: 'visual anchor', data: { headline: title, concept: concepts[0] || title, labels: concepts.slice(0, 4), points: concepts.slice(0, 3) } },
+    { segment: 'hook', intent: 'cause', goal: 'why it matters', data: { center: title, items: concepts.slice(0, 3).map((c) => ({ title: c, detail: sentences[1] || '' })) } },
+  ];
+  pscenes.push(openers[arcVariant % openers.length]);
 
-  // 2 — Define: the core concept with supporting cards/points.
-  if (concepts.length || sentences.length) {
-    pscenes.push({
-      intent: 'define', goal: 'core concept',
-      data: {
-        concept: title, headline: concepts[0] || title,
-        definition: sentences[1] || sentences[0] || '',
-        cards: (concepts.length ? concepts : sentences).slice(0, 3).map((c, i) => ({ title: str(c).split(' ').slice(0, 6).join(' '), detail: sentences[i + 2] || '' })),
-        points: concepts.slice(0, 4),
-      },
-    });
-  }
+  const middles = [
+    { segment: 'mechanism', intent: relIntent, goal: 'how it works', data: { steps: concepts.slice(0, 4).map((c, i) => ({ title: str(c).split(' ').slice(0, 5).join(' '), detail: sentences[i + 1] || '' })), center: title } },
+    { segment: 'mechanism', intent: 'cluster', goal: 'connected ideas', data: { center: title, items: concepts.slice(0, 5).map((c) => ({ title: c, detail: '' })) } },
+    { segment: 'mechanism', intent: 'formula', goal: 'formal view', data: { formula: concepts[0] || title, terms: concepts.slice(0, 3).map((c) => ({ symbol: str(c).split(' ')[0], meaning: c })) } },
+    { segment: 'mechanism', intent: 'data', goal: 'quantitative view', data: { stats: concepts.slice(0, 4).map((c) => ({ label: c, value: '' })), points: concepts.slice(0, 3) } },
+  ];
+  pscenes.push(middles[(arcVariant + 1) % 4]);
 
-  // 3 — How it works: intent chosen from cues (process / cause / cycle / …).
-  const relIntent = pickRelationIntent(part, vl, corpus);
-  pscenes.push({
-    intent: relIntent, goal: 'how it works',
-    data: {
-      steps: (concepts.length ? concepts : sentences).slice(0, 4).map((c, i) => ({ title: str(c).split(' ').slice(0, 5).join(' '), detail: sentences[i + 1] || '' })),
-      links: (concepts.length ? concepts : sentences).slice(0, 3).map((c) => ({ title: str(c).split(' ').slice(0, 5).join(' ') })),
-      stages: (concepts.length ? concepts : sentences).slice(0, 4).map((c) => ({ title: str(c).split(' ').slice(0, 4).join(' ') })),
-      center: title, outcome: sentences[sentences.length - 1] || '',
-    },
-  });
-
-  // 4 — Contrast / apply: a second relational board so the lesson has depth,
-  //     only when there's enough material (keeps short parts from padding).
   if (concepts.length >= 2 || sentences.length >= 4) {
-    const wantCompare = relIntent !== 'compare' && (concepts.length >= 2);
-    pscenes.push(wantCompare
-      ? {
-        intent: 'compare', goal: 'compare & contrast',
-        data: {
-          columns: [
-            { title: str(concepts[0] || 'This'), items: sentences.slice(1, 4).map((s) => str(s).split(' ').slice(0, 7).join(' ')) },
-            { title: str(concepts[1] || 'That'), items: sentences.slice(4, 7).map((s) => str(s).split(' ').slice(0, 7).join(' ')) },
-          ],
-          items: concepts.slice(0, 4).map((c) => ({ title: c })),
-        },
-      }
-      : {
-        intent: 'example', goal: 'in practice',
-        data: {
-          problem: sentences[2] || `Applying ${title}`,
-          steps: sentences.slice(2, 6).map((s) => ({ text: str(s).split(' ').slice(0, 12).join(' ') })),
-          points: concepts.slice(0, 3),
-        },
-      });
+    const closers = [
+      { segment: 'example', intent: 'compare', goal: 'contrast', data: { columns: [{ title: str(concepts[0] || 'A'), items: sentences.slice(1, 4).map((s) => str(s).split(' ').slice(0, 7).join(' ')) }, { title: str(concepts[1] || 'B'), items: sentences.slice(4, 7).map((s) => str(s).split(' ').slice(0, 7).join(' ')) }] } },
+      { segment: 'example', intent: 'example', goal: 'in practice', data: { problem: sentences[2] || `Applying ${title}`, steps: sentences.slice(2, 6).map((s) => ({ text: str(s).split(' ').slice(0, 12).join(' ') })) } },
+      { segment: 'reinforcement', intent: 'cycle', goal: 'recurring pattern', data: { stages: concepts.slice(0, 4).map((c) => ({ title: c })) } },
+      { segment: 'reinforcement', intent: 'hierarchy', goal: 'structure', data: { root: title, children: concepts.slice(0, 4).map((c) => ({ title: c })) } },
+    ];
+    pscenes.push(closers[(arcVariant + 2) % 4]);
   }
 
-  // 5 — Recap: the takeaways.
   pscenes.push({
-    intent: 'recap', goal: 'recap',
+    segment: 'recap',
+    intent: 'recap',
+    goal: 'recap',
     data: { points: (concepts.length ? concepts : sentences).slice(0, 4).map(str) },
   });
 
-  // Attach a spoken line to each board (contiguous narration chunks in order).
   const n = pscenes.length;
   pscenes.forEach((ps, i) => {
     const start = Math.floor((i * sentences.length) / n);
