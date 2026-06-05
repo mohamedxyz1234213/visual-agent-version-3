@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { Lesson, LessonPart } from '../models/Lesson.js';
 import { Quiz, QuizAttempt } from '../models/Quiz.js';
+import { requireAuth } from '../auth/middleware/auth.js';
 
 const router = Router();
+router.use(requireAuth);
 
 // GET /api/v1/dashboard?page=1&limit=12&search=&status=&sort=recent
 router.get('/', async (req, res, next) => {
@@ -14,7 +16,8 @@ router.get('/', async (req, res, next) => {
     const sort = (req.query.sort || 'recent').trim();
 
     // ── Build filter ──────────────────────────────────────────────────────────
-    const filter = {};
+    // Non-admin users only see their own lessons; admins see everything.
+    const filter = req.user?.role === 'admin' ? {} : { ownerId: req.user?._id };
     if (statusFilter && ['processing', 'ready', 'error'].includes(statusFilter)) {
       filter.status = statusFilter;
     }
@@ -42,11 +45,16 @@ router.get('/', async (req, res, next) => {
     }
 
     // ── Aggregate stats ───────────────────────────────────────────────────────
+    // Non-admin users only see their own lesson stats.
+    const lessonMatch = req.user?.role === 'admin' ? [] : [{ $match: { ownerId: req.user?._id } }];
     const [statusCounts, quizStats] = await Promise.all([
       Lesson.aggregate([
+        ...lessonMatch,
         { $group: { _id: '$status', count: { $sum: 1 } } },
       ]),
       QuizAttempt.aggregate([
+        // Only count attempts the current user can see
+        ...(req.user?.role === 'admin' ? [] : [{ $match: { sessionId: req.user?._id?.toString() } }]),
         {
           $group: {
             _id: null,

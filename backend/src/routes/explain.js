@@ -7,8 +7,12 @@ import { synthesize } from '../services/ttsService.js';
 import { uploadAudio } from '../services/storageService.js';
 import { getBlazeConfig, resolveBlazeModel } from '../services/blazeConfig.js';
 import { toUserFacingError } from '../utils/errors.js';
+import { reserveAiRequest, markAiRequestFinished } from '../auth/services/aiQuota.js';
+import { requireAuth } from '../auth/middleware/auth.js';
+import { AiRequestLog } from '../auth/models/index.js';
 
 const router = Router();
+router.use(requireAuth);
 
 function normalizeProvider(raw) {
   const p = String(raw || '').trim().toLowerCase();
@@ -52,6 +56,16 @@ router.post('/', async (req, res, next) => {
 
     const sourceTitle = text.slice(0, 60).replace(/\s+/g, ' ') + (text.length > 60 ? '…' : '');
 
+    // Enforce per-user AI quota
+    const { log: aiLog } = await reserveAiRequest({
+      user: req.user,
+      type: 'explain',
+      provider: aiProvider,
+      model: analysisModel,
+      sourceFilename: 'direct-text',
+      req,
+    });
+
     const series = await LessonSeries.create({
       userInstructions,
       analysisModel,
@@ -70,7 +84,12 @@ router.post('/', async (req, res, next) => {
       lessonIndex: 0,
       totalLessons: 1,
       status: 'processing',
+      ownerId: req.user._id,
     });
+
+    if (aiLog) {
+      await AiRequestLog.updateOne({ _id: aiLog._id }, { $set: { lessonId: lesson._id, seriesId: series._id } });
+    }
 
     scheduleBackgroundTask(`process lesson ${lesson._id}`, () =>
       processDirectText(
@@ -82,6 +101,7 @@ router.post('/', async (req, res, next) => {
         aiProvider,
         explanationMode,
         lessonIntent,
+        aiLog?._id?.toString(),
       )
     );
 
@@ -96,7 +116,7 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-async function processDirectText(lessonId, seriesId, rawText, userInstructions, analysisModel, aiProvider, explanationMode = 'full_lesson', lessonIntent = 'teach') {
+async function processDirectText(lessonId, seriesId, rawText, userInstructions, analysisModel, aiProvider, explanationMode = 'full_lesson', lessonIntent = 'teach', aiLogId = null) {
   try {
     const provider = normalizeProvider(aiProvider) || 'blaze';
     const model = resolveModel(provider, analysisModel);
@@ -152,9 +172,16 @@ async function processDirectText(lessonId, seriesId, rawText, userInstructions, 
     lesson.processingStep = 'done';
     await lesson.save();
     await LessonSeries.findByIdAndUpdate(seriesId, { $inc: { completedLessons: 1 } });
+
+    if (aiLogId) {
+      await AiRequestLog.updateOne({ _id: aiLogId }, { $set: { status: 'completed' } });
+    }
   } catch (err) {
     console.error(`Direct-text lesson processing failed for ${lessonId}:`, err);
     await Lesson.findByIdAndUpdate(lessonId, { status: 'error', errorMessage: toUserFacingError(err) });
+    if (aiLogId) {
+      await AiRequestLog.updateOne({ _id: aiLogId }, { $set: { status: 'failed', errorMessage: toUserFacingError(err) } });
+    }
   }
 }
 

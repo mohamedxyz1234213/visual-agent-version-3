@@ -1,13 +1,23 @@
 import { Router } from 'express';
-import { LessonPart, StoryboardScene } from '../models/Lesson.js';
+import { Lesson, LessonPart, StoryboardScene } from '../models/Lesson.js';
+import { requireAuth } from '../auth/middleware/auth.js';
 
 const router = Router();
+router.use(requireAuth);
 
 // GET /api/v1/storyboard/part/:partId
 router.get('/part/:partId', async (req, res, next) => {
   try {
     const part = await LessonPart.findById(req.params.partId).lean();
     if (!part) return res.status(404).json({ error: 'Part not found' });
+
+    // Non-admin users may only access parts of their own lessons
+    if (req.user?.role !== 'admin') {
+      const lesson = await Lesson.findById(part.lessonId).lean();
+      if (!lesson || lesson.ownerId?.toString() !== req.user?._id?.toString()) {
+        return res.status(404).json({ error: 'Part not found' });
+      }
+    }
 
     const scenes = await StoryboardScene.find({ partId: part._id })
       .sort({ timeOffset: 1 })

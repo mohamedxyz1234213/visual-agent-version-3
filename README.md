@@ -22,9 +22,10 @@
 12. [Database Schema](#database-schema)
 13. [API Reference](#api-reference)
 14. [The Storyboard System](#the-storyboard-system)
-15. [Known Limitations & What's Missing](#known-limitations--whats-missing)
-16. [Troubleshooting](#troubleshooting)
-17. [Roadmap](#roadmap)
+15. [Authentication & Admin Panel](#authentication--admin-panel)
+16. [Known Limitations & What's Missing](#known-limitations--whats-missing)
+17. [Troubleshooting](#troubleshooting)
+18. [Roadmap](#roadmap)
 
 ---
 
@@ -611,6 +612,97 @@ The SVG viewBox is **800 × 500** units. Coordinates in the `payload` refer to t
 
 ---
 
+## Authentication & Admin Panel
+
+The app ships with a built-in authentication system, per-user data isolation, an AI request quota, and a full admin panel.
+
+### Signup Flow
+
+1. A new visitor opens **`/request-access`**, enters an email + username (and optional reason).
+2. The request is stored as an `EarlyAccessRequest` (status `pending`).
+3. An admin sees the request under **`/admin/early-access`** and approves it.
+4. The admin receives a copy-able invite URL (or receives an email if SMTP is configured).
+5. The invitee opens the URL, **`/signup/{token}`**. The page verifies the token and locks the email + username fields.
+6. They set a password. The account is created.
+7. From then on they sign in at **`/login`**.
+
+If the email or username entered on the signup page does not match what the admin approved, signup is rejected and the user is bounced back to `/request-access`.
+
+### Sessions
+
+- Sessions are stored server-side in MongoDB (`Session` collection).
+- The browser only holds an httpOnly cookie named `wb_session`.
+- All API calls use `credentials: "include"`. CORS is configured to allow cookies from `ALLOWED_ORIGINS`.
+- Sessions can be revoked by an admin (or by logging out).
+
+### Per-User Data Isolation
+
+- Every `Lesson` carries an `ownerId` field.
+- `GET /lessons`, `GET /dashboard`, `GET /storyboard/*`, and `GET /quiz/*` only return data that belongs to the current user.
+- Admin users (role `admin`) bypass this filter and can see everything.
+- Attempts to access another user's data return `404` (existence is not leaked).
+
+### AI Request Quota
+
+- Each user has `max_ai_requests` (default **3**) and `ai_requests_used`.
+- Every `POST /upload` and `POST /explain` reserves one slot atomically.
+- If the user is at their limit, the request returns `429 Too Many Requests`.
+- The dashboard header shows `used / max` and warns the user when exhausted.
+- An admin can change a user's quota (and reset the used counter) from **`/admin/users`**.
+
+### Admin Panel
+
+The admin panel lives at **`/admin`** (sign in separately at `/admin/login`).
+
+| Page | Purpose |
+|---|---|
+| `/admin` | Overview: counts of users, requests, lessons, 7-day activity, lesson status mix |
+| `/admin/early-access` | Approve, reject, or delete early-access requests. Approved requests reveal a copy-able invite URL |
+| `/admin/users` | Create users, edit quota / role / status / password, reset AI usage, view per-user lessons |
+| `/admin/lessons` | Browse every lesson in the system, filter by status, open the full preview, or delete |
+| `/admin/logs/login` | Login attempts (success and failure) with IP, user-agent, email |
+| `/admin/logs/ai` | Every AI request (allow / block) with user, route, timestamp |
+| `/admin/logs/pages` | Page views and admin actions (last 24h per IP, deduplicated 2s) |
+
+Admin actions are auto-logged to the page-views collection. Every action taken in the admin panel is attributed to the admin's identity.
+
+### Configuration
+
+Add the following to `backend/.env`:
+
+```bash
+# ── First admin (auto-seeded on boot if the user collection is empty) ──
+ADMIN_EMAIL=admin@yourdomain.com
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=choose-a-strong-password
+# Force-reset the admin password on next boot (useful after a credential rotation)
+ADMIN_PASSWORD_FORCE=false
+
+# ── Optional SMTP for invite emails ──
+# If unset, invite URLs are logged to the server console and shown in the admin UI.
+SMTP_HOST=smtp.yourdomain.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=...
+SMTP_PASS=...
+SMTP_FROM="Whiteboard Teacher <no-reply@yourdomain.com>"
+```
+
+> The very first operator can also self-onboard by visiting `/login` while the database is still empty — the form switches into a "Create the first admin" mode.
+
+### Smoke Test
+
+A regression test for the full auth + admin flow is provided at `backend/scripts/smoke-auth.mjs`. It runs the entire request → approve → signup → login → quota flow against any MongoDB URI:
+
+```bash
+cd backend
+MONGODB_URI="mongodb+srv://..." node scripts/smoke-auth.mjs
+```
+
+Expected output: `Result: 42 passed, 0 failed.`
+
+---
+
 ## Known Limitations & What's Missing
 
 This is a functional prototype. The following areas are incomplete or not yet implemented:
@@ -621,7 +713,7 @@ This is a functional prototype. The following areas are incomplete or not yet im
 |---|---|
 | **No Alembic migrations** | Database schema is created with `SQLAlchemy create_all` on startup. Schema changes require manual `DROP TABLE` and restart. |
 | **No task queue** | Background processing uses `asyncio.create_task`. If the server restarts mid-upload the task is lost and the lesson is stuck at `status="processing"`. Production use requires Celery, ARQ, or a similar queue. |
-| **No user authentication** | All lessons are globally shared. `session_id` in quiz attempts is a plain string with no verification. |
+| **User authentication is in place** | ✅ The Node.js/MongoDB port of the backend adds an early-access signup flow, sessions, per-user data isolation, an AI quota, and a full admin panel. See [Authentication & Admin Panel](#authentication--admin-panel). |
 | **No user progress tracking** | Quiz results are stored in the DB but there is no per-user history or progress dashboard. |
 | **Storage is optional** | Without S3/R2 credentials, uploaded source files and TTS audio are not persisted outside the container. Audio narration will not work. |
 
@@ -685,7 +777,7 @@ TTS requires:
 
 - [ ] Alembic migrations (replace `create_all` shortcut)
 - [ ] Persistent background task queue (Celery / ARQ)
-- [ ] User accounts & authentication
+- [x] User accounts & authentication _(implemented in the Node.js port)_
 - [ ] Per-user progress tracking and lesson history
 - [ ] Lesson sharing & embedding (public URLs)
 - [ ] Implement `highlight` and `underline` visual actions

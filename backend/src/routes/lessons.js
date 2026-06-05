@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { Lesson, LessonPart, StoryboardScene } from '../models/Lesson.js';
 import { Quiz, QuizQuestion, QuizAttempt } from '../models/Quiz.js';
+import { requireAuth } from '../auth/middleware/auth.js';
 
 const router = Router();
+router.use(requireAuth);
 
 // ── Serializers ───────────────────────────────────────────────────────────────
 
@@ -68,9 +70,11 @@ function serializeLesson(lesson, parts) {
 }
 
 // GET /api/v1/lessons
-router.get('/', async (_req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
-    const lessons = await Lesson.find().sort({ createdAt: -1 }).lean();
+    // Non-admin users only see their own lessons; admins see everything
+    const filter = req.user?.role === 'admin' ? {} : { ownerId: req.user?._id };
+    const lessons = await Lesson.find(filter).sort({ createdAt: -1 }).lean();
     const result = await Promise.all(
       lessons.map(async (l) => ({
         id: l._id.toString(),
@@ -115,6 +119,14 @@ router.get('/:id', async (req, res, next) => {
     const lesson = await Lesson.findById(req.params.id).lean();
     if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
 
+    // Non-admin users may only view their own lessons
+    if (req.user?.role !== 'admin') {
+      const ownerId = lesson.ownerId?.toString();
+      if (!ownerId || ownerId !== req.user?._id?.toString()) {
+        return res.status(404).json({ error: 'Lesson not found' });
+      }
+    }
+
     const parts = await LessonPart.find({ lessonId: lesson._id }).sort({ orderIndex: 1 }).lean();
 
     const serializedParts = await Promise.all(
@@ -147,8 +159,13 @@ router.get('/:id', async (req, res, next) => {
 // DELETE /api/v1/lessons/:id
 router.delete('/:id', async (req, res, next) => {
   try {
-    const lesson = await Lesson.findByIdAndDelete(req.params.id);
+    const lesson = await Lesson.findById(req.params.id);
     if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
+    if (req.user?.role !== 'admin' && lesson.ownerId?.toString() !== req.user?._id?.toString()) {
+      return res.status(404).json({ error: 'Lesson not found' });
+    }
+
+    await Lesson.findByIdAndDelete(req.params.id);
 
     const parts = await LessonPart.find({ lessonId: req.params.id }).lean();
     const partIds = parts.map((p) => p._id);

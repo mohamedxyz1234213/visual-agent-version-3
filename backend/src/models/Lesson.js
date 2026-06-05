@@ -40,6 +40,8 @@ const lessonSchema = new Schema(
     seriesId: { type: mongoose.Schema.Types.ObjectId, ref: 'LessonSeries' },
     lessonIndex: { type: Number, default: 0 },   // 0-based position in series
     totalLessons: { type: Number, default: 1 },
+    // ── Owner (multi-tenant) ────────────────────────────────────────────────
+    ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
   },
   { timestamps: true }
 );

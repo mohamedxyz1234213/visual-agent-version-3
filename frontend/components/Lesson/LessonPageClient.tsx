@@ -152,7 +152,7 @@ export default function LessonPageClient({
         </div>
         <h1 className="app-display text-4xl font-semibold text-slate-900">Lesson Complete</h1>
         <p className="text-slate-500 max-w-sm text-center text-sm leading-relaxed">
-          You've finished <strong>{lesson.title}</strong>. Great work!
+          You&apos;ve finished <strong>{lesson.title}</strong>. Great work!
         </p>
 
         {totalLessons > 1 && seriesLessons.length > 0 && (

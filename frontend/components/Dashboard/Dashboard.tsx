@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { fetchDashboard, deleteLesson, type DashboardParams } from "@/lib/api";
 import type { DashboardResponse, DashboardLesson } from "@/lib/types";
+import { useAuthStore } from "@/store/authStore";
 
 // ─── SVG Icon set ─────────────────────────────────────────────────────────────
 
@@ -77,6 +78,7 @@ function IconAlert({ className = "w-4 h-4" }: { className?: string }) {
 
 export default function Dashboard() {
   const router = useRouter();
+  const { user } = useAuthStore();
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -154,17 +156,33 @@ export default function Dashboard() {
               <div className="text-sm font-semibold tracking-[-0.03em] text-slate-900">Lesson library</div>
             </div>
           </div>
-          <button
-            onClick={() => router.push("/upload")}
-            className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
-          >
-            <IconPlus />
-            New Lesson
-          </button>
+          <div className="flex items-center gap-2">
+            {user && (
+              <div className="hidden sm:flex items-center gap-2 rounded-2xl border border-slate-200 bg-white/80 px-3 py-1.5 text-xs">
+                <span className="text-slate-400">AI lessons</span>
+                <span className="font-semibold text-slate-800 tabular-nums">{user.ai_requests_used} / {user.max_ai_requests}</span>
+              </div>
+            )}
+            <button
+              onClick={() => router.push("/upload")}
+              className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              <IconPlus />
+              New Lesson
+            </button>
+          </div>
         </div>
       </header>
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        {user && user.max_ai_requests > 0 && user.ai_requests_used >= user.max_ai_requests && (
+          <div className="mb-6 flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-900">
+            <IconAlert className="h-4 w-4 shrink-0" />
+            <span className="flex-1">
+              You have used all {user.max_ai_requests} of your AI lesson generations. Contact the admin to raise your limit.
+            </span>
+          </div>
+        )}
         <div className="mb-8 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-end">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">Lesson Library</p>
