@@ -226,12 +226,43 @@ YOUR TASK — edit the visuals while composing:
 6. For math: use "formula" beats with "formula" + "terms", and separate "process"
    beats for each solution step
 7. For history: prefer "timeline" + "cause" + "compare"
-8. Keep drawn slot text SHORT (keyword anchors, 3-8 words). Put the full teaching in "say"
+8. Drawn slot text: titles stay SHORT keyword anchors (3-8 words). A node's
+   "detail" may be a full short CLAUSE (up to ~15 words) — boxes now grow to fit
+   it, so write the real explanatory phrase, not a stub. The FULL teaching still
+   goes in "say".
+8b. ACCURACY: every drawn label and "say" sentence must be faithful to the
+   source material — correct terms, correct order, correct relationships. Never
+   invent facts, dates, or numbers to fill a slot. If the source is thin for a
+   beat, teach less rather than fabricate.
+8c. SEQUENCING (this is what makes it feel taught, not listed): order the beats
+   as a real teacher would build the idea, and make each board's VISUAL match the
+   moment its caption narrates —
+     hook (why care) → define the core term → show the mechanism/parts →
+     give a concrete example → contrast or common mistake → recap.
+   Each beat builds on the previous one; the recap should reference the terms you
+   introduced. Don't front-load everything on board 1; reveal one idea per beat.
 9. Create 5-7 board_scenes per part. First beat = hook + objective. Last = recap.
 10. Optionally set "template" to steer layout when you know the best fit:
     labeled_science_diagram | figure_with_facts | icon_pipeline | distributed_arrow_flow |
     hub_spoke_icons | decision_flow | branching_outcomes | timeline_rail | formula_centered
 11. Never output coordinates or raw drawing commands — semantic slots only
+12. PICK + PATCH (optional, advanced): after picking a base "template", you may
+    fine-tune it. The system places your edits into measured free space and
+    re-checks for overlap, so edits are always safe (an edit with no room is
+    silently dropped — never forced).
+    • "add": up to 4 modular blocks dropped into empty areas. Each block:
+      { "kind": "callout|note|badge|label|highlight|arrow|figure|svg",
+        "text": "short label (≤140 chars)",
+        "region": "top|bottom|left|right|center|topleft|topright|bottomleft|bottomright",
+        "figure": "atom|dna|cell|neuron|wave|gear|battery|magnet|field",  // figure only
+        "dir": "up|down|left|right",                                      // arrow only
+        "path": "M 10 90 L 50 10 L 90 90 Z" }                             // svg only
+      For "svg" you may draw a CUSTOM shape: give a path in a 0..100 box
+      (0,0 = top-left, 100,100 = bottom-right). It is scaled into the free
+      region. Only path commands + numbers are allowed — no text/styles/scripts.
+    • "remove": delete named parts you don't want:
+      ["subtitle","decoration","background","connectors","labels"]
+    Use these sparingly — only when the base template needs a real tweak.
 
 ANTI-PATTERNS TO ELIMINATE:
 - Generic bullet lists with no diagram or flow
@@ -248,6 +279,8 @@ Return ONLY valid JSON:
       "goal": "what this board teaches",
       "say": "2-4 rich spoken sentences — REQUIRED",
       "template": "optional template id",
+      "add": [{ "kind": "callout", "text": "optional extra block", "region": "right" }],
+      "remove": ["optional category e.g. decoration"],
       "headline": "...",
       "diagram": "optional: atom|dna|cell|neuron|wave|gear|battery|magnet|field",
       "labels": ["part 1", "part 2"],

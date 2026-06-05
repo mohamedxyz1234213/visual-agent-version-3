@@ -428,4 +428,228 @@ export function growBoxesToFitText(frags) {
   return out;
 }
 
+// -----------------------------------------------------------------------------
+// AI "pick + patch" template edits — REMOVE named parts and ADD modular blocks
+// into measured free space. Runs BEFORE the fit/overlap passes so any edit is
+// re-checked and can never reintroduce a collision. If no free space exists for
+// an add-block, it is dropped rather than overlapped.
+// -----------------------------------------------------------------------------
+
+const CB = { top: 112, bot: 466, left: 44, right: 756 };
+
+// A conservative bbox for any fragment, used for free-space detection. Returns
+// null for fragments we don't treat as occupying space (loose paths).
+function anyFragBBox(f) {
+  if (!f || !f.type) return null;
+  switch (f.type) {
+    case 'draw_text': {
+      const [x, y] = f.position || [0, 0];
+      const fs = (f.style && f.style.fontSize) || 14;
+      const mw = (f.style && f.style.maxWidth) || Math.min(320, String(f.content || '').length * fs * CHAR_W + 8);
+      const [x0, x1] = textXSpan(f, mw);
+      const lines = (f.style && f.style.maxLines) || 1;
+      return { x0, y0: y - fs, x1, y1: y + fs * LINE_H * Math.max(1, lines) };
+    }
+    case 'draw_rect': return { x0: f.x, y0: f.y, x1: f.x + (f.width || 0), y1: f.y + (f.height || 0) };
+    case 'draw_circle': { const [cx, cy] = f.center || [0, 0]; const r = f.radius || 0; return { x0: cx - r, y0: cy - r, x1: cx + r, y1: cy + r }; }
+    case 'draw_object':
+    case 'draw_physics_shape': { const [x, y] = f.position || [0, 0]; const [w, h] = f.size || [120, 100]; return { x0: x, y0: y, x1: x + w, y1: y + h }; }
+    case 'draw_badge': { const [x, y] = f.position || [0, 0]; return { x0: x, y0: y, x1: x + 92, y1: y + 26 }; }
+    case 'draw_callout': { const [x, y] = f.position || [0, 0]; return { x0: x, y0: y, x1: x + (f.width || 220), y1: y + 60 }; }
+    case 'draw_arrow':
+    case 'draw_line': { const a = f.from, b = f.to; if (!a || !b) return null; return { x0: Math.min(a[0], b[0]) - 4, y0: Math.min(a[1], b[1]) - 4, x1: Math.max(a[0], b[0]) + 4, y1: Math.max(a[1], b[1]) + 4 }; }
+    default: return null;
+  }
+}
+
+function rectsOverlap(a, b, m = 0) {
+  return !(a.x1 + m <= b.x0 || a.x0 - m >= b.x1 || a.y1 + m <= b.y0 || a.y0 - m >= b.y1);
+}
+
+// Default footprint (w,h) for each add-block kind.
+const BLOCK_SIZE = {
+  callout: [212, 56], note: [196, 84], badge: [96, 26], label: [134, 26],
+  highlight: [196, 72], arrow: [92, 40], figure: [120, 104], svg: [128, 112],
+};
+
+// Scale a sanitized unit-box path (coords 0..100, validated upstream) into the
+// target rect (x,y,w,h). Only numbers are transformed; command letters pass
+// through. Coordinate pairs after each command map x→x-axis, y→y-axis; H/V take
+// a single axis. This keeps the AI's custom shape inside its allotted region.
+function scaleUnitPath(d, x, y, w, h) {
+  const tokens = String(d).match(/[MLHVCSQTAZmlhvcsqtaz]|-?\d*\.?\d+(?:[eE][-+]?\d+)?/g);
+  if (!tokens) return '';
+  const sx = (v) => (x + (v / 100) * w).toFixed(1);
+  const sy = (v) => (y + (v / 100) * h).toFixed(1);
+  const out = [];
+  let cmd = 'M';
+  let coordIdx = 0; // position within the current command's coordinate run
+  for (const tk of tokens) {
+    if (/[A-Za-z]/.test(tk)) { cmd = tk; coordIdx = 0; out.push(tk); continue; }
+    const up = cmd.toUpperCase();
+    let mapped;
+    if (up === 'H') mapped = sx(Number(tk));
+    else if (up === 'V') mapped = sy(Number(tk));
+    else if (up === 'A') {
+      // rx ry rot large sweep x y — only the final x,y (idx 5,6) are points.
+      const i = coordIdx % 7;
+      if (i === 5) mapped = sx(Number(tk));
+      else if (i === 6) mapped = sy(Number(tk));
+      else mapped = tk; // radii/flags pass through
+    } else {
+      mapped = (coordIdx % 2 === 0) ? sx(Number(tk)) : sy(Number(tk));
+    }
+    out.push(mapped);
+    coordIdx++;
+  }
+  return out.join(' ');
+}
+
+// Region hint → preferred target centre within the content band.
+function regionTarget(region) {
+  const midX = (CB.left + CB.right) / 2;
+  const top = CB.top + 30, bot = CAPTION_TOP - 40, midY = (CB.top + CAPTION_TOP) / 2;
+  switch (region) {
+    case 'top': return [midX, top];
+    case 'bottom': return [midX, bot];
+    case 'left': return [CB.left + 90, midY];
+    case 'right': return [CB.right - 90, midY];
+    case 'center': return [midX, midY];
+    case 'topleft': return [CB.left + 90, top];
+    case 'topright': return [CB.right - 90, top];
+    case 'bottomleft': return [CB.left + 90, bot];
+    case 'bottomright': return [CB.right - 90, bot];
+    default: return [midX, midY];
+  }
+}
+
+// Find a free top-left position for a (w,h) block that overlaps nothing in
+// `occupied`, biased toward the requested region. Returns {x,y} or null.
+function findFreeSlot(w, h, occupied, region) {
+  const [tx, ty] = regionTarget(region);
+  const step = 16, margin = 10;
+  const minX = CB.left, maxX = CB.right - w;
+  const minY = CB.top, maxY = CAPTION_TOP - 6 - h;
+  if (maxX < minX || maxY < minY) return null;
+  const candidates = [];
+  for (let y = minY; y <= maxY; y += step) {
+    for (let x = minX; x <= maxX; x += step) {
+      candidates.push([x, y]);
+    }
+  }
+  // Prefer slots whose centre is nearest the region target.
+  candidates.sort((a, b) => {
+    const da = (a[0] + w / 2 - tx) ** 2 + (a[1] + h / 2 - ty) ** 2;
+    const db = (b[0] + w / 2 - tx) ** 2 + (b[1] + h / 2 - ty) ** 2;
+    return da - db;
+  });
+  for (const [x, y] of candidates) {
+    const r = { x0: x, y0: y, x1: x + w, y1: y + h };
+    let clash = false;
+    for (const o of occupied) { if (rectsOverlap(r, o, margin)) { clash = true; break; } }
+    if (!clash) return { x, y };
+  }
+  return null;
+}
+
+// Build the drawn fragments for one add-block placed at (x,y,w,h).
+function buildAddBlock(block, x, y, w, h) {
+  const out = [];
+  const text = block.text || '';
+  switch (block.kind) {
+    case 'callout':
+      out.push({ type: 'draw_callout', content: text, position: [x, y], width: w, style: { bg: '#fffbeb', stroke: '#f59e0b', color: '#92400e' } });
+      break;
+    case 'note':
+      out.push({ type: 'draw_rect', x, y, width: w, height: h, style: { fill: '#f8fafc', stroke: '#cbd5e1', strokeWidth: 1.5, rx: 10 } });
+      if (text) out.push({ type: 'draw_text', content: text, position: [x + 12, y + 22], style: { fontSize: 13, color: '#334155', fontWeight: '500', textAnchor: 'start', maxWidth: w - 24, maxLines: Math.max(1, Math.floor((h - 16) / 18)) } });
+      break;
+    case 'highlight':
+      out.push({ type: 'draw_rect', x, y, width: w, height: h, style: { fill: '#fef9c3', stroke: '#facc15', strokeWidth: 1.5, rx: 10 } });
+      if (text) out.push({ type: 'draw_text', content: text, position: [x + 12, y + 22], style: { fontSize: 13, color: '#854d0e', fontWeight: '600', textAnchor: 'start', maxWidth: w - 24, maxLines: Math.max(1, Math.floor((h - 16) / 18)) } });
+      break;
+    case 'badge':
+      out.push({ type: 'draw_badge', content: text || '•', position: [x, y], style: { bg: '#1e293b', color: '#ffffff', fontSize: 12 } });
+      break;
+    case 'label':
+      if (text) out.push({ type: 'draw_text', content: text, position: [x, y + 14], style: { fontSize: 13, color: '#475569', fontWeight: '600', textAnchor: 'start', maxWidth: w, maxLines: 2 } });
+      break;
+    case 'arrow': {
+      const dir = block.dir || 'right';
+      const cx = x + w / 2, cy = y + h / 2;
+      let from, to;
+      if (dir === 'left') { from = [x + w, cy]; to = [x, cy]; }
+      else if (dir === 'up') { from = [cx, y + h]; to = [cx, y]; }
+      else if (dir === 'down') { from = [cx, y]; to = [cx, y + h]; }
+      else { from = [x, cy]; to = [x + w, cy]; }
+      out.push({ type: 'draw_arrow', from, to, style: { color: '#475569', strokeWidth: 2 } });
+      break;
+    }
+    case 'figure':
+      out.push({ type: 'draw_object', object_type: block.figure || 'box', position: [x, y], size: [w, h], label: text || undefined });
+      break;
+    case 'svg':
+      if (block.path) {
+        out.push({ type: 'draw_path', d: scaleUnitPath(block.path, x + 4, y + 4, w - 8, h - 8), style: { stroke: '#475569', strokeWidth: 2, fill: 'none' } });
+        if (text) out.push({ type: 'draw_text', content: text, position: [x + w / 2, y + h + 4], style: { fontSize: 12, color: '#475569', fontWeight: '600', textAnchor: 'middle', maxWidth: w, maxLines: 1 } });
+      }
+      break;
+  }
+  return out;
+}
+
+// Match a fragment against a REMOVE category. Prefers an explicit `_role` tag
+// (set by templates via tagRole) for precise deletion; falls back to a
+// conservative structural heuristic for untagged fragments. Never deletes the
+// primary headline text.
+function matchesRemoveCategory(f, cat) {
+  if (f._role && f._role === cat) return true;
+  switch (cat) {
+    case 'background':
+      return f.type === 'draw_rect' && ((f.width || 0) >= 700 || (f.height || 0) >= 420);
+    case 'decoration':
+      if (f.type === 'draw_line') return true;
+      if (f.type === 'draw_path' && !f.markerEnd) return true;
+      if (f.type === 'draw_circle' && !f.label && (f.radius || 0) <= 6) return true;
+      return false;
+    case 'connectors':
+      if (f.type === 'draw_arrow') return true;
+      if (f.type === 'draw_path' && f.markerEnd) return true;
+      return false;
+    case 'labels':
+      return f.type === 'draw_badge';
+    case 'subtitle':
+      return f.type === 'draw_text' && f.style && f.style.fontStyle === 'italic';
+    default:
+      return false;
+  }
+}
+
+export function applyTemplateEdits(frags, edits) {
+  if (!Array.isArray(frags) || !edits || (!edits.add && !edits.remove)) return frags;
+  let out = frags.slice();
+
+  // REMOVE first so freed space counts toward ADD placement.
+  if (Array.isArray(edits.remove) && edits.remove.length) {
+    const cats = edits.remove;
+    out = out.filter((f) => !cats.some((c) => matchesRemoveCategory(f, c)));
+  }
+
+  // ADD into measured free space.
+  if (Array.isArray(edits.add) && edits.add.length) {
+    const occupied = out.map(anyFragBBox).filter(Boolean);
+    for (const block of edits.add.slice(0, 4)) {
+      const [w, h] = BLOCK_SIZE[block.kind] || [180, 56];
+      const slot = findFreeSlot(w, h, occupied, block.region);
+      if (!slot) continue; // no room — drop rather than overlap
+      const built = buildAddBlock(block, slot.x, slot.y, w, h);
+      if (!built.length) continue;
+      out.push(...built);
+      occupied.push({ x0: slot.x, y0: slot.y, x1: slot.x + w, y1: slot.y + h });
+    }
+  }
+
+  return out;
+}
+
 export { CAPTION_TOP };

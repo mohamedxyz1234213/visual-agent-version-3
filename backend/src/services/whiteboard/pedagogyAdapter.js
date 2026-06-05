@@ -52,7 +52,7 @@ function normalizeBoardScene(b) {
   // fields are excluded so they never leak into drawn slots.
   const data = {};
   for (const [k, v] of Object.entries(b)) {
-    if (['intent', 'type', 'semantic_role', 'goal', 'objective', 'focus', 'template', 'say', 'narration', 'spoken', 'segment'].includes(k)) continue;
+    if (['intent', 'type', 'semantic_role', 'goal', 'objective', 'focus', 'template', 'add', 'remove', 'say', 'narration', 'spoken', 'segment'].includes(k)) continue;
     data[k] = v;
   }
 
@@ -75,6 +75,8 @@ function normalizeBoardScene(b) {
     data,
     focus: str(b.focus) || undefined,
     template: typeof b.template === 'string' ? b.template : undefined,
+    add: Array.isArray(b.add) && b.add.length ? b.add : undefined,
+    remove: Array.isArray(b.remove) && b.remove.length ? b.remove : undefined,
   };
 }
 
@@ -143,6 +145,21 @@ function deriveFromVisualLogic(part) {
     { segment: 'mechanism', intent: 'data', goal: 'quantitative view', data: { stats: concepts.slice(0, 4).map((c) => ({ label: c, value: '' })), points: concepts.slice(0, 3) } },
   ];
   pscenes.push(middles[(arcVariant + 1) % 4]);
+
+  // Second mechanism/detail beat — only when there is genuinely more teaching
+  // content to carry it. Uses a DIFFERENT intent + a later slice of the
+  // narration so the board deepens the explanation instead of restating the
+  // first middle. This is what makes an auto-derived lesson feel richer and
+  // better-sequenced (hook → concept → mechanism → DETAIL → example → recap).
+  if (teachingSentences.length >= 5 || concepts.length >= 4) {
+    const details = [
+      { segment: 'mechanism', intent: 'process', goal: 'step by step', data: { steps: teachingSentences.slice(2, 6).map((s, i) => ({ title: `Step ${i + 1}`, detail: anchorOf(s, 10) })), center: title } },
+      { segment: 'core', intent: 'hierarchy', goal: 'how it breaks down', data: { root: title, children: concepts.slice(0, 4).map((c, idx) => ({ title: c, detail: anchorOf(teachingSentences[idx + 2] || '', 7) })) } },
+      { segment: 'mechanism', intent: 'cause', goal: 'what drives it', data: { center: concepts[0] || title, items: concepts.slice(1, 4).map((c, idx) => ({ title: c, detail: anchorOf(teachingSentences[idx + 2] || '', 8) })) } },
+      { segment: 'core', intent: 'cluster', goal: 'related pieces', data: { center: title, items: concepts.slice(0, 5).map((c, idx) => ({ title: c, detail: anchorOf(teachingSentences[idx + 2] || '', 7) })) } },
+    ];
+    pscenes.push(details[(arcVariant + 3) % 4]);
+  }
 
   if (concepts.length >= 2 || teachingSentences.length >= 4) {
     const closers = [

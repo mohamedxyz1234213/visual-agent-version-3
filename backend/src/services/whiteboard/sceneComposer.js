@@ -22,7 +22,7 @@ import {
   getTemplate,
   getTemplatesByIntent,
 } from './templateLibrary.js';
-import { growBoxesToFitText, fitTextToSlots, pruneEmptyContainers, dropCollidingText, CAPTION_TOP } from './layout.js';
+import { growBoxesToFitText, fitTextToSlots, pruneEmptyContainers, dropCollidingText, applyTemplateEdits, CAPTION_TOP } from './layout.js';
 import { cleanString } from './validator.js';
 
 const CANVAS = { w: 800, h: 500 };
@@ -289,6 +289,13 @@ function composeScene(pscene, ctx, used, seed) {
   const templateId = chosen ? chosen.id : (pscene.template || 'definition_spotlight');
   used.add(templateId);
 
+  // AI "pick + patch": apply optional REMOVE/ADD edits the AI requested on this
+  // scene. Edits go in BEFORE the fit passes below, so anything added into free
+  // space is re-validated and can never reintroduce an overlap.
+  if (pscene.add || pscene.remove) {
+    fragments = applyTemplateEdits(fragments, { add: pscene.add, remove: pscene.remove });
+  }
+
   // Make every drawn text fit its slot so it can never spill onto a neighbour.
   // First GROW boxes so the full sentence shows (no "…") — stretching the
   // container taller and reflowing the column below it — then run the fit pass
@@ -388,7 +395,13 @@ export function composeStoryboard(pscenes, ctx, durationSeconds) {
     // The unit's time window scales with the amount of `say` text it carries —
     // a heavily-explained unit earns more screen time, a quick one doesn't
     // drag. We weight by the caption slot the unit owns, not raw fragment count.
-    const captions = splitCaption(board.say);
+    const captions = teacherVoiceCaptions(splitCaption(board.say), {
+      segment: seg,
+      topic: ctx.title || ctx.lessonTitle || '',
+      boardIndex: bi,
+      isFirstBoard: bi === 0,
+      seed: seedBase,
+    });
     const captionByUnit = distributeCaptions(units, captions);
 
     // Sum total time the board needs = sum of (per-unit time) + connector gaps.
@@ -790,6 +803,90 @@ function splitCaption(say) {
     flush();
   }
   return chunks.slice(0, 24);
+}
+
+// ── Teacher-voice framing ────────────────────────────────────────────────────
+// The captions ARE the spoken narration (a TTS voice reads them aloud later),
+// so the FIRST clause of each board should sound like a teacher TALKING the
+// student into the beat — "first of all we are going to talk about…",
+// "now let's see how it works" — instead of opening cold with a textbook
+// sentence. We prepend a short, segment-appropriate spoken lead-in, varied
+// deterministically by board index so the same opener never repeats back to
+// back. Captions that ALREADY open conversationally (the AI path usually does)
+// are left untouched, so we only ever improve the flat fallback narration.
+const TEACHER_OPENERS = {
+  open: [
+    'First of all, let’s talk about {t}.',
+    'Okay, so let’s start with {t}.',
+    'Let’s begin by understanding {t}.',
+    'To kick things off, let’s look at {t}.',
+  ],
+  hook: [
+    'Here’s something worth thinking about.',
+    'Let’s start with a simple question.',
+    'Picture this for a moment.',
+  ],
+  define: [
+    'So what exactly does this mean?',
+    'Let’s pin down what this really is.',
+    'Here’s the key idea.',
+  ],
+  core: [
+    'Now, here’s the main idea.',
+    'Let’s get to the heart of it.',
+    'This is the part that really matters.',
+  ],
+  mechanism: [
+    'Now let’s see how this actually works.',
+    'Here’s what’s happening, step by step.',
+    'Let’s walk through how it works.',
+  ],
+  example: [
+    'Let’s look at this in practice.',
+    'Here’s a concrete example.',
+    'Let’s make this real.',
+  ],
+  compare: [
+    'Now let’s put these side by side.',
+    'Let’s see how these two differ.',
+  ],
+  reinforcement: [
+    'Let’s lock this in.',
+    'Here’s the pattern to remember.',
+  ],
+  recap: [
+    'So, to wrap things up,',
+    'Let’s quickly recap what we’ve covered.',
+    'Putting it all together,',
+  ],
+};
+
+function startsConversationally(s) {
+  return /^(first|okay|ok\b|so\b|now\b|let'?s|let’s|here'?s|here’s|think|imagine|notice|remember|to (recap|wrap|sum)|next\b|finally|alright|right,|well,|picture|consider|say\b|suppose)/i.test(
+    String(s || '').trim()
+  );
+}
+
+function teacherVoiceCaptions(captions, { segment, topic, boardIndex, isFirstBoard, seed }) {
+  if (!captions || !captions.length) return captions || [];
+  const first = String(captions[0] || '').trim();
+  if (!first || startsConversationally(first)) return captions;
+  const segKey = isFirstBoard ? 'open' : (TEACHER_OPENERS[segment] ? segment : 'core');
+  const pool = TEACHER_OPENERS[segKey] || TEACHER_OPENERS.core;
+  const pick = pool[Math.abs((seed || 0) + boardIndex) % pool.length];
+  const t = String(topic || 'this').replace(/\s+/g, ' ').trim() || 'this';
+  const lead = pick.replace('{t}', t);
+  const out = captions.slice();
+  // A lead that ends a sentence (. ! ?) keeps the original clause as its own
+  // capitalised sentence. A lead that trails off (comma / colon / dash, or no
+  // punctuation) flows straight into the clause, so we lower-case its first
+  // letter — "So, to wrap up, the energy…" not "…up, The energy…".
+  if (/[.!?]$/.test(lead)) {
+    out[0] = `${lead} ${first}`;
+  } else {
+    out[0] = `${lead} ${first.charAt(0).toLowerCase()}${first.slice(1)}`;
+  }
+  return out;
 }
 
 /**

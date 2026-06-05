@@ -186,9 +186,16 @@ function header(ctx, accent) {
     out.push(circle(W / 2 + 150, 58, 3, { fill: accent, stroke: accent }));
   }
   if (ctx.subtitle) {
-    out.push(txt(ctx.subtitle, W / 2, 82, { fontSize: 14, fontWeight: '500', color: '#64748b', textAnchor: 'middle', fontStyle: 'italic' }));
+    out.push(tagRole(txt(ctx.subtitle, W / 2, 82, { fontSize: 14, fontWeight: '500', color: '#64748b', textAnchor: 'middle', fontStyle: 'italic' }), 'subtitle'));
   }
   return out;
+}
+
+// Tag a fragment with a removable ROLE so the AI's `remove:[...]` patch can
+// delete it precisely (instead of the old heuristic guess). Mutates + returns.
+function tagRole(frag, role) {
+  if (frag) frag._role = role;
+  return frag;
 }
 
 // Read a slot item's display text whether it's a string or a {title,text,...}.
@@ -214,6 +221,37 @@ function anchor(text, maxWords = 7) {
   const words = displayText(text).replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
   if (words.length <= maxWords) return words.join(' ');
   return words.slice(0, maxWords).join(' ');
+}
+
+// DETAIL / BODY text at a fixed baseline (x,y) — the bespoke templates' detail
+// lines used to route through anchor(), which HARD-DROPPED words with no
+// recovery (the "text collapses to the first few words" bug the user hit). This
+// keeps the raw render gate-safe by clamping the VISIBLE text to the slot, but
+// stashes the FULL sentence in `_fullText` so the composer's grow-the-box pass
+// (layout.growBoxesToFitText) stretches the container and restores it — exactly
+// how drawCell's fitText already behaves. Pass `maxWidth` (the box's inner
+// width) and `maxLines` (rows the slot can hold) so the clamp matches geometry.
+function bodyTxt(content, x, y, opts = {}) {
+  const text = displayText(content).replace(/\s+/g, ' ').trim();
+  if (!text) return null;
+  const fontSize = opts.fontSize ?? 11;
+  const maxWidth = opts.maxWidth ?? 180;
+  const maxLines = opts.maxLines ?? 2;
+  const cpl = Math.max(8, Math.floor(maxWidth / (fontSize * 0.55)));
+  let display = text;
+  const needLines = wrapLineCount(text, maxWidth, fontSize);
+  if (needLines > maxLines) display = clampChars(text, maxLines * cpl);
+  const frag = txt(display, x, y, {
+    fontSize,
+    color: opts.color ?? '#64748b',
+    fontWeight: opts.fontWeight ?? '500',
+    textAnchor: opts.textAnchor ?? 'middle',
+    fontStyle: opts.fontStyle,
+    maxWidth,
+    maxLines,
+  });
+  if (frag && display !== text) frag._fullText = text;
+  return frag;
 }
 
 // Count how many lines `text` wraps into at `fs` within `maxWidth`. Mirrors the
@@ -415,7 +453,10 @@ define({
     const term = anchor(d.headline || ctx.title, 4);
     s.push(rect(260, 150, 480, 90, { stroke: p.accent, strokeWidth: 2, fill: p.soft }));
     s.push(txt(term, 280, 185, { fontSize: 22, fontWeight: '800', color: p.accent }));
-    if (d.definition) s.push(txt(anchor(d.definition, 9), 280, 218, { fontSize: 14, color: '#334155', fontWeight: '500' }));
+    // Full definition, wrapped to the box width. growBoxesToFitText stretches
+    // the box (and pushes the points below it down) so the WHOLE sentence shows
+    // instead of collapsing to the first few words.
+    if (d.definition) s.push(txt(d.definition, 280, 218, { fontSize: 14, color: '#334155', fontWeight: '500', maxWidth: 448, maxLines: 6 }));
     const pts = (d.points || []).slice(0, 3);
     pts.forEach((pt, i) => {
       const y = 280 + i * 58;
@@ -471,7 +512,7 @@ define({
       s.push(rect(x, y, boxW, boxH, { stroke: p.accent, strokeWidth: 2, fill: i % 2 ? '#ffffff' : p.soft }));
       s.push(badge(String(i + 1), x + 16, y - 14, { bg: p.accent }));
       s.push(txt(anchor(st.title || st, 5), x + boxW / 2, y + 42, { fontSize: 14, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
-      if (st.detail) s.push(txt(anchor(st.detail, 6), x + boxW / 2, y + 66, { fontSize: 11, color: '#64748b', textAnchor: 'middle' }));
+      if (st.detail) { const bt = bodyTxt(st.detail, x + boxW / 2, y + 66, { maxWidth: boxW - 16, maxLines: 2 }); if (bt) s.push(bt); }
       if (i < steps.length - 1) s.push(arrow([x + boxW + 4, y + boxH / 2], [x + boxW + gap - 4, y + boxH / 2], { color: p.accent, strokeWidth: 2.5 }));
     });
     if (d.outcome) s.push(callout(anchor(d.outcome, 12), 120, 370, 560));
@@ -504,7 +545,7 @@ define({
       s.push(line([cx, branchY], [cx, kidY], { color: p.accent, strokeWidth: 2 }));
       s.push(rect(x, kidY, boxW, boxH, { stroke: p.accent, strokeWidth: 1.8 }));
       s.push(txt(anchor(kid.title || kid, 4), cx, kidY + 34, { fontSize: 14, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
-      if (kid.detail) s.push(txt(anchor(kid.detail, 5), cx, kidY + 60, { fontSize: 11, color: '#64748b', textAnchor: 'middle' }));
+      if (kid.detail) { const bt = bodyTxt(kid.detail, cx, kidY + 60, { maxWidth: boxW - 14, maxLines: 2 }); if (bt) s.push(bt); }
     });
     return s;
   },
@@ -531,7 +572,7 @@ define({
       s.push(line([x, y], [x, up ? y - 40 : y + 40], { color: p.accent, strokeWidth: 1.5, dashed: true }));
       s.push(rect(x - 78, labelY, 156, 56, { stroke: p.accent, strokeWidth: 1.6, fill: p.soft }));
       s.push(txt(anchor(ev.label || ev.title || ev, 5), x, labelY + 24, { fontSize: 13, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
-      if (ev.detail) s.push(txt(anchor(ev.detail, 5), x, labelY + 44, { fontSize: 10, color: '#64748b', textAnchor: 'middle' }));
+      if (ev.detail) { const bt = bodyTxt(ev.detail, x, labelY + 44, { fontSize: 10, maxWidth: 150, maxLines: 2 }); if (bt) s.push(bt); }
     });
     return s;
   },
@@ -554,7 +595,7 @@ define({
       s.push(rect(x, y, boxW, boxH, { stroke: isLast ? '#dc2626' : p.accent, strokeWidth: 2, fill: isLast ? '#fee2e2' : p.soft }));
       s.push(badge(i === 0 ? 'cause' : isLast ? 'effect' : 'leads to', x + 14, y - 14, { bg: isLast ? '#dc2626' : p.accent }));
       s.push(txt(anchor(lk.title || lk, 6), x + boxW / 2, y + 50, { fontSize: 14, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
-      if (lk.detail) s.push(txt(anchor(lk.detail, 7), x + boxW / 2, y + 76, { fontSize: 11, color: '#64748b', textAnchor: 'middle' }));
+      if (lk.detail) { const bt = bodyTxt(lk.detail, x + boxW / 2, y + 76, { maxWidth: boxW - 16, maxLines: 2 }); if (bt) s.push(bt); }
       if (!isLast) s.push(arrow([x + boxW + 2, y + boxH / 2], [x + boxW + gap - 2, y + boxH / 2], { color: '#dc2626', strokeWidth: 2.5, label: '→' }));
     });
     if (d.takeaway) s.push(callout(anchor(d.takeaway, 12), 120, 370, 560, { bg: '#ecfdf5', stroke: p.accent, color: '#065f46' }));
@@ -723,7 +764,7 @@ define({
       const y = 170 + row * 110;
       s.push(rect(x, y, 160, 76, { stroke: p.accent, strokeWidth: 1.6, fill: p.soft }));
       s.push(txt(anchor(lb.title || lb, 4), x + 12, y + 28, { fontSize: 13, fontWeight: '700', color: p.accent }));
-      if (lb.detail) s.push(txt(anchor(lb.detail, 6), x + 12, y + 52, { fontSize: 11, color: '#64748b' }));
+      if (lb.detail) { const bt = bodyTxt(lb.detail, x + 12, y + 52, { textAnchor: 'start', maxWidth: 136, maxLines: 2 }); if (bt) s.push(bt); }
       const tx = right ? 600 : 200;
       const ty = y + 38;
       s.push(arrow(right ? [tx, ty] : [200, ty], right ? [560, 250] : [x + 160, ty], { color: p.accent, strokeWidth: 1.5 }));
@@ -774,7 +815,7 @@ define({
       s.push(txt(String(i + 1), 110, y + 32, { fontSize: 18, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
       s.push(rect(150, y, 560, 56, { stroke: p.accent, strokeWidth: 1.4, fill: i % 2 ? '#ffffff' : p.soft }));
       s.push(txt(anchor(it.title || it, 12), 168, y + 26, { fontSize: 14, fontWeight: '700', color: '#1e293b' }));
-      if (it.detail) s.push(txt(anchor(it.detail, 12), 168, y + 46, { fontSize: 11, color: '#64748b' }));
+      if (it.detail) { const bt = bodyTxt(it.detail, 168, y + 46, { textAnchor: 'start', maxWidth: 528, maxLines: 1 }); if (bt) s.push(bt); }
       if (i < items.length - 1) s.push(line([110, y + 50], [110, y + 70], { color: p.accent, strokeWidth: 2, dashed: true }));
     });
     return s;
@@ -800,8 +841,8 @@ define({
       s.push(rect(x, 220, boxW, 6, { fill: p.accent, stroke: p.accent, rx: 0 }));
       s.push(txt(anchor(cd.title || cd, 5), x + boxW / 2, 256, { fontSize: 15, fontWeight: '800', color: p.accent, textAnchor: 'middle' }));
       if (cd.detail) {
-        const words = anchor(cd.detail, 14);
-        s.push(txt(words, x + 16, 288, { fontSize: 12, color: '#475569', fontWeight: '500' }));
+        const bt = bodyTxt(cd.detail, x + 16, 288, { fontSize: 12, color: '#475569', textAnchor: 'start', maxWidth: boxW - 28, maxLines: 5 });
+        if (bt) s.push(bt);
       }
     });
     return s;
@@ -846,7 +887,7 @@ define({
       const x = x0 + c * cw, y = y0 + r * ch;
       s.push(rect(x, y, cw, ch, { stroke: p.accent, strokeWidth: 1.5, fill: colors[idx] }));
       s.push(txt(anchor(cell.title || '', 4), x + cw / 2, y + 32, { fontSize: 14, fontWeight: '800', color: '#1e293b', textAnchor: 'middle' }));
-      if (cell.detail) s.push(txt(anchor(cell.detail, 8), x + cw / 2, y + 64, { fontSize: 11, color: '#475569', textAnchor: 'middle' }));
+      if (cell.detail) { const bt = bodyTxt(cell.detail, x + cw / 2, y + 64, { color: '#475569', maxWidth: cw - 18, maxLines: 3 }); if (bt) s.push(bt); }
     }
     if (d.x_label) s.push(txt(anchor(d.x_label, 4), x0 + cw, y0 + ch * 2 + 24, { fontSize: 12, fontWeight: '700', color: p.accent, textAnchor: 'middle' }));
     if (d.y_label) s.push(txt(anchor(d.y_label, 4), x0 - 16, y0 + ch, { fontSize: 12, fontWeight: '700', color: p.accent, textAnchor: 'end' }));
@@ -897,7 +938,7 @@ define({
       s.push(rect(x, y, cw, ch, { stroke: p.accent, strokeWidth: 1.6, fill: '#ffffff' }));
       s.push(rect(x, y, 8, ch, { fill: p.accent, stroke: p.accent, rx: 0 }));
       s.push(txt(anchor(tm.term || tm.title || tm, 4), x + 24, y + 36, { fontSize: 16, fontWeight: '800', color: p.accent }));
-      if (tm.definition || tm.detail) s.push(txt(anchor(tm.definition || tm.detail, 14), x + 24, y + 70, { fontSize: 12, color: '#475569', fontWeight: '500' }));
+      if (tm.definition || tm.detail) { const bt = bodyTxt(tm.definition || tm.detail, x + 24, y + 70, { fontSize: 12, textAnchor: 'start', maxWidth: cw - 40, maxLines: 3 }); if (bt) s.push(bt); }
     });
     return s;
   },
@@ -941,7 +982,7 @@ define({
       const inset = i * 24;
       s.push(rect(150 + inset, y, 500 - inset * 2, lh, { stroke: p.accent, strokeWidth: 1.8, fill: i % 2 ? p.soft : '#ffffff' }));
       s.push(txt(anchor(ly.title || ly, 6), W / 2, y + lh / 2 + 2, { fontSize: 14, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
-      if (ly.detail) s.push(txt(anchor(ly.detail, 6), W / 2, y + lh / 2 + 20, { fontSize: 10, color: '#64748b', textAnchor: 'middle' }));
+      if (ly.detail) { const bt = bodyTxt(ly.detail, W / 2, y + lh / 2 + 20, { fontSize: 10, maxWidth: 460, maxLines: 1 }); if (bt) s.push(bt); }
     });
     s.push(txt('top', 690, 130, { fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }));
     s.push(txt('base', 690, 116 + (n - 1) * (lh + 12) + lh - 10, { fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }));
@@ -1025,7 +1066,7 @@ define({
       s.push(rect(400, y, 360, 72, { stroke: p.accent, strokeWidth: 1.6, fill: i % 2 ? '#ffffff' : p.soft }));
       s.push(badge(String(i + 1), 414, y - 12, { bg: p.accent }));
       s.push(txt(anchor((an.title || an), 5), 420, y + 30, { fontSize: 14, fontWeight: '700', color: p.accent }));
-      if (an.detail) s.push(txt(anchor(an.detail, 8), 420, y + 54, { fontSize: 11, color: '#64748b' }));
+      if (an.detail) { const bt = bodyTxt(an.detail, 420, y + 54, { textAnchor: 'start', maxWidth: 336, maxLines: 2 }); if (bt) s.push(bt); }
     });
     return s;
   },
@@ -1249,7 +1290,7 @@ define({
       const [x, y] = positions[i];
       s.push(rect(x, y, 160, 70, { stroke: p.accent, strokeWidth: 1.6, fill: p.soft }));
       s.push(txt(anchor(co.title || co, 5), x + 80, y + 28, { fontSize: 13, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
-      if (co.detail) s.push(txt(anchor(co.detail, 6), x + 80, y + 50, { fontSize: 10, color: '#64748b', textAnchor: 'middle' }));
+      if (co.detail) { const bt = bodyTxt(co.detail, x + 80, y + 50, { fontSize: 10, maxWidth: 146, maxLines: 1 }); if (bt) s.push(bt); }
       s.push(arrow([x + 80, y < cy ? y + 70 : y], [cx + (x < cx ? -90 : 90), cy + (y < cy ? -20 : 20)], { color: p.accent, strokeWidth: 1.4 }));
     });
     return s;
@@ -1316,7 +1357,7 @@ define({
       s.push(rect(x, y, tw, 8, { fill: acc, stroke: acc, rx: 0 }));
       s.push(badge(String(i + 1), x + 16, y - 10, { bg: acc }));
       s.push(txt(anchor(tl.title || tl, 6), x + 20, y + 44, { fontSize: 15, fontWeight: '800', color: acc }));
-      if (tl.detail) s.push(txt(anchor(tl.detail, 12), x + 20, y + 76, { fontSize: 12, color: '#475569', fontWeight: '500' }));
+      if (tl.detail) { const bt = bodyTxt(tl.detail, x + 20, y + 76, { fontSize: 12, color: '#475569', textAnchor: 'start', maxWidth: tw - 36, maxLines: 3 }); if (bt) s.push(bt); }
     });
     return s;
   },
@@ -1657,7 +1698,7 @@ define({
       s.push(circle(x + boxW / 2, y - 20, 20, { fill: p.accent, stroke: p.accent }));
       s.push(txt(String(i + 1), x + boxW / 2, y - 14, { fontSize: 16, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
       s.push(txt(anchor(st.title || st, 5), x + boxW / 2, y + 40, { fontSize: 14, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
-      if (st.detail) s.push(txt(anchor(st.detail, 6), x + boxW / 2, y + 78, { fontSize: 11, color: '#64748b', fontWeight: '500', textAnchor: 'middle', maxWidth: boxW - 24 }));
+      if (st.detail) { const bt = bodyTxt(st.detail, x + boxW / 2, y + 78, { maxWidth: boxW - 24, maxLines: 2 }); if (bt) s.push(bt); }
       if (i < steps.length - 1) s.push(arrow([x + boxW, y + boxH / 2], [x + boxW + gap, y + boxH / 2 + 20], { color: p.accent, strokeWidth: 2.5 }));
     });
     return s;
@@ -1702,7 +1743,7 @@ define({
       s.push(rect(x, y, boxW, boxH, { stroke: p.accent, strokeWidth: 1.6, fill: '#ffffff' }));
       s.push(circle(x + 20, y + 20, 12, { fill: p.accent, stroke: p.accent }));
       s.push(txt(anchor(ft.title || ft, 5), x + 20, y + 50, { fontSize: 14, fontWeight: '700', color: '#1e293b' }));
-      if (ft.detail) s.push(txt(anchor(ft.detail, 10), x + 20, y + 76, { fontSize: 11, color: '#64748b', fontWeight: '500' }));
+      if (ft.detail) { const bt = bodyTxt(ft.detail, x + 20, y + 76, { textAnchor: 'start', maxWidth: boxW - 36, maxLines: 2 }); if (bt) s.push(bt); }
     });
     return s;
   },
@@ -1991,7 +2032,7 @@ define({
       s.push(rect(x, y, boxW, 34, { fill: p.accent, stroke: p.accent, rx: 14 }));
       s.push(txt(String.fromCharCode(65 + i), x + 18, y + 23, { fontSize: 14, fontWeight: '800', color: '#ffffff' }));
       s.push(txt(anchor(itemText(ly), 4), x + boxW / 2, y + 70, { fontSize: 14, fontWeight: '800', color: '#1e293b', textAnchor: 'middle' }));
-      if (ly && ly.detail) s.push(txt(anchor(ly.detail, 6), x + boxW / 2, y + 98, { fontSize: 11, color: '#64748b', textAnchor: 'middle' }));
+      if (ly && ly.detail) { const bt = bodyTxt(ly.detail, x + boxW / 2, y + 98, { maxWidth: boxW - 14, maxLines: 2 }); if (bt) s.push(bt); }
       if (i < n - 1) s.push(arrow([x + boxW + 3, y + boxH / 2], [x + boxW + gap - 3, y + boxH / 2], { color: p.accent, strokeWidth: 2.5 }));
     });
     return s;
@@ -2198,7 +2239,7 @@ define({
       s.push(rect(x, y, cardW, cardH, { stroke: isLast ? '#16a34a' : p.accent, strokeWidth: 2, fill: isLast ? '#dcfce7' : p.soft }));
       s.push(badge(isLast ? 'outcome' : String(i + 1), x + 14, y - 12, { bg: isLast ? '#16a34a' : p.accent }));
       s.push(txt(anchor(itemText(ev), 7), x + cardW / 2, y + (ev && ev.detail ? 26 : 33), { fontSize: 13, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
-      if (ev && ev.detail) s.push(txt(anchor(ev.detail, 8), x + cardW / 2, y + 44, { fontSize: 11, color: '#64748b', textAnchor: 'middle' }));
+      if (ev && ev.detail) { const bt = bodyTxt(ev.detail, x + cardW / 2, y + 44, { maxWidth: cardW - 16, maxLines: 2 }); if (bt) s.push(bt); }
       if (!isLast) s.push(arrow([W / 2, y + cardH], [W / 2, y + cardH + 24], { color: '#dc2626', strokeWidth: 2.5 }));
       y += cardH + 24;
     });
@@ -2223,7 +2264,7 @@ define({
       const x = x0 + i * segW;
       s.push(rect(x, bandY, segW - 4, bandH, { stroke: strokes[i % 4], strokeWidth: 2, fill: fills[i % 4], rx: 8 }));
       s.push(txt(anchor(itemText(er), 4), x + (segW - 4) / 2, bandY + 34, { fontSize: 14, fontWeight: '800', color: '#1e293b', textAnchor: 'middle' }));
-      if (er && (er.detail || er.range)) s.push(txt(anchor(er.detail || er.range, 5), x + (segW - 4) / 2, bandY + 58, { fontSize: 11, color: '#475569', textAnchor: 'middle' }));
+      if (er && (er.detail || er.range)) { const bt = bodyTxt(er.detail || er.range, x + (segW - 4) / 2, bandY + 58, { color: '#475569', maxWidth: segW - 18, maxLines: 2 }); if (bt) s.push(bt); }
       const note = er && (er.note || er.text);
       if (note) s.push(txt(anchor(note, 7), x + (segW - 4) / 2, bandY + bandH + 28, { fontSize: 11, color: '#64748b', textAnchor: 'middle' }));
     });
@@ -2266,7 +2307,7 @@ define({
     const s = [...header(ctx, p.accent)];
     s.push(rect(60, 112, 680, 78, { stroke: p.accent, strokeWidth: 2, fill: p.soft }));
     s.push(txt(anchor(d.headline || d.term || ctx.title, 5), 84, 144, { fontSize: 21, fontWeight: '800', color: p.accent }));
-    if (d.definition) s.push(txt(anchor(d.definition, 11), 84, 172, { fontSize: 14, fontWeight: '500', color: '#334155' }));
+    if (d.definition) s.push(txt(d.definition, 84, 172, { fontSize: 14, fontWeight: '500', color: '#334155', maxWidth: 636, maxLines: 5 }));
     s.push(txt(anchor(d.why_title || 'Why it matters', 3), 80, 222, { fontSize: 14, fontWeight: '800', color: '#1e293b' }));
     const why = (d.points || d.why || d.items || []).slice(0, 3).map(itemText);
     why.forEach((w, i) => {
@@ -2876,6 +2917,72 @@ const SKELETONS = {
     const total = cw * n + 26 * (n - 1), x0 = CB_MIDX - total / 2;
     return Array.from({ length: n }, (_, i) => mkCell(x0 + i * (cw + 26), 300, cw, ch));
   },
+  // ── Expansion skeletons (overlap-safe by construction) ─────────────────────
+  grid4(n) {
+    // four-column tile grid (up to 8 compact cells)
+    n = Math.max(1, Math.min(n, 8));
+    const cols = 4, rows = Math.ceil(n / cols), gx = 18, gy = 20;
+    const w = Math.min(168, (CB_W - gx * (cols - 1)) / cols);
+    const h = Math.min(120, (CB_BOT - CB_TOP - gy * (rows - 1)) / rows);
+    const total = w * cols + gx * (cols - 1), x0 = CB_MIDX - total / 2;
+    return Array.from({ length: n }, (_, i) => {
+      const c = i % cols, r = Math.floor(i / cols);
+      return mkCell(x0 + c * (w + gx), CB_TOP + r * (h + gy), w, h);
+    });
+  },
+  bigRow(n) {
+    // single wide row of up to 5 cells (row caps at 4)
+    n = Math.max(1, Math.min(n, 5));
+    const gap = 18, h = 124, y = CB_MIDY - h / 2;
+    const w = Math.min(150, (CB_W - gap * (n - 1)) / n);
+    const total = w * n + gap * (n - 1), x0 = CB_MIDX - total / 2;
+    return Array.from({ length: n }, (_, i) => mkCell(x0 + i * (w + gap), y, w, h));
+  },
+  pillars(n) {
+    // tall vertical columns standing side by side
+    n = Math.max(2, Math.min(n, 5));
+    const gap = 24, h = 298, y = 134;
+    const w = Math.min(150, (CB_W - gap * (n - 1)) / n);
+    const total = w * n + gap * (n - 1), x0 = CB_MIDX - total / 2;
+    return Array.from({ length: n }, (_, i) => mkCell(x0 + i * (w + gap), y, w, h));
+  },
+  stackedBars(n) {
+    // bar-chart columns of varied height, all anchored to a common baseline
+    n = Math.max(2, Math.min(n, 6));
+    const gap = 20, baseY = CB_BOT, maxH = 300;
+    const w = Math.min(110, (CB_W - gap * (n - 1)) / n);
+    const total = w * n + gap * (n - 1), x0 = CB_MIDX - total / 2;
+    return Array.from({ length: n }, (_, i) => {
+      const h = Math.round(maxH * (0.45 + 0.55 * (((i * 2 + 1) % (n + 1)) + 1) / (n + 1)));
+      return mkCell(x0 + i * (w + gap), baseY - h, w, h);
+    });
+  },
+  crossHub() {
+    // four cardinal cells around an empty centre (N / E / S / W)
+    const w = 184, h = 80, cx = CB_MIDX, cy = CB_MIDY;
+    return [
+      mkCell(cx - w / 2, CB_TOP, w, h),       // N
+      mkCell(CB_RIGHT - w, cy - h / 2, w, h), // E
+      mkCell(cx - w / 2, CB_BOT - h, w, h),   // S
+      mkCell(CB_LEFT, cy - h / 2, w, h),      // W
+    ];
+  },
+  timelineBand(n) {
+    // markers strung along a central rule, alternating just above / below it
+    n = Math.max(2, Math.min(n, 5));
+    const w = 140, h = 72, axis = CB_MIDY;
+    const step = (CB_W - w) / Math.max(n - 1, 1);
+    return Array.from({ length: n }, (_, i) => mkCell(CB_LEFT + i * step, (i % 2 ? axis + 22 : axis - h - 22), w, h));
+  },
+  terraces(n) {
+    // left-aligned descending bands (a left-anchored funnel)
+    n = Math.max(1, Math.min(n, 4));
+    const gap = 16, h = Math.min(74, (CB_BOT - CB_TOP - gap * (n - 1)) / n);
+    return Array.from({ length: n }, (_, i) => {
+      const w = 600 - i * 118;
+      return mkCell(CB_LEFT, CB_TOP + i * (h + gap), w, h);
+    });
+  },
 };
 
 // Skeletons whose first cell list excludes a separately-drawn parent/hub.
@@ -2945,16 +3052,17 @@ function connectCells(cells, style, color) {
 // Small decorative flourishes (all gate-safe: lines / tiny dots / arrows only).
 function decoration(kind, p) {
   const a = p.accent;
+  const tag = (arr) => arr.map((f) => tagRole(f, 'decoration'));
   switch (kind) {
-    case 'cornerBrackets': return [
+    case 'cornerBrackets': return tag([
       line([CB_LEFT - 4, CB_TOP + 18], [CB_LEFT - 4, CB_TOP - 2], { color: a, strokeWidth: 2 }),
       line([CB_LEFT - 4, CB_TOP - 2], [CB_LEFT + 16, CB_TOP - 2], { color: a, strokeWidth: 2 }),
       line([CB_RIGHT + 4, CB_BOT - 18], [CB_RIGHT + 4, CB_BOT + 2], { color: a, strokeWidth: 2 }),
       line([CB_RIGHT + 4, CB_BOT + 2], [CB_RIGHT - 16, CB_BOT + 2], { color: a, strokeWidth: 2 }),
-    ];
-    case 'leftRail': return [line([CB_LEFT - 10, CB_TOP], [CB_LEFT - 10, CB_BOT], { color: a, strokeWidth: 3 })];
-    case 'baseRule': return [line([CB_LEFT, CB_BOT + 8], [CB_RIGHT, CB_BOT + 8], { color: a, strokeWidth: 1.5, dashed: true })];
-    case 'dotGrid': { const out = []; for (let gx = 0; gx < 3; gx++) for (let gy = 0; gy < 2; gy++) out.push(circle(CB_LEFT + 12 + gx * 8, CB_TOP + 4 + gy * 8, 1.6, { fill: a, stroke: a })); return out; }
+    ]);
+    case 'leftRail': return tag([line([CB_LEFT - 10, CB_TOP], [CB_LEFT - 10, CB_BOT], { color: a, strokeWidth: 3 })]);
+    case 'baseRule': return tag([line([CB_LEFT, CB_BOT + 8], [CB_RIGHT, CB_BOT + 8], { color: a, strokeWidth: 1.5, dashed: true })]);
+    case 'dotGrid': { const out = []; for (let gx = 0; gx < 3; gx++) for (let gy = 0; gy < 2; gy++) out.push(circle(CB_LEFT + 12 + gx * 8, CB_TOP + 4 + gy * 8, 1.6, { fill: a, stroke: a })); return tag(out); }
     default: return [];
   }
 }
@@ -3236,6 +3344,78 @@ const GEN_RECIPES = [
   { id: 'g_cmp_lane', intent: 'compare', label: 'Compare — criteria rows', skeleton: 'lane', motif: 'alt', palette: 2 },
   { id: 'g_time_pyramid', intent: 'timeline', label: 'Timeline — eras stacked', skeleton: 'pyramid', motif: 'soft', palette: 6 },
 ];
+
+// =============================================================================
+// EXPANSION GENERATOR — stamp out the rest of the 500-template library.
+// Instead of hand-writing hundreds more recipe literals (error-prone), we
+// deterministically combine each intent's suitable skeletons with the motif ×
+// palette × decor space. Every id is unique and stable (derived from the
+// combo), and because each skeleton already computes overlap-free cells the
+// whole batch is collision-free by construction — verified by the overlap gate.
+// =============================================================================
+(() => {
+  // Skeletons that read as an ORDERED sequence get a connector by default.
+  const ORDERED = new Set(['row', 'bigRow', 'lane', 'zigzag', 'staircase', 'railAlt', 'column', 'timelineBand', 'terraces']);
+  // Which layouts make sense for each intent (kept semantically sensible so a
+  // "compare" never renders as a cycle ring, etc.).
+  const INTENT_SKELETONS = {
+    define: ['grid2', 'grid3', 'grid4', 'column', 'fan', 'pyramid', 'splitList', 'quad', 'bigRow', 'crossHub', 'terraces'],
+    compare: ['row', 'grid2', 'quad', 'fan', 'column', 'bigRow', 'pillars', 'crossHub', 'grid4'],
+    process: ['row', 'lane', 'zigzag', 'staircase', 'funnel', 'column', 'railAlt', 'bigRow', 'terraces', 'timelineBand'],
+    hierarchy: ['pyramid', 'teeBranch', 'column', 'grid3', 'funnel', 'terraces', 'grid4', 'fan'],
+    timeline: ['railAlt', 'zigzag', 'staircase', 'lane', 'row', 'timelineBand', 'bigRow'],
+    cause: ['row', 'zigzag', 'teeBranch', 'fan', 'column', 'staircase', 'orbit', 'crossHub'],
+    data: ['grid3', 'grid4', 'lane', 'row', 'grid2', 'column', 'stackedBars', 'pillars', 'quad', 'bigRow'],
+    cluster: ['orbit', 'ring', 'cornerHub', 'grid3', 'crossHub', 'fan', 'grid4'],
+    cycle: ['ring', 'orbit'],
+    example: ['lane', 'column', 'splitList', 'staircase', 'bigRow', 'grid2'],
+    recap: ['lane', 'grid2', 'grid3', 'column', 'pyramid', 'fan', 'bigRow', 'quad'],
+    formula: ['column', 'row', 'grid3', 'grid2', 'lane', 'bigRow'],
+    map: ['splitList', 'cornerHub', 'orbit', 'grid2', 'grid3', 'crossHub', 'quad'],
+  };
+  const MOTIFS = ['white', 'soft', 'alt', 'altSolid', 'deep', 'solid', 'ghost'];
+  const DECORS = [null, 'leftRail', 'cornerBrackets', 'baseRule', 'dotGrid'];
+  const HUBS = ['solid', 'deep', 'soft'];
+  const NPAL = PALETTES.length;
+
+  const existing = new Set(TEMPLATES.map((t) => t.id));
+  const intents = Object.keys(INTENT_SKELETONS);
+  const TARGET = 500;
+  const abbrev = (s) => s.replace(/[^a-z0-9]/gi, '').slice(0, 6).toLowerCase();
+
+  // Round-robin across intents so the library stays balanced as it fills up.
+  let added = 0, guard = 0;
+  // Final library size = bespoke templates already in TEMPLATES + every recipe
+  // in GEN_RECIPES (the hand-written ones + the ones we push here), since each
+  // recipe becomes one template when stamped below.
+  const finalCount = () => TEMPLATES.length + GEN_RECIPES.length;
+  // A wide combo space (skeleton × motif × palette × decor) iterated by an
+  // increasing counter; we skip combos whose id already exists.
+  const counters = Object.fromEntries(intents.map((k) => [k, 0]));
+  while (finalCount() < TARGET && guard < 20000) {
+    for (const intent of intents) {
+      if (finalCount() >= TARGET) break;
+      const sks = INTENT_SKELETONS[intent];
+      const c = counters[intent]++;
+      const sk = sks[c % sks.length];
+      const motif = MOTIFS[Math.floor(c / sks.length) % MOTIFS.length];
+      const palette = (c * 3 + 1) % NPAL;
+      const decor = DECORS[Math.floor(c / (sks.length * 2)) % DECORS.length];
+      const connect = ORDERED.has(sk) ? 'chainArrow' : 'none';
+      const hubMotif = HUBS[c % HUBS.length];
+      const id = `gx_${intent.slice(0, 4)}_${abbrev(sk)}_${motif.slice(0, 4)}_p${palette}${decor ? '_' + abbrev(decor) : ''}${connect !== 'none' ? '_c' : ''}`;
+      if (existing.has(id)) continue;
+      existing.add(id);
+      GEN_RECIPES.push({
+        id, intent, label: `${intent} — ${sk} ${motif}`,
+        skeleton: sk, motif, palette, connect, decor, hubMotif, cap: 6,
+      });
+      added++;
+    }
+    guard++;
+  }
+})();
+
 GEN_RECIPES.forEach(gen);
 
 const BY_ID = new Map(TEMPLATES.map((t) => [t.id, t]));

@@ -136,14 +136,33 @@ function displayText(value) {
 //   LINE    — brief supporting clauses (details, definitions, one-line subs)
 const ANCHOR_MAX = 48;   // keyword anchors
 const LINE_MAX = 90;     // short supporting clauses
+// Prose body fields (definitions, details, descriptions) are rendered into
+// GROWABLE boxes — the template wraps them and `growBoxesToFitText` stretches
+// the container to fit, so we keep the whole sentence instead of chopping it
+// to a fragment. This is what kills the "first few words then nothing" collapse.
+const PROSE_MAX = 240;
 
 const ANCHOR_KEYS = /^(title|label|name|symbol|term|headline|head|caption|tag|key|word|point|step|item)$/i;
 const LINE_KEYS = /^(detail|text|sub|meaning|note|desc|description|content|body|definition|explanation|value|answer)$/i;
+// The subset of LINE keys that carry full explanatory sentences (vs. one-word
+// values / short subs). These get the generous PROSE_MAX cap.
+const PROSE_KEYS = /^(definition|explanation|detail|description|desc|body|content|note|meaning|text)$/i;
 
 function capForKey(key) {
+  if (PROSE_KEYS.test(key)) return PROSE_MAX;
   if (LINE_KEYS.test(key)) return LINE_MAX;
   if (ANCHOR_KEYS.test(key)) return ANCHOR_MAX;
   return ANCHOR_MAX; // unknown drawn keys default to keyword-anchor length
+}
+
+// Clip to `maxLen` chars WITHOUT slicing through a word — back up to the last
+// space so a box never shows "…permeable membrane fro". No ellipsis: the box
+// grows to fit, and `fitTextToSlots` adds an ellipsis only if the band is full.
+function wordClip(s, maxLen) {
+  if (s.length <= maxLen) return s;
+  const cut = s.slice(0, maxLen);
+  const lastSpace = cut.lastIndexOf(' ');
+  return (lastSpace > maxLen * 0.6 ? cut.slice(0, lastSpace) : cut).trim();
 }
 
 function cleanString(value, maxLen = 200) {
@@ -162,8 +181,8 @@ function cleanString(value, maxLen = 200) {
   // "In this lesson we will see that the CPU fetches instructions"), strip
   // the meta segment so what survives is teaching content only.
   const stripped = stripMetaClauses(s).trim();
-  if (stripped && stripped !== s) return stripped.slice(0, maxLen);
-  return s.slice(0, maxLen);
+  if (stripped && stripped !== s) return wordClip(stripped, maxLen);
+  return wordClip(s, maxLen);
 }
 
 // Remove a meta-language clause from the start or middle of a string,
@@ -268,6 +287,115 @@ function cleanArray(arr, maxItems = 8, maxLen = 120, anchor = false) {
     .slice(0, maxItems);
 }
 
+// Allowed modular block kinds the AI can ADD into a template's free space.
+const ADD_KINDS = new Set(['callout', 'note', 'badge', 'arrow', 'figure', 'label', 'highlight', 'svg']);
+// Named fragment categories the AI can REMOVE from a base template.
+const REMOVE_CATEGORIES = new Set(['subtitle', 'decoration', 'background', 'connectors', 'labels']);
+// Pre-built figures an `add:{kind:'figure'}` block may reference.
+const ADD_FIGURES = new Set([
+  'atom', 'dna', 'neuron', 'cell', 'wave', 'gear', 'battery', 'magnet', 'field',
+  'arrow', 'star', 'check', 'cross', 'bulb', 'flask', 'cog', 'lock', 'globe',
+]);
+const TEMPLATE_ID_RE = /^[a-z0-9_]{2,64}$/i;
+
+// Sanitize an AI-supplied SVG path `d` string into a SAFE, normalized path that
+// fits a unit box [0..100, 0..100]. We tokenize into commands + numbers only —
+// any other character (letters outside the command set, parentheses, quotes,
+// angle brackets, `url(...)`, scripts) is dropped, so nothing executable or
+// external can survive. Coordinates are clamped to the unit box; the composer
+// then scales the unit path into the block's measured free region. Returns a
+// normalized `d` string or null if nothing valid remains.
+const PATH_CMDS = new Set('MLHVCSQTAZmlhvcsqtaz'.split(''));
+function sanitizeSvgPath(d) {
+  if (typeof d !== 'string') return null;
+  if (d.length > 1200) d = d.slice(0, 1200);
+  // Keep ONLY path commands, digits, sign, decimal point, comma and spaces.
+  const cleaned = d.replace(/[^MLHVCSQTAZmlhvcsqtaz0-9eE,.\-+\s]/g, ' ');
+  // Tokenize: each command letter, each number.
+  const tokens = cleaned.match(/[MLHVCSQTAZmlhvcsqtaz]|-?\d*\.?\d+(?:[eE][-+]?\d+)?/g);
+  if (!tokens || !tokens.length) return null;
+  const out = [];
+  let nums = 0;
+  for (const tk of tokens) {
+    if (PATH_CMDS.has(tk)) {
+      out.push(tk);
+    } else {
+      const n = Number(tk);
+      if (!Number.isFinite(n)) continue;
+      // Clamp every coordinate into the unit box so the path can never escape
+      // its allotted region (the composer scales 0..100 → free rect).
+      out.push(String(Math.max(0, Math.min(100, n))));
+      nums++;
+      if (nums > 400) break; // cap complexity
+    }
+  }
+  if (!nums) return null;
+  // Must start with a Move; if not, prepend one so the path is well-formed.
+  if (!/^[Mm]/.test(out[0])) out.unshift('M');
+  return out.join(' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Sanitize the optional AI "pick + patch" fields on a scene.
+ * Returns { template?, add?, remove? } — each present only if valid.
+ */
+function cleanTemplateEdit(scene) {
+  const out = {};
+
+  if (typeof scene.template === 'string') {
+    const id = scene.template.trim();
+    if (TEMPLATE_ID_RE.test(id)) out.template = id;
+  }
+
+  if (Array.isArray(scene.add)) {
+    const blocks = [];
+    for (const raw of scene.add) {
+      if (!raw || typeof raw !== 'object') continue;
+      const kind = typeof raw.kind === 'string' ? raw.kind.trim().toLowerCase() : '';
+      if (!ADD_KINDS.has(kind)) continue;
+      const block = { kind };
+      const text = cleanString(raw.text || raw.label || raw.title, 140);
+      if (text) block.text = text;
+      // Optional placement hint: a coarse region the composer maps to free space.
+      if (typeof raw.region === 'string') {
+        const region = raw.region.trim().toLowerCase();
+        if (/^(top|bottom|left|right|center|topleft|topright|bottomleft|bottomright)$/.test(region)) {
+          block.region = region;
+        }
+      }
+      if (kind === 'figure') {
+        const fig = typeof raw.figure === 'string' ? raw.figure.trim().toLowerCase() : '';
+        if (ADD_FIGURES.has(fig)) block.figure = fig;
+      }
+      if (kind === 'arrow' && typeof raw.dir === 'string') {
+        const dir = raw.dir.trim().toLowerCase();
+        if (/^(up|down|left|right)$/.test(dir)) block.dir = dir;
+      }
+      if (kind === 'svg') {
+        const safe = sanitizeSvgPath(raw.path || raw.d);
+        if (safe) block.path = safe;
+      }
+      // A figure/arrow/svg block carries geometry; text-only blocks need text.
+      if (block.text || kind === 'figure' || kind === 'arrow' || (kind === 'svg' && block.path)) blocks.push(block);
+      if (blocks.length >= 4) break;
+    }
+    if (blocks.length) out.add = blocks;
+  }
+
+  if (Array.isArray(scene.remove)) {
+    const cats = [];
+    for (const raw of scene.remove) {
+      if (typeof raw !== 'string') continue;
+      const cat = raw.trim().toLowerCase();
+      if (REMOVE_CATEGORIES.has(cat) && !cats.includes(cat)) cats.push(cat);
+      if (cats.length >= 5) break;
+    }
+    if (cats.length) out.remove = cats;
+  }
+
+  return out;
+}
+
 /**
  * Validate and clean a single board scene.
  * Returns a cleaned scene or null if it's unsalvageable.
@@ -327,7 +455,7 @@ export function validateBoardScene(scene) {
   }
   for (const field of lineSingles) {
     if (scene[field] != null) {
-      const val = cleanString(scene[field], LINE_MAX);
+      const val = cleanString(scene[field], capForKey(field));
       if (val) cleaned[field] = val;
     }
   }
@@ -364,6 +492,17 @@ export function validateBoardScene(scene) {
   }
   if (scene.graph_type) cleaned.graph_type = scene.graph_type;
   if (Array.isArray(scene.plot_points)) cleaned.plot_points = scene.plot_points.slice(0, 24);
+
+  // ---------------------------------------------------------------------------
+  // AI "pick + patch" template editing.
+  // The AI may name a base template by id and request modular edits. We carry
+  // these through as sanitized hints; composeScene resolves/applies them and
+  // re-runs the fit/overlap passes, so a bad edit can never break the board.
+  // ---------------------------------------------------------------------------
+  const tpl = cleanTemplateEdit(scene);
+  if (tpl.template) cleaned.template = tpl.template;
+  if (tpl.add) cleaned.add = tpl.add;
+  if (tpl.remove) cleaned.remove = tpl.remove;
 
   // A scene must have at least SOME content beyond the intent
   const contentKeys = Object.keys(cleaned).filter((k) => !['intent', 'goal', 'title', 'focus'].includes(k));
