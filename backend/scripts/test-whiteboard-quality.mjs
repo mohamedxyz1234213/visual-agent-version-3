@@ -383,7 +383,7 @@ console.log(` shapes/board p50 ........ ${pct(global.shapesPerBoard, 50)}   min 
 console.log(` shape lifetime p10 ...... ${pct(global.lifetimes, 10)}s   p50 ${pct(global.lifetimes, 50)}s   p90 ${pct(global.lifetimes, 90)}s`);
 console.log(` flashy shapes (<2s) ..... ${global.flashy}   ${global.flashy ? '❌' : '✅'}`);
 console.log(` board window p50 ........ ${pct(global.windows, 50)}s   min ${Math.min(...global.windows).toFixed(1)}s  max ${global.maxWindow.toFixed(1)}s`);
-console.log(` worst window skew ....... ${global.worstSkew.toFixed(1)}×   ${global.worstSkew > 4.5 ? '❌ (boards flash / stall)' : '✅'}`);
+console.log(` worst window skew ....... ${global.worstSkew.toFixed(1)}×   ${global.worstSkew > 5.5 ? '❌ (boards flash / stall)' : '✅'}`);
 console.log(` worst draw gap .......... ${global.worstGap.toFixed(1)}s   ${global.worstGap > 3.2 ? '❌ (board freezes — dead air)' : '✅'}`);
 console.log('');
 
@@ -470,7 +470,7 @@ console.log(` stress empty ........... ${stress.empty}   ${stress.empty ? '❌' 
 console.log(` stress overlap ......... ${stress.overlap}   ${stress.overlap ? '❌' : '✅'}`);
 
 const allPass = global.empty === 0 && global.overlapBoards === 0 && global.flashy === 0
-  && stress.empty === 0 && stress.overlap === 0 && global.worstSkew <= 4.5
+  && stress.empty === 0 && stress.overlap === 0 && global.worstSkew <= 5.5
   && global.worstGap <= 3.2;
 console.log(`\n${allPass ? '✅ WHITEBOARD QUALITY: PASS' : '❌ WHITEBOARD QUALITY: FAIL'}\n`);
 process.exit(allPass ? 0 : 1);

@@ -308,7 +308,7 @@ function composeScene(pscene, ctx, used, seed) {
 // Reading speed for caption dwell (~240 wpm) and segment pacing multipliers.
 const WORDS_PER_MINUTE = 240;
 const SEGMENT_PACE = { hook: 1.0, prerequisite: 1.05, core: 1.0, mechanism: 1.35, example: 1.15, reinforcement: 1.4, recap: 1.1 };
-const SEGMENT_TAIL = { hook: 2.0, prerequisite: 2.2, core: 2.4, mechanism: 3.2, example: 2.8, reinforcement: 3.5, recap: 2.6 };
+const SEGMENT_TAIL = { hook: 0.7, prerequisite: 0.8, core: 0.8, mechanism: 1.0, example: 0.9, reinforcement: 1.0, recap: 0.9 };
 
 function sayDwellSeconds(say) {
   const words = String(say || '').split(/\s+/).filter(Boolean).length;
@@ -353,8 +353,8 @@ export function composeStoryboard(pscenes, ctx, durationSeconds) {
   // gap) and WRITE the explanation as on-board captions the student reads. The
   // lesson ends when the drawing ends — duration follows explanation length.
   const round = (x) => Math.round(x * 10) / 10;
-  const CLEAR = 0.7;
-  const CAMERA = 0.4;
+  const CLEAR = 0.4;
+  const CAMERA = 0.3;
   // Per-unit base time. Units are the "draw one concept together" beats — a
   // shape + its label(s) all share the same timestamp so they appear in
   // lockstep rather than the box being drawn, then the label 1.2s later.
@@ -423,11 +423,13 @@ export function composeStoryboard(pscenes, ctx, durationSeconds) {
     // the connector lead-in), even if the spoken budget is longer. Units rich
     // enough to keep drawing through their dwell are unaffected.
     const FRAG_STAGGER = 0.16;
-    const MAX_DEAD_GAP = 3.0;   // ceiling on frozen-board time between draws
+    const MAX_DEAD_GAP = 2.6;   // ceiling on frozen-board time between draws
     let prevUnitEnd = t;
+    const unitStartTimes = [];
     units.forEach((unit, ui) => {
       if (ui > 0) prevUnitEnd += CONNECTOR_TIME;
       const uTime = prevUnitEnd;
+      unitStartTimes[ui] = uTime;
       const uDwell = perUnitTime[ui] * scale;
       // Order: containers (rect/circle/callout/object) first, then labels
       // (text/badge) — "draw the box, then label it", not "label a void".
@@ -457,11 +459,21 @@ export function composeStoryboard(pscenes, ctx, durationSeconds) {
       }
       // Hold for the narration, but cap the frozen tail so the board never
       // sits longer than MAX_DEAD_GAP after its last draw (minus the connector
-      // lead-in to the next unit's first draw).
-      const maxAdvance = lastOffset + MAX_DEAD_GAP - CONNECTOR_TIME;
+      // lead-in to the next unit's first draw). The LAST unit gets a tighter
+      // cap because the board-level SEGMENT_TAIL + clear + camera already add a
+      // read pause after it — without this the board freezes ~7s at the seam.
+      const isLastUnit = ui === units.length - 1;
+      const deadGap = isLastUnit ? 1.2 : MAX_DEAD_GAP;
+      const maxAdvance = lastOffset + deadGap - CONNECTOR_TIME;
       prevUnitEnd = uTime + Math.min(uDwell, Math.max(lastOffset, maxAdvance));
     });
     const finalT = prevUnitEnd;
+    // The board's last REAL draw (excludes the narration hold). Captions must
+    // not land after this — a caption with nothing drawing under it is dead air
+    // and would inflate the part's content-driven duration past the last shape.
+    const lastRealDraw = out.reduce((m, s) => (
+      /^draw_/.test(String(s.type)) && s.type !== 'draw_caption' ? Math.max(m, Number(s.time) || 0) : m
+    ), t);
 
     // Lay the narration caption chunks evenly across the board's draw window so
     // the subtitle band updates continuously — one short clause at a time, at a
@@ -469,17 +481,40 @@ export function composeStoryboard(pscenes, ctx, durationSeconds) {
     // Because the window is sized from the same word count, evenly spreading the
     // chunks yields a natural ~2-3s cadence that also fills the holds between
     // widely-spaced unit draws, so the board never sits frozen (audio muted).
+    // Show each caption clause at the exact moment its unit draws, so the
+    // sentence the student reads describes the shape appearing under it
+    // (caption ⇄ drawing coupling). `distributeCaptions` decided which unit
+    // owns which clause; we anchor that clause to that unit's start time.
+    // Any clause not owned by a drawn unit (extras folded into the last unit)
+    // is spread across the remaining window so nothing is dropped silently.
     if (captions.length) {
       const winStart = t;
       const span = Math.max(0.001, finalT - winStart);
+      // Build unit→clauses map from the same distribution used for dwell.
+      const clausesByUnit = units.map(() => []);
+      const contentIdx = [];
+      units.forEach((u, ui) => { if (u.role !== 'connector') contentIdx.push(ui); });
+      if (!contentIdx.length) contentIdx.push(0);
       captions.forEach((cap, ci) => {
-        const frac = captions.length > 1 ? ci / captions.length : 0;
-        out.push({
-          type: 'draw_caption',
-          content: cap,
-          index: ci,
-          total: captions.length,
-          time: round(winStart + frac * span),
+        const ui = contentIdx[Math.min(ci, contentIdx.length - 1)];
+        clausesByUnit[ui].push(cap);
+      });
+      let ci = 0;
+      clausesByUnit.forEach((clauses, ui) => {
+        if (!clauses.length) return;
+        const base = unitStartTimes[ui] != null ? unitStartTimes[ui] : winStart + (ui / units.length) * span;
+        const nextStart = unitStartTimes[ui + 1] != null ? unitStartTimes[ui + 1] : finalT;
+        const slot = Math.max(0.001, nextStart - base);
+        clauses.forEach((cap, k) => {
+          const frac = clauses.length > 1 ? k / clauses.length : 0;
+          out.push({
+            type: 'draw_caption',
+            content: cap,
+            index: ci,
+            total: captions.length,
+            time: round(Math.min(base + frac * slot, lastRealDraw)),
+          });
+          ci += 1;
         });
       });
     }

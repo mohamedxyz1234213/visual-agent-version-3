@@ -32,15 +32,19 @@ import { SVG_SHAPES } from './svgShapes.js';
 const W = 800;
 const H = 500;
 
-// Curated accent palette — each template picks a coherent set so colors never clash.
+// Curated accent palette — each template picks a coherent set so colors never
+// clash. `accent` is the primary keyline, `soft` the tint fill, `deep` a darker
+// shade for layered headers / ink-on-accent, `glow` a luminous companion for
+// gradients and highlights. (Templates that only read accent/soft/ink keep
+// working unchanged.)
 const PALETTES = [
-  { accent: '#2563eb', soft: '#dbeafe', ink: '#0f172a' }, // blue
-  { accent: '#0f766e', soft: '#ccfbf1', ink: '#0f172a' }, // teal
-  { accent: '#7c3aed', soft: '#ede9fe', ink: '#0f172a' }, // violet
-  { accent: '#ea580c', soft: '#ffedd5', ink: '#0f172a' }, // orange
-  { accent: '#db2777', soft: '#fce7f3', ink: '#0f172a' }, // pink
-  { accent: '#16a34a', soft: '#dcfce7', ink: '#0f172a' }, // green
-  { accent: '#0284c7', soft: '#e0f2fe', ink: '#0f172a' }, // sky
+  { accent: '#2563eb', soft: '#dbeafe', deep: '#1e3a8a', glow: '#60a5fa', ink: '#0f172a' }, // blue
+  { accent: '#0d9488', soft: '#ccfbf1', deep: '#115e59', glow: '#2dd4bf', ink: '#0f172a' }, // teal
+  { accent: '#7c3aed', soft: '#ede9fe', deep: '#5b21b6', glow: '#a78bfa', ink: '#0f172a' }, // violet
+  { accent: '#ea580c', soft: '#ffedd5', deep: '#9a3412', glow: '#fb923c', ink: '#0f172a' }, // orange
+  { accent: '#db2777', soft: '#fce7f3', deep: '#9d174d', glow: '#f472b6', ink: '#0f172a' }, // pink
+  { accent: '#16a34a', soft: '#dcfce7', deep: '#166534', glow: '#4ade80', ink: '#0f172a' }, // green
+  { accent: '#0284c7', soft: '#e0f2fe', deep: '#075985', glow: '#38bdf8', ink: '#0f172a' }, // sky
 ];
 
 // ── small fragment helpers ──────────────────────────────────────────────────
@@ -166,11 +170,19 @@ function shape(name, x, y, w, h) {
 }
 
 // Header builder shared by every template (consistent teacher-style heading).
+// A designed masthead: title, a two-weight accent rule with luminous end-caps,
+// and an optional italic subtitle — all inside the reserved y<92 header band.
 function header(ctx, accent) {
   const out = [];
   if (ctx.title) {
     out.push(txt(ctx.title, W / 2, 44, { fontSize: 25, fontWeight: '800', color: '#0f172a', textAnchor: 'middle' }));
-    out.push(line([W / 2 - 150, 58], [W / 2 + 150, 58], { color: accent, strokeWidth: 3 }));
+    // Two-weight underline: a bold accent core with finer extensions, capped by
+    // a small dot at each end so the rule reads as a crafted divider, not a bar.
+    out.push(line([W / 2 - 70, 58], [W / 2 + 70, 58], { color: accent, strokeWidth: 3.5 }));
+    out.push(line([W / 2 - 150, 58], [W / 2 - 74, 58], { color: accent, strokeWidth: 1.5 }));
+    out.push(line([W / 2 + 74, 58], [W / 2 + 150, 58], { color: accent, strokeWidth: 1.5 }));
+    out.push(circle(W / 2 - 150, 58, 3, { fill: accent, stroke: accent }));
+    out.push(circle(W / 2 + 150, 58, 3, { fill: accent, stroke: accent }));
   }
   if (ctx.subtitle) {
     out.push(txt(ctx.subtitle, W / 2, 82, { fontSize: 14, fontWeight: '500', color: '#64748b', textAnchor: 'middle', fontStyle: 'italic' }));
@@ -289,13 +301,16 @@ function statusMark(ok, cx, cy, size = 30) {
 
 // Side notes panel (light card) with a title and bullet lines, like the
 // reference's "Side A" column. Returns fragments; height auto-fits the bullets.
+// A small accent tab + ruled title give the card a designed, editorial feel.
 function notePanel(title, bullets, x, y, w, accent) {
   const items = (bullets || []).slice(0, 6).map((b) => anchor(itemText(b), 7)).filter(Boolean);
   const h = 52 + items.length * 26;
   const out = [
     rect(x, y, w, h, { fill: '#f8fafc', stroke: accent, strokeWidth: 1.5, rx: 12 }),
+    // accent tab on the left edge of the title row — a magazine-style marker
+    rect(x, y + 12, 5, 22, { fill: accent, stroke: accent, rx: 2 }),
     line([x + 14, y + 38], [x + w - 14, y + 38], { color: accent, strokeWidth: 2 }),
-    txt(anchor(title || 'Notes', 4), x + 16, y + 28, { fontSize: 16, fontWeight: '800', color: accent }),
+    txt(anchor(title || 'Notes', 4), x + 18, y + 28, { fontSize: 16, fontWeight: '800', color: accent }),
   ];
   items.forEach((it, i) => {
     const ly = y + 60 + i * 26;
@@ -774,8 +789,8 @@ define({
     const s = [...header(ctx, p.accent)];
     const cy = 250;
     s.push(rect(300, cy - 70, 200, 140, { stroke: p.accent, strokeWidth: 2.5, fill: p.soft }));
-    s.push(obj('gear', 350, cy - 50, 100, 100, {}));
-    s.push(txt(anchor(d.system || ctx.title, 3), 400, cy + 56, { fontSize: 14, fontWeight: '800', color: p.accent, textAnchor: 'middle' }));
+    s.push(obj('gear', 354, cy - 58, 92, 84, {}));
+    s.push(txt(anchor(d.system || ctx.title, 3), 400, cy + 58, { fontSize: 14, fontWeight: '800', color: p.accent, textAnchor: 'middle' }));
     (d.inputs || []).slice(0, 3).forEach((inp, i) => {
       const y = 150 + i * 70;
       s.push(rect(40, y, 200, 52, { stroke: '#64748b', strokeWidth: 1.5, fill: '#f8fafc' }));
@@ -1290,21 +1305,21 @@ define({
   fill(d, ctx) {
     const p = PALETTES[1];
     const s = [...header(ctx, p.accent)];
-    const cx = W / 2, cy = 280, R = 140;
+    const cx = W / 2, cy = 315, R = 120;
     s.push(circle(cx, cy, R + 10, { fill: 'none', stroke: '#e2e8f0', strokeWidth: 20 }));
     const stages = (d.stages || []).slice(0, 5);
     const n = Math.max(stages.length, 1);
     const arcLen = (2 * Math.PI * R) / n;
     stages.forEach((stg, i) => {
       const ang = (-90 + (360 / n) * i) * (Math.PI / 180);
-      const sx = cx + Math.cos(ang) * (R + 60);
-      const sy = cy + Math.sin(ang) * (R + 60);
+      const sx = cx + Math.cos(ang) * (R + 80);
+      const sy = cy + Math.sin(ang) * (R + 80);
       const dotX = cx + Math.cos(ang) * R;
       const dotY = cy + Math.sin(ang) * R;
       s.push(circle(dotX, dotY, 18, { fill: p.accent, stroke: '#ffffff', strokeWidth: 3 }));
       s.push(txt(String(i + 1), dotX, dotY + 5, { fontSize: 14, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
-      s.push(rect(sx - 70, sy - 24, 140, 48, { stroke: p.accent, strokeWidth: 1.6, fill: p.soft }));
-      s.push(txt(anchor(stg.title || stg, 5), sx, sy + 4, { fontSize: 12, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
+      s.push(rect(sx - 68, sy - 22, 136, 44, { stroke: p.accent, strokeWidth: 1.6, fill: p.soft }));
+      s.push(txt(anchor(stg.title || stg, 4), sx, sy + 4, { fontSize: 12, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
     });
     return s;
   },
@@ -1568,7 +1583,7 @@ define({
       s.push(circle(x + boxW / 2, y - 20, 20, { fill: p.accent, stroke: p.accent }));
       s.push(txt(String(i + 1), x + boxW / 2, y - 14, { fontSize: 16, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
       s.push(txt(anchor(st.title || st, 5), x + boxW / 2, y + 40, { fontSize: 14, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
-      if (st.detail) s.push(txt(anchor(st.detail, 8), x + 12, y + 80, { fontSize: 11, color: '#64748b', fontWeight: '500' }));
+      if (st.detail) s.push(txt(anchor(st.detail, 6), x + boxW / 2, y + 78, { fontSize: 11, color: '#64748b', fontWeight: '500', textAnchor: 'middle', maxWidth: boxW - 24 }));
       if (i < steps.length - 1) s.push(arrow([x + boxW, y + boxH / 2], [x + boxW + gap, y + boxH / 2 + 20], { color: p.accent, strokeWidth: 2.5 }));
     });
     return s;
@@ -1672,7 +1687,7 @@ define({
     const p = PALETTES[4];
     const s = [...header(ctx, p.accent)];
     const deps = (d.dependencies || []).slice(0, 4);
-    const boxW = 160, boxH = 80, gap = 30;
+    const boxW = 150, boxH = 80, gap = 46;
     const x0 = (W - boxW * deps.length - gap * (deps.length - 1)) / 2;
     deps.forEach((dep, i) => {
       const x = x0 + i * (boxW + gap);
@@ -1681,7 +1696,7 @@ define({
       s.push(txt(anchor(dep.title || dep, 4), x + boxW / 2, y + boxH / 2 + 4, { fontSize: 13, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
       if (i < deps.length - 1) {
         s.push(arrow([x + boxW, y + boxH / 2], [x + boxW + gap, y + boxH / 2], { color: p.accent, strokeWidth: 2.5 }));
-        s.push(txt('depends on', x + boxW + gap / 2, y + boxH / 2 - 12, { fontSize: 9, color: '#94a3b8', textAnchor: 'middle', fontStyle: 'italic' }));
+        s.push(txt('needs', x + boxW + gap / 2, y + boxH / 2 - 12, { fontSize: 9, color: '#94a3b8', textAnchor: 'middle', fontStyle: 'italic' }));
       }
     });
     return s;
@@ -2593,8 +2608,556 @@ define({
 });
 
 // =============================================================================
-// PUBLIC API
+// PARAMETRIC LAYOUT ENGINE
+// -----------------------------------------------------------------------------
+// A library of overlap-free layout "skeletons" (row, column, grid, ring, orbit,
+// pyramid, zigzag, staircase, fan, rail …) combined with node "motifs" (soft,
+// solid, deep, ghost, alt) and the 7 palettes. Each skeleton COMPUTES its cell
+// coordinates with guaranteed gaps inside the content band, and every label is
+// drawn centred with a hard maxWidth so text can never spill its cell. The
+// generator `gen()` stamps out a fully-registered template from a (skeleton,
+// motif, palette, connector, decoration) tuple — so we get 100+ distinct boards
+// that are structurally collision-free by construction, verified by
+// scripts/test-template-overlap.mjs.
 // =============================================================================
+
+// Content band (header reserved above CB_TOP).
+const CB_TOP = 112, CB_BOT = 466, CB_LEFT = 44, CB_RIGHT = 756;
+const CB_W = CB_RIGHT - CB_LEFT, CB_MIDX = (CB_LEFT + CB_RIGHT) / 2, CB_MIDY = (CB_TOP + CB_BOT) / 2;
+
+// Normalise any slot entry to { title, detail }.
+function asNode(it) {
+  if (it == null) return { title: '', detail: '' };
+  if (typeof it === 'string' || typeof it === 'number') return { title: String(it), detail: '' };
+  if (typeof it === 'object') {
+    if (it.from || it.to) return { title: displayText(it.from) || displayText(it), detail: displayText(it.to) };
+    const title = it.title || it.term || it.symbol || it.label || it.name || it.question || it.value || it.headline || '';
+    const detail = it.detail || it.text || it.meaning || it.answer || it.description || it.sub || '';
+    return { title: displayText(title) || displayText(it), detail: displayText(detail) };
+  }
+  return { title: displayText(it), detail: '' };
+}
+
+// Pull the richest list a scene carries, regardless of which slot the planner
+// used, and normalise it. So one parametric template can serve any intent's
+// data shape without the scene having to know the template's slot names.
+function extractList(d, max = 6) {
+  if (!d || typeof d !== 'object') return [];
+  // columns → flatten titles (compare data)
+  if (Array.isArray(d.columns) && d.columns.length) {
+    const flat = [];
+    d.columns.forEach((c) => { flat.push(asNode(c)); (c.items || []).forEach((it) => flat.push(asNode(it))); });
+    if (flat.length) return flat.slice(0, max);
+  }
+  const lists = ['steps', 'items', 'points', 'stages', 'children', 'events', 'nodes',
+    'satellites', 'causes', 'links', 'tiers', 'milestones', 'dependencies', 'cards',
+    'terms', 'states', 'layers', 'phases', 'branches', 'pairs', 'transitions', 'vectors',
+    'strengths', 'labels'];
+  let best = [];
+  for (const k of lists) {
+    const v = d[k];
+    if (Array.isArray(v) && v.length > best.length) best = v;
+  }
+  return best.slice(0, max).map(asNode);
+}
+
+// A "cell" = { x, y, w, h, cx, cy }. Point on a cell's edge toward (tx,ty).
+function edgePoint(c, tx, ty) {
+  const dx = tx - c.cx, dy = ty - c.cy;
+  if (dx === 0 && dy === 0) return [c.cx, c.cy];
+  const sx = dx !== 0 ? (c.w / 2) / Math.abs(dx) : Infinity;
+  const sy = dy !== 0 ? (c.h / 2) / Math.abs(dy) : Infinity;
+  const k = Math.min(sx, sy);
+  return [c.cx + dx * k, c.cy + dy * k];
+}
+function mkCell(x, y, w, h) { return { x, y, w, h, cx: x + w / 2, cy: y + h / 2 }; }
+
+// ── Skeletons: count → cell[] with guaranteed non-overlap inside the band ─────
+const SKELETONS = {
+  row(n) {
+    n = Math.max(1, Math.min(n, 4));
+    const gap = 26, h = 116, y = CB_MIDY - h / 2;
+    const w = Math.min(190, (CB_W - gap * (n - 1)) / n);
+    const total = w * n + gap * (n - 1), x0 = CB_MIDX - total / 2;
+    return Array.from({ length: n }, (_, i) => mkCell(x0 + i * (w + gap), y, w, h));
+  },
+  column(n) {
+    n = Math.max(1, Math.min(n, 5));
+    const gap = 16, w = 460, x = CB_MIDX - w / 2;
+    const h = Math.min(78, (CB_BOT - CB_TOP - gap * (n - 1)) / n);
+    return Array.from({ length: n }, (_, i) => mkCell(x, CB_TOP + i * (h + gap), w, h));
+  },
+  grid2(n) {
+    n = Math.max(1, Math.min(n, 6));
+    const cols = 2, rows = Math.ceil(n / cols), gx = 30, gy = 22;
+    const w = 330, h = Math.min(110, (CB_BOT - CB_TOP - gy * (rows - 1)) / rows);
+    const total = w * cols + gx, x0 = CB_MIDX - total / 2;
+    return Array.from({ length: n }, (_, i) => {
+      const c = i % cols, r = Math.floor(i / cols);
+      return mkCell(x0 + c * (w + gx), CB_TOP + r * (h + gy), w, h);
+    });
+  },
+  grid3(n) {
+    n = Math.max(1, Math.min(n, 6));
+    const cols = 3, rows = Math.ceil(n / cols), gx = 22, gy = 22;
+    const w = 220, h = Math.min(120, (CB_BOT - CB_TOP - gy * (rows - 1)) / rows);
+    const total = w * cols + gx * (cols - 1), x0 = CB_MIDX - total / 2;
+    return Array.from({ length: n }, (_, i) => {
+      const c = i % cols, r = Math.floor(i / cols);
+      return mkCell(x0 + c * (w + gx), CB_TOP + r * (h + gy), w, h);
+    });
+  },
+  ring(n) {
+    n = Math.max(2, Math.min(n, 6));
+    const cx = CB_MIDX, cy = 292, R = 146, w = 132, h = 56;
+    return Array.from({ length: n }, (_, i) => {
+      const ang = (-90 + (360 / n) * i) * (Math.PI / 180);
+      return mkCell(cx + Math.cos(ang) * R - w / 2, cy + Math.sin(ang) * R - h / 2, w, h);
+    });
+  },
+  orbit(n) {
+    n = Math.max(1, Math.min(n, 6));
+    const cx = CB_MIDX, cy = 300, R = 172, w = 118, h = 54;
+    const sats = Array.from({ length: n }, (_, i) => {
+      const ang = (-90 + (360 / n) * i) * (Math.PI / 180);
+      return mkCell(cx + Math.cos(ang) * R - w / 2, cy + Math.sin(ang) * R * 0.82 - h / 2, w, h);
+    });
+    return sats; // hub drawn separately by the generator
+  },
+  pyramid(n) {
+    // rows of 1,2,3… stacked and centred (hierarchy / build-up)
+    n = Math.max(1, Math.min(n, 6));
+    const cells = []; let placed = 0, rowN = 1, y = CB_TOP + 6;
+    const h = 70, gy = 20;
+    while (placed < n) {
+      const cnt = Math.min(rowN, n - placed);
+      const w = Math.min(200, (CB_W - 24 * (cnt - 1)) / Math.max(cnt, 1));
+      const total = w * cnt + 24 * (cnt - 1), x0 = CB_MIDX - total / 2;
+      for (let c = 0; c < cnt; c++) cells.push(mkCell(x0 + c * (w + 24), y, w, h));
+      placed += cnt; rowN++; y += h + gy;
+    }
+    return cells;
+  },
+  funnel(n) {
+    n = Math.max(1, Math.min(n, 4));
+    const gap = 16, h = Math.min(72, (CB_BOT - CB_TOP - gap * (n - 1)) / n);
+    return Array.from({ length: n }, (_, i) => {
+      const w = 560 - i * 110;
+      return mkCell(CB_MIDX - w / 2, CB_TOP + i * (h + gap), w, h);
+    });
+  },
+  staircase(n) {
+    n = Math.max(1, Math.min(n, 4));
+    const w = 220, h = 78, sx = (CB_W - w) / Math.max(n - 1, 1), sy = (CB_BOT - CB_TOP - h) / Math.max(n - 1, 1);
+    return Array.from({ length: n }, (_, i) => mkCell(CB_LEFT + i * sx, CB_TOP + i * sy, w, h));
+  },
+  zigzag(n) {
+    n = Math.max(1, Math.min(n, 5));
+    const w = 150, h = 84, axis = CB_MIDY, off = 86;
+    const step = (CB_W - w) / Math.max(n - 1, 1);
+    return Array.from({ length: n }, (_, i) => mkCell(CB_LEFT + i * step, (i % 2 ? axis + 14 : axis - h - 14), w, h));
+  },
+  railAlt(n) {
+    n = Math.max(1, Math.min(n, 5));
+    const w = 148, h = 62, axis = CB_MIDY;
+    const step = (CB_W - w) / Math.max(n - 1, 1);
+    return Array.from({ length: n }, (_, i) => mkCell(CB_LEFT + i * step, (i % 2 ? axis + 34 : axis - h - 34), w, h));
+  },
+  quad() {
+    const w = 330, h = 150, gx = 26, gy = 26;
+    const x0 = CB_MIDX - w - gx / 2, y0 = 132;
+    return [mkCell(x0, y0, w, h), mkCell(x0 + w + gx, y0, w, h),
+      mkCell(x0, y0 + h + gy, w, h), mkCell(x0 + w + gx, y0 + h + gy, w, h)];
+  },
+  cornerHub() {
+    const w = 230, h = 92;
+    return [
+      mkCell(CB_LEFT, CB_TOP, w, h), mkCell(CB_RIGHT - w, CB_TOP, w, h),
+      mkCell(CB_LEFT, CB_BOT - h, w, h), mkCell(CB_RIGHT - w, CB_BOT - h, w, h),
+    ];
+  },
+  fan(n) {
+    n = Math.max(1, Math.min(n, 4));
+    const w = 250, h = Math.min(78, (CB_BOT - CB_TOP - 18 * (n - 1)) / n);
+    return Array.from({ length: n }, (_, i) => mkCell(CB_RIGHT - w, CB_TOP + i * (h + 18), w, h));
+  },
+  lane(n) {
+    // full-width indexed rows (number chip drawn by generator on the left)
+    n = Math.max(1, Math.min(n, 5));
+    const gap = 16, w = 600, x = CB_MIDX - w / 2 + 24;
+    const h = Math.min(76, (CB_BOT - CB_TOP - gap * (n - 1)) / n);
+    return Array.from({ length: n }, (_, i) => mkCell(x, CB_TOP + i * (h + gap), w, h));
+  },
+  splitList(n) {
+    // right-hand bullet column (left half reserved for a figure)
+    n = Math.max(1, Math.min(n, 5));
+    const gap = 14, w = 348, x = CB_RIGHT - w;
+    const h = Math.min(70, (CB_BOT - CB_TOP - gap * (n - 1)) / n);
+    return Array.from({ length: n }, (_, i) => mkCell(x, CB_TOP + i * (h + gap), w, h));
+  },
+  teeBranch(n) {
+    // parent box top-centre + children row below
+    n = Math.max(1, Math.min(n, 4));
+    const cw = Math.min(170, (CB_W - 26 * (n - 1)) / n), ch = 96;
+    const total = cw * n + 26 * (n - 1), x0 = CB_MIDX - total / 2;
+    return Array.from({ length: n }, (_, i) => mkCell(x0 + i * (cw + 26), 300, cw, ch));
+  },
+};
+
+// Skeletons whose first cell list excludes a separately-drawn parent/hub.
+const SKELETON_HAS_HUB = new Set(['orbit', 'teeBranch']);
+
+// ── Node motif: how a cell box is painted (+ which text colour it needs). ─────
+function motifRect(cell, p, motif, i) {
+  const accent = p.accent;
+  switch (motif) {
+    case 'solid': return { frag: rect(cell.x, cell.y, cell.w, cell.h, { flat: true, fill: accent, rx: 12 }), light: true };
+    case 'deep': return { frag: rect(cell.x, cell.y, cell.w, cell.h, { flat: true, fill: p.deep, rx: 12 }), light: true };
+    case 'altSolid': return (i % 2)
+      ? { frag: rect(cell.x, cell.y, cell.w, cell.h, { fill: '#ffffff', stroke: accent, strokeWidth: 2 }), light: false }
+      : { frag: rect(cell.x, cell.y, cell.w, cell.h, { flat: true, fill: accent, rx: 12 }), light: true };
+    case 'soft': return { frag: rect(cell.x, cell.y, cell.w, cell.h, { fill: p.soft, stroke: accent, strokeWidth: 2 }), light: false };
+    case 'ghost': return { frag: rect(cell.x, cell.y, cell.w, cell.h, { fill: '#f8fafc', stroke: '#e2e8f0', strokeWidth: 1.5 }), light: false };
+    case 'alt': return { frag: rect(cell.x, cell.y, cell.w, cell.h, { fill: i % 2 ? '#ffffff' : p.soft, stroke: accent, strokeWidth: 1.8 }), light: false };
+    case 'white': default: return { frag: rect(cell.x, cell.y, cell.w, cell.h, { fill: '#ffffff', stroke: accent, strokeWidth: 2 }), light: false };
+  }
+}
+
+// Draw a cell's box + its title/detail, centred and width-clamped so text can
+// never spill. Returns fragments (box first, then labels).
+function drawCell(cell, node, p, motif, i) {
+  const { frag, light } = motifRect(cell, p, motif, i);
+  const out = [frag];
+  const pad = 16, mw = cell.w - pad * 2;
+  const titleColor = light ? '#ffffff' : '#0f172a';
+  const detailColor = light ? '#e2e8f0' : '#64748b';
+  const title = node.title || '';
+  const detail = node.detail || '';
+  const wWords = cell.w >= 300 ? 8 : cell.w >= 200 ? 6 : cell.w >= 150 ? 4 : 3;
+  if (detail && cell.h >= 74) {
+    out.push(txt(anchor(title, wWords), cell.cx, cell.cy - 6, { fontSize: cell.w >= 200 ? 15 : 13, fontWeight: '700', color: titleColor, textAnchor: 'middle', maxWidth: mw }));
+    out.push(txt(anchor(detail, wWords + 2), cell.cx, cell.cy + 18, { fontSize: 11, fontWeight: '500', color: detailColor, textAnchor: 'middle', maxWidth: mw }));
+  } else {
+    out.push(txt(anchor(title, wWords), cell.cx, cell.cy + 5, { fontSize: cell.w >= 200 ? 15 : 13, fontWeight: '700', color: titleColor, textAnchor: 'middle', maxWidth: mw }));
+  }
+  return out;
+}
+
+// Connector styles between consecutive cells (arrows are ignored by the overlap
+// gate, so these can never cause a collision failure).
+function connectCells(cells, style, color) {
+  const out = [];
+  if (style === 'none' || cells.length < 2) return out;
+  if (style === 'chain' || style === 'chainArrow') {
+    for (let i = 0; i < cells.length - 1; i++) {
+      const a = cells[i], b = cells[i + 1];
+      const from = edgePoint(a, b.cx, b.cy), to = edgePoint(b, a.cx, a.cy);
+      out.push(arrow(from, to, { color, strokeWidth: 2.2, dashed: style === 'chain' && false }));
+    }
+  } else if (style === 'dash') {
+    for (let i = 0; i < cells.length - 1; i++) {
+      const a = cells[i], b = cells[i + 1];
+      out.push(arrow(edgePoint(a, b.cx, b.cy), edgePoint(b, a.cx, a.cy), { color, strokeWidth: 1.6, dashed: true }));
+    }
+  }
+  return out;
+}
+
+// Small decorative flourishes (all gate-safe: lines / tiny dots / arrows only).
+function decoration(kind, p) {
+  const a = p.accent;
+  switch (kind) {
+    case 'cornerBrackets': return [
+      line([CB_LEFT - 4, CB_TOP + 18], [CB_LEFT - 4, CB_TOP - 2], { color: a, strokeWidth: 2 }),
+      line([CB_LEFT - 4, CB_TOP - 2], [CB_LEFT + 16, CB_TOP - 2], { color: a, strokeWidth: 2 }),
+      line([CB_RIGHT + 4, CB_BOT - 18], [CB_RIGHT + 4, CB_BOT + 2], { color: a, strokeWidth: 2 }),
+      line([CB_RIGHT + 4, CB_BOT + 2], [CB_RIGHT - 16, CB_BOT + 2], { color: a, strokeWidth: 2 }),
+    ];
+    case 'leftRail': return [line([CB_LEFT - 10, CB_TOP], [CB_LEFT - 10, CB_BOT], { color: a, strokeWidth: 3 })];
+    case 'baseRule': return [line([CB_LEFT, CB_BOT + 8], [CB_RIGHT, CB_BOT + 8], { color: a, strokeWidth: 1.5, dashed: true })];
+    case 'dotGrid': { const out = []; for (let gx = 0; gx < 3; gx++) for (let gy = 0; gy < 2; gy++) out.push(circle(CB_LEFT + 12 + gx * 8, CB_TOP + 4 + gy * 8, 1.6, { fill: a, stroke: a })); return out; }
+    default: return [];
+  }
+}
+
+let GEN_COUNT = 0;
+// Stamp out one registered template from a layout recipe.
+function gen(recipe) {
+  const { id, intent, label, skeleton, motif = 'white', palette = 0, connect = 'none',
+    decor = null, cap = 6, hubMotif = 'solid' } = recipe;
+  GEN_COUNT++;
+  define({
+    id, intent, label: label || id, capacity: { items: cap },
+    fill(d, ctx) {
+      const p = PALETTES[palette % PALETTES.length];
+      const s = [...header(ctx, p.accent)];
+      if (decor) s.push(...decoration(decor, p));
+      const skFn = SKELETONS[skeleton];
+      const list = extractList(d, SKELETON_HAS_HUB.has(skeleton) ? cap : cap);
+      const items = list.length ? list : [{ title: anchor(ctx.title || 'Idea', 4), detail: '' }];
+      const cells = skFn(items.length, {});
+      const useN = Math.min(cells.length, items.length);
+
+      // Hub / parent for orbit & teeBranch skeletons.
+      if (skeleton === 'orbit') {
+        const hub = mkCell(CB_MIDX - 76, 300 - 38, 152, 76);
+        const m = motifRect(hub, p, hubMotif, 0);
+        s.push(m.frag);
+        s.push(txt(anchor(d.center || ctx.title, 4), hub.cx, hub.cy + 5, { fontSize: 15, fontWeight: '800', color: m.light ? '#ffffff' : '#0f172a', textAnchor: 'middle', maxWidth: hub.w - 24 }));
+        for (let i = 0; i < useN; i++) s.push(arrow(edgePoint(hub, cells[i].cx, cells[i].cy), edgePoint(cells[i], hub.cx, hub.cy), { color: p.accent, strokeWidth: 1.8 }));
+      } else if (skeleton === 'teeBranch') {
+        const parent = mkCell(CB_MIDX - 130, CB_TOP + 8, 260, 64);
+        const m = motifRect(parent, p, hubMotif, 0);
+        s.push(m.frag);
+        s.push(txt(anchor(d.root || d.center || ctx.title, 5), parent.cx, parent.cy + 5, { fontSize: 16, fontWeight: '800', color: m.light ? '#ffffff' : '#0f172a', textAnchor: 'middle', maxWidth: parent.w - 24 }));
+        s.push(line([parent.cx, parent.y + parent.h], [parent.cx, 280], { color: p.accent, strokeWidth: 2 }));
+        for (let i = 0; i < useN; i++) {
+          s.push(line([parent.cx, 280], [cells[i].cx, 280], { color: p.accent, strokeWidth: 2 }));
+          s.push(line([cells[i].cx, 280], [cells[i].cx, cells[i].y], { color: p.accent, strokeWidth: 2 }));
+        }
+      }
+
+      // Connectors behind the boxes (sequence skeletons).
+      if (connect !== 'none' && !SKELETON_HAS_HUB.has(skeleton)) {
+        s.push(...connectCells(cells.slice(0, useN), connect, p.accent));
+      }
+
+      // Cells + labels. Lane skeleton gets a left number chip.
+      for (let i = 0; i < useN; i++) {
+        s.push(...drawCell(cells[i], items[i], p, motif, i));
+        if (skeleton === 'lane') s.push(badge(String(i + 1), cells[i].x - 30, cells[i].cy - 12, { bg: p.accent }));
+        else if (connect !== 'none' || skeleton === 'staircase' || skeleton === 'pyramid') {
+          // step number chip on the corner for ordered layouts
+          if (motif !== 'solid' && motif !== 'deep') s.push(badge(String(i + 1), cells[i].x - 12, cells[i].y - 12, { bg: p.accent }));
+        }
+      }
+
+      // Left-side figure for splitList layouts (a real diagram when the text
+      // hints one, else a thematic icon) — fills the reserved left half.
+      if (skeleton === 'splitList') {
+        const fig = pickDiagramForText(ctx.title, d.headline, ...(items.map((it) => it.title)));
+        if (fig) s.push(...shape(fig, 70, 170, 200, 200));
+        else s.push(obj('lightbulb', 96, 210, 150, 150, { label: anchor(ctx.title || '', 3) }));
+      }
+      return s;
+    },
+  });
+}
+
+
+
+// =============================================================================
+// GENERATED PARAMETRIC TEMPLATES
+// ~120 boards stamped from (skeleton × motif × palette × connector × decor).
+// Every id is unique; the recipe table is grouped by intent. Because each
+// skeleton computes overlap-free cells and every label is width-clamped, the
+// whole set is collision-free by construction (gated by test-template-overlap).
+// =============================================================================
+const GEN_RECIPES = [
+  // ── define (concept exposition) ──────────────────────────────────────────
+  { id: 'g_def_columns_soft', intent: 'define', label: 'Definition — stacked cards', skeleton: 'column', motif: 'soft', palette: 0, decor: 'leftRail' },
+  { id: 'g_def_grid_white', intent: 'define', label: 'Definition — feature grid', skeleton: 'grid2', motif: 'white', palette: 2, decor: 'cornerBrackets' },
+  { id: 'g_def_grid3_alt', intent: 'define', label: 'Definition — trait tiles', skeleton: 'grid3', motif: 'alt', palette: 1 },
+  { id: 'g_def_split_figure', intent: 'define', label: 'Definition — figure + points', skeleton: 'splitList', motif: 'soft', palette: 6 },
+  { id: 'g_def_lane_numbered', intent: 'define', label: 'Definition — keyed rows', skeleton: 'lane', motif: 'ghost', palette: 3 },
+  { id: 'g_def_pyramid_build', intent: 'define', label: 'Definition — building blocks', skeleton: 'pyramid', motif: 'altSolid', palette: 5 },
+  { id: 'g_def_fan_solid', intent: 'define', label: 'Definition — facet fan', skeleton: 'fan', motif: 'solid', palette: 4, decor: 'baseRule' },
+  { id: 'g_def_grid_deep', intent: 'define', label: 'Definition — bold tiles', skeleton: 'grid2', motif: 'deep', palette: 0 },
+  { id: 'g_def_column_alt', intent: 'define', label: 'Definition — alternating rows', skeleton: 'column', motif: 'alt', palette: 2 },
+
+  // ── compare (contrast / weigh) ───────────────────────────────────────────
+  { id: 'g_cmp_quad_white', intent: 'compare', label: 'Compare — four corners', skeleton: 'quad', motif: 'white', palette: 2 },
+  { id: 'g_cmp_grid_alt', intent: 'compare', label: 'Compare — paired tiles', skeleton: 'grid2', motif: 'alt', palette: 0 },
+  { id: 'g_cmp_row_solid', intent: 'compare', label: 'Compare — side by side', skeleton: 'row', motif: 'altSolid', palette: 3 },
+  { id: 'g_cmp_fan_soft', intent: 'compare', label: 'Compare — option fan', skeleton: 'fan', motif: 'soft', palette: 6 },
+  { id: 'g_cmp_grid3_ghost', intent: 'compare', label: 'Compare — criteria grid', skeleton: 'grid3', motif: 'ghost', palette: 1, decor: 'cornerBrackets' },
+  { id: 'g_cmp_column_deep', intent: 'compare', label: 'Compare — ranked stack', skeleton: 'column', motif: 'deep', palette: 4 },
+  { id: 'g_cmp_quad_soft', intent: 'compare', label: 'Compare — quadrant tints', skeleton: 'quad', motif: 'soft', palette: 5 },
+  { id: 'g_cmp_grid_white2', intent: 'compare', label: 'Compare — matrix tiles', skeleton: 'grid2', motif: 'white', palette: 6 },
+
+  // ── process (ordered steps) ──────────────────────────────────────────────
+  { id: 'g_pro_lane_chain', intent: 'process', label: 'Process — keyed pipeline', skeleton: 'lane', motif: 'alt', palette: 0, connect: 'chainArrow' },
+  { id: 'g_pro_row_arrow', intent: 'process', label: 'Process — left to right', skeleton: 'row', motif: 'soft', palette: 3, connect: 'chainArrow' },
+  { id: 'g_pro_zigzag', intent: 'process', label: 'Process — zigzag flow', skeleton: 'zigzag', motif: 'altSolid', palette: 1, connect: 'chainArrow' },
+  { id: 'g_pro_staircase', intent: 'process', label: 'Process — staircase', skeleton: 'staircase', motif: 'solid', palette: 5, connect: 'chainArrow' },
+  { id: 'g_pro_funnel', intent: 'process', label: 'Process — narrowing funnel', skeleton: 'funnel', motif: 'deep', palette: 4 },
+  { id: 'g_pro_column_chain', intent: 'process', label: 'Process — vertical steps', skeleton: 'column', motif: 'alt', palette: 6, connect: 'chainArrow' },
+  { id: 'g_pro_railalt', intent: 'process', label: 'Process — rail above/below', skeleton: 'railAlt', motif: 'white', palette: 2, connect: 'chainArrow' },
+  { id: 'g_pro_lane_ghost', intent: 'process', label: 'Process — checklist lane', skeleton: 'lane', motif: 'ghost', palette: 5 },
+  { id: 'g_pro_row_deep', intent: 'process', label: 'Process — bold stages', skeleton: 'row', motif: 'deep', palette: 0, connect: 'chainArrow' },
+  { id: 'g_pro_zigzag_soft', intent: 'process', label: 'Process — winding path', skeleton: 'zigzag', motif: 'soft', palette: 6, connect: 'chainArrow' },
+  { id: 'g_pro_staircase_alt', intent: 'process', label: 'Process — climbing steps', skeleton: 'staircase', motif: 'altSolid', palette: 3, connect: 'chainArrow' },
+  { id: 'g_pro_column_deep', intent: 'process', label: 'Process — sequence column', skeleton: 'column', motif: 'deep', palette: 1, connect: 'chainArrow' },
+
+  // ── hierarchy (levels / nesting) ─────────────────────────────────────────
+  { id: 'g_hier_pyramid_solid', intent: 'hierarchy', label: 'Hierarchy — pyramid', skeleton: 'pyramid', motif: 'solid', palette: 1 },
+  { id: 'g_hier_tee', intent: 'hierarchy', label: 'Hierarchy — parent + children', skeleton: 'teeBranch', motif: 'soft', palette: 0, hubMotif: 'solid' },
+  { id: 'g_hier_column_deep', intent: 'hierarchy', label: 'Hierarchy — layered stack', skeleton: 'column', motif: 'deep', palette: 4 },
+  { id: 'g_hier_grid3', intent: 'hierarchy', label: 'Hierarchy — grouped tiers', skeleton: 'grid3', motif: 'alt', palette: 5 },
+  { id: 'g_hier_pyramid_alt', intent: 'hierarchy', label: 'Hierarchy — ranked levels', skeleton: 'pyramid', motif: 'altSolid', palette: 2 },
+  { id: 'g_hier_tee_deep', intent: 'hierarchy', label: 'Hierarchy — branch tree', skeleton: 'teeBranch', motif: 'white', palette: 3, hubMotif: 'deep' },
+  { id: 'g_hier_funnel', intent: 'hierarchy', label: 'Hierarchy — top-down narrowing', skeleton: 'funnel', motif: 'soft', palette: 6 },
+  { id: 'g_hier_column_alt', intent: 'hierarchy', label: 'Hierarchy — tier rows', skeleton: 'column', motif: 'alt', palette: 0 },
+
+  // ── timeline (chronology) ────────────────────────────────────────────────
+  { id: 'g_time_railalt', intent: 'timeline', label: 'Timeline — alternating rail', skeleton: 'railAlt', motif: 'soft', palette: 4, connect: 'chainArrow' },
+  { id: 'g_time_zigzag', intent: 'timeline', label: 'Timeline — zigzag beats', skeleton: 'zigzag', motif: 'white', palette: 0, connect: 'chainArrow' },
+  { id: 'g_time_staircase', intent: 'timeline', label: 'Timeline — rising milestones', skeleton: 'staircase', motif: 'altSolid', palette: 5, connect: 'chainArrow' },
+  { id: 'g_time_lane', intent: 'timeline', label: 'Timeline — dated rows', skeleton: 'lane', motif: 'alt', palette: 6 },
+  { id: 'g_time_row', intent: 'timeline', label: 'Timeline — era markers', skeleton: 'row', motif: 'soft', palette: 3, connect: 'chainArrow' },
+  { id: 'g_time_railalt_deep', intent: 'timeline', label: 'Timeline — bold rail', skeleton: 'railAlt', motif: 'deep', palette: 1, connect: 'chainArrow' },
+
+  // ── cause (causal chains / outcomes) ─────────────────────────────────────
+  { id: 'g_cause_row_chain', intent: 'cause', label: 'Cause — chain reaction', skeleton: 'row', motif: 'altSolid', palette: 5, connect: 'chainArrow' },
+  { id: 'g_cause_zigzag', intent: 'cause', label: 'Cause — knock-on flow', skeleton: 'zigzag', motif: 'soft', palette: 4, connect: 'chainArrow' },
+  { id: 'g_cause_tee', intent: 'cause', label: 'Cause — one to many effects', skeleton: 'teeBranch', motif: 'soft', palette: 0, hubMotif: 'solid' },
+  { id: 'g_cause_fan', intent: 'cause', label: 'Cause — outcome fan', skeleton: 'fan', motif: 'white', palette: 3 },
+  { id: 'g_cause_column', intent: 'cause', label: 'Cause — consequence stack', skeleton: 'column', motif: 'alt', palette: 5, connect: 'chainArrow' },
+  { id: 'g_cause_staircase', intent: 'cause', label: 'Cause — escalation', skeleton: 'staircase', motif: 'deep', palette: 4, connect: 'chainArrow' },
+  { id: 'g_cause_orbit', intent: 'cause', label: 'Cause — central trigger', skeleton: 'orbit', motif: 'soft', palette: 1, hubMotif: 'deep' },
+
+  // ── data (figures / metrics) ─────────────────────────────────────────────
+  { id: 'g_data_grid3', intent: 'data', label: 'Data — stat tiles', skeleton: 'grid3', motif: 'deep', palette: 0 },
+  { id: 'g_data_lane', intent: 'data', label: 'Data — metric rows', skeleton: 'lane', motif: 'alt', palette: 6 },
+  { id: 'g_data_row', intent: 'data', label: 'Data — headline figures', skeleton: 'row', motif: 'solid', palette: 4 },
+  { id: 'g_data_grid2', intent: 'data', label: 'Data — paired metrics', skeleton: 'grid2', motif: 'soft', palette: 1 },
+  { id: 'g_data_column', intent: 'data', label: 'Data — ranked values', skeleton: 'column', motif: 'altSolid', palette: 5 },
+  { id: 'g_data_grid3_soft', intent: 'data', label: 'Data — indicator grid', skeleton: 'grid3', motif: 'soft', palette: 3, decor: 'baseRule' },
+
+  // ── cluster (related ideas) ──────────────────────────────────────────────
+  { id: 'g_clu_orbit', intent: 'cluster', label: 'Cluster — hub & satellites', skeleton: 'orbit', motif: 'soft', palette: 2, hubMotif: 'solid' },
+  { id: 'g_clu_ring', intent: 'cluster', label: 'Cluster — idea ring', skeleton: 'ring', motif: 'white', palette: 6, connect: 'chainArrow' },
+  { id: 'g_clu_corner', intent: 'cluster', label: 'Cluster — four contexts', skeleton: 'cornerHub', motif: 'soft', palette: 0 },
+  { id: 'g_clu_grid3', intent: 'cluster', label: 'Cluster — theme tiles', skeleton: 'grid3', motif: 'alt', palette: 4 },
+  { id: 'g_clu_orbit_deep', intent: 'cluster', label: 'Cluster — radial web', skeleton: 'orbit', motif: 'white', palette: 3, hubMotif: 'deep' },
+  { id: 'g_clu_ring_soft', intent: 'cluster', label: 'Cluster — concept wheel', skeleton: 'ring', motif: 'soft', palette: 5 },
+
+  // ── cycle (loops) ────────────────────────────────────────────────────────
+  { id: 'g_cyc_ring_arrow', intent: 'cycle', label: 'Cycle — looping ring', skeleton: 'ring', motif: 'soft', palette: 1, connect: 'chainArrow' },
+  { id: 'g_cyc_orbit', intent: 'cycle', label: 'Cycle — orbiting stages', skeleton: 'orbit', motif: 'white', palette: 5, hubMotif: 'solid' },
+  { id: 'g_cyc_ring_solid', intent: 'cycle', label: 'Cycle — stage wheel', skeleton: 'ring', motif: 'altSolid', palette: 3, connect: 'chainArrow' },
+  { id: 'g_cyc_ring_deep', intent: 'cycle', label: 'Cycle — feedback loop', skeleton: 'ring', motif: 'deep', palette: 0, connect: 'chainArrow' },
+
+  // ── example (worked / illustration) ──────────────────────────────────────
+  { id: 'g_ex_lane', intent: 'example', label: 'Example — worked steps', skeleton: 'lane', motif: 'alt', palette: 0, connect: 'chainArrow' },
+  { id: 'g_ex_column', intent: 'example', label: 'Example — step-through', skeleton: 'column', motif: 'soft', palette: 5 },
+  { id: 'g_ex_split', intent: 'example', label: 'Example — figure + walk', skeleton: 'splitList', motif: 'soft', palette: 3 },
+  { id: 'g_ex_staircase', intent: 'example', label: 'Example — progressive solve', skeleton: 'staircase', motif: 'altSolid', palette: 6, connect: 'chainArrow' },
+
+  // ── recap (summary) ──────────────────────────────────────────────────────
+  { id: 'g_recap_lane', intent: 'recap', label: 'Recap — key points', skeleton: 'lane', motif: 'soft', palette: 5, decor: 'leftRail' },
+  { id: 'g_recap_grid2', intent: 'recap', label: 'Recap — takeaway tiles', skeleton: 'grid2', motif: 'alt', palette: 0 },
+  { id: 'g_recap_column', intent: 'recap', label: 'Recap — checklist', skeleton: 'column', motif: 'soft', palette: 1 },
+  { id: 'g_recap_pyramid', intent: 'recap', label: 'Recap — big idea on top', skeleton: 'pyramid', motif: 'altSolid', palette: 4 },
+  { id: 'g_recap_fan', intent: 'recap', label: 'Recap — summary fan', skeleton: 'fan', motif: 'deep', palette: 6 },
+
+  // ── formula (equation breakdown) ─────────────────────────────────────────
+  { id: 'g_form_column', intent: 'formula', label: 'Formula — term stack', skeleton: 'column', motif: 'soft', palette: 2 },
+  { id: 'g_form_row', intent: 'formula', label: 'Formula — term-by-term', skeleton: 'row', motif: 'white', palette: 0, connect: 'chainArrow' },
+  { id: 'g_form_grid3', intent: 'formula', label: 'Formula — variable grid', skeleton: 'grid3', motif: 'alt', palette: 3 },
+
+  // ── map (figure-led / annotated) ─────────────────────────────────────────
+  { id: 'g_map_split', intent: 'map', label: 'Map — figure + labels', skeleton: 'splitList', motif: 'soft', palette: 6 },
+  { id: 'g_map_corner', intent: 'map', label: 'Map — annotated corners', skeleton: 'cornerHub', motif: 'white', palette: 0 },
+  { id: 'g_map_orbit', intent: 'map', label: 'Map — labelled hub', skeleton: 'orbit', motif: 'soft', palette: 2, hubMotif: 'solid' },
+  { id: 'g_map_grid2', intent: 'map', label: 'Map — region tiles', skeleton: 'grid2', motif: 'alt', palette: 5 },
+  { id: 'g_map_split_deep', intent: 'map', label: 'Map — diagram callouts', skeleton: 'splitList', motif: 'ghost', palette: 4 },
+
+  // ── EXPANSION BATCH — 77 more, each a distinct skeleton×motif×palette×decor
+  //     combination so no two boards read alike. Grouped by intent again. ─────
+  // define
+  { id: 'g_def_grid3_white', intent: 'define', label: 'Definition — clean trait grid', skeleton: 'grid3', motif: 'white', palette: 0, decor: 'dotGrid' },
+  { id: 'g_def_fan_soft', intent: 'define', label: 'Definition — aspect fan', skeleton: 'fan', motif: 'soft', palette: 3 },
+  { id: 'g_def_column_deep', intent: 'define', label: 'Definition — emphatic stack', skeleton: 'column', motif: 'deep', palette: 6 },
+  { id: 'g_def_split_alt', intent: 'define', label: 'Definition — visual + traits', skeleton: 'splitList', motif: 'alt', palette: 1 },
+  { id: 'g_def_pyramid_soft', intent: 'define', label: 'Definition — layered idea', skeleton: 'pyramid', motif: 'soft', palette: 2, decor: 'baseRule' },
+  { id: 'g_def_grid2_ghost', intent: 'define', label: 'Definition — quiet tiles', skeleton: 'grid2', motif: 'ghost', palette: 5 },
+  { id: 'g_def_lane_soft', intent: 'define', label: 'Definition — defined rows', skeleton: 'lane', motif: 'soft', palette: 4, decor: 'leftRail' },
+  { id: 'g_def_fan_white', intent: 'define', label: 'Definition — open fan', skeleton: 'fan', motif: 'white', palette: 6 },
+  // compare
+  { id: 'g_cmp_row_deep', intent: 'compare', label: 'Compare — bold versus', skeleton: 'row', motif: 'deep', palette: 1 },
+  { id: 'g_cmp_quad_alt', intent: 'compare', label: 'Compare — four-way grid', skeleton: 'quad', motif: 'alt', palette: 3 },
+  { id: 'g_cmp_fan_white', intent: 'compare', label: 'Compare — choice spread', skeleton: 'fan', motif: 'white', palette: 0 },
+  { id: 'g_cmp_grid3_soft', intent: 'compare', label: 'Compare — option matrix', skeleton: 'grid3', motif: 'soft', palette: 5, decor: 'cornerBrackets' },
+  { id: 'g_cmp_column_alt', intent: 'compare', label: 'Compare — stacked contrast', skeleton: 'column', motif: 'alt', palette: 6 },
+  { id: 'g_cmp_row_white', intent: 'compare', label: 'Compare — A vs B panels', skeleton: 'row', motif: 'white', palette: 4 },
+  { id: 'g_cmp_quad_deep', intent: 'compare', label: 'Compare — bold quadrants', skeleton: 'quad', motif: 'deep', palette: 1 },
+  // process
+  { id: 'g_pro_funnel_soft', intent: 'process', label: 'Process — refining funnel', skeleton: 'funnel', motif: 'soft', palette: 2 },
+  { id: 'g_pro_railalt_soft', intent: 'process', label: 'Process — branching rail', skeleton: 'railAlt', motif: 'soft', palette: 6, connect: 'chainArrow' },
+  { id: 'g_pro_lane_solid', intent: 'process', label: 'Process — bold pipeline', skeleton: 'lane', motif: 'altSolid', palette: 4 },
+  { id: 'g_pro_zigzag_white', intent: 'process', label: 'Process — switchback', skeleton: 'zigzag', motif: 'white', palette: 0, connect: 'chainArrow' },
+  { id: 'g_pro_staircase_soft', intent: 'process', label: 'Process — ascending steps', skeleton: 'staircase', motif: 'soft', palette: 2, connect: 'chainArrow' },
+  { id: 'g_pro_row_alt', intent: 'process', label: 'Process — alternating stages', skeleton: 'row', motif: 'alt', palette: 5, connect: 'chainArrow' },
+  { id: 'g_pro_column_soft', intent: 'process', label: 'Process — guided steps', skeleton: 'column', motif: 'soft', palette: 3, connect: 'chainArrow', decor: 'leftRail' },
+  { id: 'g_pro_funnel_alt', intent: 'process', label: 'Process — converging stages', skeleton: 'funnel', motif: 'altSolid', palette: 0 },
+  // hierarchy
+  { id: 'g_hier_pyramid_deep', intent: 'hierarchy', label: 'Hierarchy — bold pyramid', skeleton: 'pyramid', motif: 'deep', palette: 6 },
+  { id: 'g_hier_tee_soft', intent: 'hierarchy', label: 'Hierarchy — soft tree', skeleton: 'teeBranch', motif: 'soft', palette: 2, hubMotif: 'soft' },
+  { id: 'g_hier_funnel_deep', intent: 'hierarchy', label: 'Hierarchy — narrowing rank', skeleton: 'funnel', motif: 'deep', palette: 1 },
+  { id: 'g_hier_grid2', intent: 'hierarchy', label: 'Hierarchy — grouped pairs', skeleton: 'grid2', motif: 'soft', palette: 5 },
+  { id: 'g_hier_column_solid', intent: 'hierarchy', label: 'Hierarchy — solid tiers', skeleton: 'column', motif: 'altSolid', palette: 3 },
+  { id: 'g_hier_pyramid_white', intent: 'hierarchy', label: 'Hierarchy — outline pyramid', skeleton: 'pyramid', motif: 'white', palette: 0, decor: 'baseRule' },
+  // timeline
+  { id: 'g_time_staircase_soft', intent: 'timeline', label: 'Timeline — rising path', skeleton: 'staircase', motif: 'soft', palette: 2, connect: 'chainArrow' },
+  { id: 'g_time_zigzag_deep', intent: 'timeline', label: 'Timeline — bold beats', skeleton: 'zigzag', motif: 'deep', palette: 6, connect: 'chainArrow' },
+  { id: 'g_time_lane_soft', intent: 'timeline', label: 'Timeline — dated lane', skeleton: 'lane', motif: 'soft', palette: 4 },
+  { id: 'g_time_row_alt', intent: 'timeline', label: 'Timeline — period blocks', skeleton: 'row', motif: 'alt', palette: 5, connect: 'chainArrow' },
+  { id: 'g_time_railalt_white', intent: 'timeline', label: 'Timeline — clean rail', skeleton: 'railAlt', motif: 'white', palette: 0, connect: 'chainArrow' },
+  // cause
+  { id: 'g_cause_row_deep', intent: 'cause', label: 'Cause — strong chain', skeleton: 'row', motif: 'deep', palette: 4, connect: 'chainArrow' },
+  { id: 'g_cause_zigzag_alt', intent: 'cause', label: 'Cause — domino effect', skeleton: 'zigzag', motif: 'alt', palette: 1, connect: 'chainArrow' },
+  { id: 'g_cause_tee_deep', intent: 'cause', label: 'Cause — branching impact', skeleton: 'teeBranch', motif: 'white', palette: 6, hubMotif: 'deep' },
+  { id: 'g_cause_fan_soft', intent: 'cause', label: 'Cause — ripple fan', skeleton: 'fan', motif: 'soft', palette: 3 },
+  { id: 'g_cause_orbit_white', intent: 'cause', label: 'Cause — root + effects', skeleton: 'orbit', motif: 'white', palette: 5, hubMotif: 'solid' },
+  { id: 'g_cause_staircase_soft', intent: 'cause', label: 'Cause — building pressure', skeleton: 'staircase', motif: 'soft', palette: 0, connect: 'chainArrow' },
+  // data
+  { id: 'g_data_grid2_deep', intent: 'data', label: 'Data — bold pair', skeleton: 'grid2', motif: 'deep', palette: 4 },
+  { id: 'g_data_row_soft', intent: 'data', label: 'Data — key figures', skeleton: 'row', motif: 'soft', palette: 1 },
+  { id: 'g_data_lane_solid', intent: 'data', label: 'Data — metric ledger', skeleton: 'lane', motif: 'altSolid', palette: 6 },
+  { id: 'g_data_grid3_white', intent: 'data', label: 'Data — indicator panel', skeleton: 'grid3', motif: 'white', palette: 0, decor: 'dotGrid' },
+  { id: 'g_data_column_soft', intent: 'data', label: 'Data — ranked bars', skeleton: 'column', motif: 'soft', palette: 5 },
+  // cluster
+  { id: 'g_clu_orbit_solid', intent: 'cluster', label: 'Cluster — bold hub', skeleton: 'orbit', motif: 'soft', palette: 4, hubMotif: 'solid' },
+  { id: 'g_clu_ring_deep', intent: 'cluster', label: 'Cluster — idea circle', skeleton: 'ring', motif: 'deep', palette: 1 },
+  { id: 'g_clu_corner_white', intent: 'cluster', label: 'Cluster — four facets', skeleton: 'cornerHub', motif: 'white', palette: 3 },
+  { id: 'g_clu_grid2', intent: 'cluster', label: 'Cluster — paired themes', skeleton: 'grid2', motif: 'alt', palette: 0 },
+  { id: 'g_clu_orbit_soft2', intent: 'cluster', label: 'Cluster — related set', skeleton: 'orbit', motif: 'soft', palette: 6, hubMotif: 'soft' },
+  // cycle
+  { id: 'g_cyc_orbit_deep', intent: 'cycle', label: 'Cycle — turning wheel', skeleton: 'orbit', motif: 'deep', palette: 2, hubMotif: 'solid' },
+  { id: 'g_cyc_ring_white', intent: 'cycle', label: 'Cycle — recurring loop', skeleton: 'ring', motif: 'white', palette: 6, connect: 'chainArrow' },
+  { id: 'g_cyc_ring_soft2', intent: 'cycle', label: 'Cycle — phase wheel', skeleton: 'ring', motif: 'soft', palette: 4, connect: 'chainArrow' },
+  // example
+  { id: 'g_ex_column_alt', intent: 'example', label: 'Example — worked stack', skeleton: 'column', motif: 'alt', palette: 1 },
+  { id: 'g_ex_lane_soft', intent: 'example', label: 'Example — guided trace', skeleton: 'lane', motif: 'soft', palette: 5, connect: 'chainArrow' },
+  { id: 'g_ex_staircase_soft', intent: 'example', label: 'Example — step build', skeleton: 'staircase', motif: 'soft', palette: 2, connect: 'chainArrow' },
+  { id: 'g_ex_split_deep', intent: 'example', label: 'Example — diagram + walk', skeleton: 'splitList', motif: 'ghost', palette: 0 },
+  // recap
+  { id: 'g_recap_grid3', intent: 'recap', label: 'Recap — summary tiles', skeleton: 'grid3', motif: 'soft', palette: 4 },
+  { id: 'g_recap_lane_alt', intent: 'recap', label: 'Recap — point ledger', skeleton: 'lane', motif: 'alt', palette: 1, decor: 'leftRail' },
+  { id: 'g_recap_column_deep', intent: 'recap', label: 'Recap — bold takeaways', skeleton: 'column', motif: 'deep', palette: 6 },
+  { id: 'g_recap_fan_soft', intent: 'recap', label: 'Recap — closing fan', skeleton: 'fan', motif: 'soft', palette: 3 },
+  { id: 'g_recap_pyramid_soft', intent: 'recap', label: 'Recap — one big idea', skeleton: 'pyramid', motif: 'soft', palette: 0, decor: 'baseRule' },
+  // formula
+  { id: 'g_form_column_deep', intent: 'formula', label: 'Formula — bold terms', skeleton: 'column', motif: 'deep', palette: 1 },
+  { id: 'g_form_grid2', intent: 'formula', label: 'Formula — variable pairs', skeleton: 'grid2', motif: 'soft', palette: 4 },
+  { id: 'g_form_lane', intent: 'formula', label: 'Formula — term ledger', skeleton: 'lane', motif: 'alt', palette: 2 },
+  { id: 'g_form_row_soft', intent: 'formula', label: 'Formula — left to right', skeleton: 'row', motif: 'soft', palette: 6, connect: 'chainArrow' },
+  // map
+  { id: 'g_map_split_white', intent: 'map', label: 'Map — clean callouts', skeleton: 'splitList', motif: 'white', palette: 3 },
+  { id: 'g_map_corner_soft', intent: 'map', label: 'Map — tagged corners', skeleton: 'cornerHub', motif: 'soft', palette: 1 },
+  { id: 'g_map_orbit_deep', intent: 'map', label: 'Map — central locale', skeleton: 'orbit', motif: 'white', palette: 4, hubMotif: 'deep' },
+  { id: 'g_map_grid3', intent: 'map', label: 'Map — region grid', skeleton: 'grid3', motif: 'soft', palette: 6 },
+  // extra cross-intent flourishes to round out the set
+  { id: 'g_def_quad_soft', intent: 'define', label: 'Definition — four traits', skeleton: 'quad', motif: 'soft', palette: 5 },
+  { id: 'g_pro_grid3_chain', intent: 'process', label: 'Process — phase grid', skeleton: 'grid3', motif: 'alt', palette: 6, connect: 'chainArrow' },
+  { id: 'g_hier_fan', intent: 'hierarchy', label: 'Hierarchy — tier fan', skeleton: 'fan', motif: 'altSolid', palette: 2 },
+  { id: 'g_data_quad', intent: 'data', label: 'Data — quad metrics', skeleton: 'quad', motif: 'deep', palette: 0 },
+  { id: 'g_clu_fan', intent: 'cluster', label: 'Cluster — theme fan', skeleton: 'fan', motif: 'soft', palette: 1 },
+  { id: 'g_cmp_lane', intent: 'compare', label: 'Compare — criteria rows', skeleton: 'lane', motif: 'alt', palette: 2 },
+  { id: 'g_time_pyramid', intent: 'timeline', label: 'Timeline — eras stacked', skeleton: 'pyramid', motif: 'soft', palette: 6 },
+];
+GEN_RECIPES.forEach(gen);
 
 const BY_ID = new Map(TEMPLATES.map((t) => [t.id, t]));
 const BY_INTENT = new Map();

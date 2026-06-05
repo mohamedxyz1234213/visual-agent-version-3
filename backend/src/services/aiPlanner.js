@@ -320,7 +320,7 @@ function buildTopicTitle(rawText) {
 }
 
 const INSTRUCTIONAL_META_PREFIX_RE = /^(the learner should be able to|the learner will|the learner can|learners? will (?:understand|learn|be able to)|learners should(?: practice)?|the explanation should|a good explanation of|a complete explanation of|the lesson should|by the end of this lesson|specifically[, ]+they should be able to|according to the source material|to make that visible|on the board, this means|this stage matters because|this matters because|connect .* so the learner|link .* to .* to show|.* should be (?:explained|taught|shown)|.* should (?:first )?be understood)/;
-const INSTRUCTIONAL_META_INLINE_RE = /\b(the learner should|the learner will|learners will|the explanation should|according to the source material|should be explained|should be taught|should be shown|not in isolation|move from definition to mechanism|one coherent explanation|clear learnable sequence)\b/;
+const INSTRUCTIONAL_META_INLINE_RE = /\b(the learner should|the learner will|learners will|the explanation should|according to the source material|should be explained|should be taught|should be shown|not in isolation|move from definition to mechanism|one coherent explanation|clear learnable sequence|begins with the core idea|breaks the topic into its main components|finishes with application and review|ends with application or outcome reading|becomes clear by following its concrete parts|show the basic meaning, the mechanism|central concept in this lesson|supports the rest of the topic)\b/;
 const STRUCTURAL_SCENE_TYPES = new Set([
   'draw_object',
   'draw_physics_shape',
@@ -560,28 +560,33 @@ function buildPromptAwareDefinition(concept, role, rootConcept, concepts) {
     if (role.startsWith('cycle') || role.startsWith('process') || role.startsWith('scientific')) {
       return `${concept} is a process made of connected stages, where each stage changes what happens next.`;
     }
-    return `${concept} is the main idea that ties together ${relatedText}.`;
+    return `${concept} is the through-line that connects ${relatedText} into one idea.`;
   }
 
   const roleCategory = role.split('_')[0];
+  const nextRelated = related[0];
   switch (roleCategory) {
     case 'biology':
-      return `${concept} is a biological component or process within ${rootConcept}.`;
+      return `${concept} is the part that carries out its own step before the result is passed on.`;
     case 'market':
-      return `${concept} is a market factor that influences the outcome in ${rootConcept}.`;
+      return `${concept} is a force that pushes price or quantity in one direction.`;
     case 'history':
-      return `${concept} is a historical element that shapes the sequence of ${rootConcept}.`;
+      return `${concept} is the pressure that set the next events in motion.`;
     case 'system':
     case 'distributed':
     case 'record':
     case 'coordination':
-      return `${concept} is a system component that enables ${rootConcept} to function.`;
+      return nextRelated
+        ? `${concept} receives the request, does its work, then hands off to ${nextRelated}.`
+        : `${concept} receives a request, does its work, then returns a result.`;
     case 'cycle':
     case 'process':
     case 'scientific':
-      return `${concept} is a stage or factor in the process of ${rootConcept}.`;
+      return nextRelated
+        ? `${concept} is the step that prepares the conditions ${nextRelated} needs.`
+        : `${concept} is one step whose output becomes the next step's input.`;
     default:
-      return `${concept} is one of the key elements used to explain ${rootConcept}.`;
+      return `${concept} is the piece that does one specific job in the bigger picture.`;
   }
 }
 
@@ -592,12 +597,15 @@ function buildPromptAwareImportance(concept, role, rootConcept, concepts) {
 
   if (isRootConcept) {
     if (role.startsWith('system') || role.startsWith('distributed') || role.startsWith('record') || role.startsWith('coordination')) {
-      return `The key pattern is request, processing, and response; ${relatedText} are easier to follow when they are placed in that order.`;
+      return `Follow it as request → processing → response, and ${relatedText} fall into a clear order.`;
     }
-    return `${concept} matters because it gives ${relatedText} a clear order instead of leaving them as disconnected terms.`;
+    return `Once you see how ${relatedText} fit together, the whole idea stops feeling like scattered terms.`;
   }
 
-  return `${concept} matters because it has a specific job inside ${rootConcept} and changes what the next part does.`;
+  const nextRelated = related[0];
+  return nextRelated
+    ? `It matters because what ${concept} produces is exactly what ${nextRelated} needs next.`
+    : `It matters because skipping ${concept} breaks the chain that follows.`;
 }
 
 function buildPromptAwareDetails(concept, role, rootConcept, concepts) {
@@ -607,30 +615,30 @@ function buildPromptAwareDetails(concept, role, rootConcept, concepts) {
   if (isRootConcept) {
     if (role.startsWith('system') || role.startsWith('distributed') || role.startsWith('record') || role.startsWith('coordination')) {
       return uniqueNormalizedStrings([
-        `${concept} starts with a sender and a receiver.`,
-        `A request carries what the sender wants, and a response carries what came back.`,
-        related[0] ? `${related[0]} is one part of the exchange, not a separate topic.` : '',
+        `It begins with a sender and a receiver on two ends.`,
+        `A request carries what is asked for; a response carries what comes back.`,
+        related[0] ? `${related[0]} is one hop along that path, not a separate topic.` : '',
       ], 3);
     }
     return uniqueNormalizedStrings([
-      `${concept} has parts that depend on one another.`,
-      related[0] ? `${related[0]} changes what the next part does.` : '',
-      `The outcome becomes clear when the parts are followed in order.`,
+      `Its parts hand work to one another in order.`,
+      related[0] ? `What ${related[0]} does next depends on what came before it.` : '',
+      `Follow the parts in sequence and the outcome explains itself.`,
     ], 3);
   }
 
   if (role.startsWith('system') || role.startsWith('distributed') || role.startsWith('record') || role.startsWith('coordination')) {
     return uniqueNormalizedStrings([
-      `${concept} is one component in the ${rootConcept} exchange.`,
-      related[0] ? `${concept} passes information toward ${related[0]} or receives information from it.` : '',
-      `${concept} either sends, handles, stores, or returns information.`,
+      `${concept} sits at one point along the request path.`,
+      related[0] ? `${concept} passes information to ${related[0]} or takes it back.` : '',
+      `Its job is to send, handle, store, or return — one of those.`,
     ], 3);
   }
 
   return uniqueNormalizedStrings([
-    `${concept} is one part of ${rootConcept}.`,
-    related[0] ? `${concept} interacts with ${related[0]}.` : '',
-    `${concept} contributes to the final outcome of the whole process.`,
+    `${concept} handles one step on its own.`,
+    related[0] ? `Its output is the input ${related[0]} works on.` : '',
+    `Remove it and the steps after it have nothing to act on.`,
   ], 3);
 }
 
