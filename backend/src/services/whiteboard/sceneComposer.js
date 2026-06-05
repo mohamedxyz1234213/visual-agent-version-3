@@ -755,14 +755,38 @@ function countConnectors(units) {
 function splitCaption(say) {
   const text = String(say || '').replace(/\s+/g, ' ').trim();
   if (!text) return [];
+  // Keep whole sentences when they read as one breath (≤18 words) so the
+  // student gets a full, talkative explanation per beat rather than choppy
+  // 11-word fragments. Longer sentences split on clause boundaries (commas /
+  // semicolons / dashes) first, then on word count as a fallback — this keeps
+  // each caption a coherent clause. The cap is generous so a rich narration is
+  // shown in full instead of being cut off mid-explanation.
+  const MAX_WORDS = 18;
   const sentences = text.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
   const chunks = [];
   for (const sentence of sentences) {
     const words = sentence.split(' ');
-    if (words.length <= 12) { chunks.push(sentence); continue; }
-    for (let i = 0; i < words.length; i += 11) chunks.push(words.slice(i, i + 11).join(' '));
+    if (words.length <= MAX_WORDS) { chunks.push(sentence); continue; }
+    // Long sentence: cut at natural pauses, then GREEDILY pack the clauses back
+    // up to the word budget so we never emit a dangling fragment like "This
+    // ancient," on its own — each caption stays a coherent, readable clause.
+    const clauses = sentence.split(/(?<=[,;:—–])\s+/).map((c) => c.trim()).filter(Boolean);
+    let buf = '';
+    const flush = () => { if (buf) { chunks.push(buf.trim()); buf = ''; } };
+    for (const clause of clauses) {
+      const cw = clause.split(' ');
+      if (cw.length > MAX_WORDS) {
+        flush();
+        for (let i = 0; i < cw.length; i += 15) chunks.push(cw.slice(i, i + 15).join(' '));
+        continue;
+      }
+      const combined = buf ? `${buf} ${clause}` : clause;
+      if (combined.split(' ').length > MAX_WORDS) { flush(); buf = clause; }
+      else buf = combined;
+    }
+    flush();
   }
-  return chunks.slice(0, 14);
+  return chunks.slice(0, 24);
 }
 
 /**

@@ -49,18 +49,19 @@ const PALETTES = [
 
 // ── small fragment helpers ──────────────────────────────────────────────────
 function txt(content, x, y, opts = {}) {
-  return {
-    type: 'draw_text',
-    content: displayText(content),
-    position: [x, y],
-    style: {
-      fontSize: opts.fontSize ?? 16,
-      color: opts.color ?? '#1e293b',
-      fontWeight: opts.fontWeight ?? '600',
-      textAnchor: opts.textAnchor ?? 'start',
-      fontStyle: opts.fontStyle,
-    },
+  const style = {
+    fontSize: opts.fontSize ?? 16,
+    color: opts.color ?? '#1e293b',
+    fontWeight: opts.fontWeight ?? '600',
+    textAnchor: opts.textAnchor ?? 'start',
+    fontStyle: opts.fontStyle,
   };
+  // Propagate wrap hints so the renderer wraps the FULL sentence to the slot's
+  // width/height instead of running off the box. Without these the renderer
+  // falls back to a coarse heuristic and long text spills or gets clipped.
+  if (opts.maxWidth != null) style.maxWidth = opts.maxWidth;
+  if (opts.maxLines != null) style.maxLines = opts.maxLines;
+  return { type: 'draw_text', content: displayText(content), position: [x, y], style };
 }
 function rect(x, y, w, h, opts = {}) {
   return {
@@ -213,6 +214,72 @@ function anchor(text, maxWords = 7) {
   const words = displayText(text).replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
   if (words.length <= maxWords) return words.join(' ');
   return words.slice(0, maxWords).join(' ');
+}
+
+// Count how many lines `text` wraps into at `fs` within `maxWidth`. Mirrors the
+// renderer's wrap math AND the overlap gate's wrappedTextBox EXACTLY (charsPerLine
+// = maxWidth / (fs*0.55)) so the box we reserve here matches what both of them
+// measure — this is what keeps wrapped text gate-clean.
+function wrapLineCount(text, maxWidth, fs) {
+  const charsPerLine = Math.max(8, Math.floor(maxWidth / (fs * 0.55)));
+  const words = String(text).split(/\s+/).filter(Boolean);
+  let lines = 1, cur = 0;
+  for (const w of words) {
+    const add = (cur ? 1 : 0) + w.length;
+    if (cur + add > charsPerLine && cur) { lines++; cur = w.length; } else cur += add;
+  }
+  return lines;
+}
+
+// Truncate `text` to roughly `maxChars` characters on a word boundary, adding an
+// ellipsis. Last-resort only — used when even the smallest font can't fit the
+// full string into the slot, so the gate stays green and nothing visibly clips.
+function clampChars(text, maxChars) {
+  const s = String(text);
+  if (s.length <= maxChars) return s;
+  const cut = s.slice(0, Math.max(1, maxChars - 1));
+  const sp = cut.lastIndexOf(' ');
+  return (sp > maxChars * 0.5 ? cut.slice(0, sp) : cut).trimEnd() + '…';
+}
+
+// DYNAMIC TEXT: fit the FULL string into a (cx, boxTopY, boxW, boxH) slot by
+// picking the largest font (maxFont→minFont) at which every wrapped line fits the
+// slot's height, vertically centred. No word-dropping at normal sizes — long
+// sentences shrink/wrap to show in full; only genuinely oversized text is clamped
+// at the floor font. Returns a single draw_text fragment (or null for empty text).
+function fitText(content, cx, boxTopY, boxW, boxH, opts = {}) {
+  const text = displayText(content).replace(/\s+/g, ' ').trim();
+  if (!text) return null;
+  const padX = opts.padX ?? 12;
+  const maxW = Math.max(36, boxW - padX * 2);
+  const maxH = Math.max(12, boxH - (opts.padY ?? 3) * 2);
+  const maxFont = opts.maxFont ?? 15;
+  const minFont = opts.minFont ?? 9;
+  const lineRatio = 1.28;
+  let fs = minFont, lines = 1, clamped = text;
+  for (let f = maxFont; f >= minFont; f--) {
+    const n = wrapLineCount(text, maxW, f);
+    if (n * f * lineRatio <= maxH) { fs = f; lines = n; break; }
+    if (f === minFont) {
+      // Even the floor font overflows: keep as many lines as fit, clamp the text.
+      fs = minFont;
+      lines = Math.max(1, Math.floor(maxH / (minFont * lineRatio)));
+      const cpl = Math.max(8, Math.floor(maxW / (minFont * 0.55)));
+      clamped = clampChars(text, lines * cpl);
+      lines = wrapLineCount(clamped, maxW, minFont);
+    }
+  }
+  const blockH = lines * fs * lineRatio;
+  // First-line baseline so the wrapped block is vertically centred in the slot.
+  const baseline = boxTopY + (boxH - blockH) / 2 + fs;
+  return txt(clamped, cx, baseline, {
+    fontSize: fs,
+    fontWeight: opts.fontWeight ?? '600',
+    color: opts.color ?? '#0f172a',
+    textAnchor: opts.textAnchor ?? 'middle',
+    maxWidth: maxW,
+    maxLines: lines,
+  });
 }
 
 // Coerce a slot to an array (string→[string], null→[]), so templates can read
@@ -2828,17 +2895,22 @@ function motifRect(cell, p, motif, i) {
 function drawCell(cell, node, p, motif, i) {
   const { frag, light } = motifRect(cell, p, motif, i);
   const out = [frag];
-  const pad = 16, mw = cell.w - pad * 2;
   const titleColor = light ? '#ffffff' : '#0f172a';
-  const detailColor = light ? '#e2e8f0' : '#64748b';
+  const detailColor = light ? '#e2e8f0' : '#475569';
   const title = node.title || '';
   const detail = node.detail || '';
-  const wWords = cell.w >= 300 ? 8 : cell.w >= 200 ? 6 : cell.w >= 150 ? 4 : 3;
-  if (detail && cell.h >= 74) {
-    out.push(txt(anchor(title, wWords), cell.cx, cell.cy - 6, { fontSize: cell.w >= 200 ? 15 : 13, fontWeight: '700', color: titleColor, textAnchor: 'middle', maxWidth: mw }));
-    out.push(txt(anchor(detail, wWords + 2), cell.cx, cell.cy + 18, { fontSize: 11, fontWeight: '500', color: detailColor, textAnchor: 'middle', maxWidth: mw }));
+  const titleMax = cell.w >= 300 ? 16 : cell.w >= 200 ? 15 : 13;
+  if (detail && cell.h >= 70) {
+    // Split the box: title in the upper portion, detail below. Each region
+    // auto-fits the FULL text (shrink/wrap), so nothing is dropped.
+    const titleH = Math.min(cell.h * 0.46, 34);
+    const t1 = fitText(title, cell.cx, cell.y + 4, cell.w, titleH, { fontWeight: '700', color: titleColor, maxFont: titleMax, minFont: 11 });
+    const t2 = fitText(detail, cell.cx, cell.y + 2 + titleH, cell.w, cell.h - titleH - 6, { fontWeight: '500', color: detailColor, maxFont: 12, minFont: 9 });
+    if (t1) out.push(t1);
+    if (t2) out.push(t2);
   } else {
-    out.push(txt(anchor(title, wWords), cell.cx, cell.cy + 5, { fontSize: cell.w >= 200 ? 15 : 13, fontWeight: '700', color: titleColor, textAnchor: 'middle', maxWidth: mw }));
+    const t1 = fitText(title, cell.cx, cell.y, cell.w, cell.h, { fontWeight: '700', color: titleColor, maxFont: titleMax, minFont: 10 });
+    if (t1) out.push(t1);
   }
   return out;
 }
@@ -2903,13 +2975,13 @@ function gen(recipe) {
         const hub = mkCell(CB_MIDX - 76, 300 - 38, 152, 76);
         const m = motifRect(hub, p, hubMotif, 0);
         s.push(m.frag);
-        s.push(txt(anchor(d.center || ctx.title, 4), hub.cx, hub.cy + 5, { fontSize: 15, fontWeight: '800', color: m.light ? '#ffffff' : '#0f172a', textAnchor: 'middle', maxWidth: hub.w - 24 }));
+        { const hf = fitText(d.center || ctx.title, hub.cx, hub.y, hub.w, hub.h, { fontWeight: '800', color: m.light ? '#ffffff' : '#0f172a', maxFont: 15, minFont: 10 }); if (hf) s.push(hf); }
         for (let i = 0; i < useN; i++) s.push(arrow(edgePoint(hub, cells[i].cx, cells[i].cy), edgePoint(cells[i], hub.cx, hub.cy), { color: p.accent, strokeWidth: 1.8 }));
       } else if (skeleton === 'teeBranch') {
         const parent = mkCell(CB_MIDX - 130, CB_TOP + 8, 260, 64);
         const m = motifRect(parent, p, hubMotif, 0);
         s.push(m.frag);
-        s.push(txt(anchor(d.root || d.center || ctx.title, 5), parent.cx, parent.cy + 5, { fontSize: 16, fontWeight: '800', color: m.light ? '#ffffff' : '#0f172a', textAnchor: 'middle', maxWidth: parent.w - 24 }));
+        { const pf = fitText(d.root || d.center || ctx.title, parent.cx, parent.y, parent.w, parent.h, { fontWeight: '800', color: m.light ? '#ffffff' : '#0f172a', maxFont: 16, minFont: 11 }); if (pf) s.push(pf); }
         s.push(line([parent.cx, parent.y + parent.h], [parent.cx, 280], { color: p.accent, strokeWidth: 2 }));
         for (let i = 0; i < useN; i++) {
           s.push(line([parent.cx, 280], [cells[i].cx, 280], { color: p.accent, strokeWidth: 2 }));

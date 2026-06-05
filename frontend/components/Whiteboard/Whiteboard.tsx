@@ -222,6 +222,7 @@ export default function Whiteboard({
   }, [elapsed, scenes]);
 
   return (
+    <div className="flex flex-col items-center" style={{ width: width * zoom }}>
     <div
       className="relative overflow-hidden rounded-[28px] border border-slate-300 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] shadow-[0_28px_80px_rgba(15,23,42,0.12)]"
       style={{ width: width * zoom, height: height * zoom }}
@@ -295,32 +296,34 @@ export default function Whiteboard({
           ))}
         </g>
       </svg>
+    </div>
 
-      {/* Narration caption band — the teacher's spoken line, written for the
-          student to read (no audio). Sits outside the SVG zoom so it never
-          scales or drifts; replaces itself per beat. */}
+    {/* Narration caption band — the teacher's written explanation (no audio).
+        Sits UNDER the board, in normal flow, so it can never overlap shapes in
+        the board's bottom edge. A fixed min-height reserves the strip so the
+        board doesn't jump as captions appear / change / wrap. */}
+    <div className="mt-3 flex w-full justify-center" style={{ minHeight: 76 }}>
       {caption && caption.text ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center px-4 pb-3">
-          <div
-            key={`${caption.text}-${caption.index}`}
-            className="wb-caption max-w-[92%] rounded-2xl border border-slate-200/70 bg-white/92 px-5 py-2.5 text-center shadow-[0_10px_30px_-12px_rgba(15,23,42,0.35)] backdrop-blur"
-          >
-            <p className="text-[15px] font-medium leading-snug tracking-[-0.01em] text-slate-700">
-              {caption.text}
-            </p>
-            {caption.total > 1 ? (
-              <div className="mt-1.5 flex justify-center gap-1">
-                {Array.from({ length: Math.min(caption.total, 8) }).map((_, i) => (
-                  <span
-                    key={i}
-                    className={`h-1 w-4 rounded-full transition-colors ${i <= caption.index ? "bg-blue-500" : "bg-slate-200"}`}
-                  />
-                ))}
-              </div>
-            ) : null}
-          </div>
+        <div
+          key={`${caption.text}-${caption.index}`}
+          className="wb-caption w-full rounded-2xl border border-slate-200 bg-white px-6 py-3.5 text-center shadow-[0_12px_34px_-14px_rgba(15,23,42,0.4)]"
+        >
+          <p className="text-[15px] font-medium leading-relaxed tracking-[-0.01em] text-slate-700">
+            {caption.text}
+          </p>
+          {caption.total > 1 ? (
+            <div className="mt-2 flex justify-center gap-1">
+              {Array.from({ length: Math.min(caption.total, 10) }).map((_, i) => (
+                <span
+                  key={i}
+                  className={`h-1 w-4 rounded-full transition-colors ${i <= caption.index ? "bg-blue-500" : "bg-slate-200"}`}
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
+    </div>
     </div>
   );
 }

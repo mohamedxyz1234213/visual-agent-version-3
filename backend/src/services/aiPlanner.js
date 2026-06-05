@@ -539,107 +539,206 @@ function detectPromptAwareConceptRole(concept, field, rootConcept = '') {
   return 'general_component';
 }
 
-function buildPromptAwareDefinition(concept, role, rootConcept, concepts) {
-  const isRootConcept = isSamePromptConcept(concept, rootConcept);
-  const related = concepts.filter((entry) => entry !== concept).slice(0, 2);
-  const relatedText = related.length ? related.join(' and ') : rootConcept;
-
-  if (isRootConcept) {
-    if (role.startsWith('system') || role.startsWith('distributed') || role.startsWith('record') || role.startsWith('coordination')) {
-      return `${concept} is an information exchange between connected components: one side sends a request, another side handles it, and a response comes back.`;
-    }
-    if (role.startsWith('biology')) {
-      return `${concept} is a biological structure or process where specific parts interact to create a visible outcome.`;
-    }
-    if (role.startsWith('market')) {
-      return `${concept} is a market situation shaped by forces such as price, supply, demand, and incentives.`;
-    }
-    if (role.startsWith('history')) {
-      return `${concept} is a historical sequence where earlier pressures lead to events, choices, and consequences.`;
-    }
-    if (role.startsWith('cycle') || role.startsWith('process') || role.startsWith('scientific')) {
-      return `${concept} is a process made of connected stages, where each stage changes what happens next.`;
-    }
-    return `${concept} is the through-line that connects ${relatedText} into one idea.`;
-  }
-
-  const roleCategory = role.split('_')[0];
-  const nextRelated = related[0];
-  switch (roleCategory) {
-    case 'biology':
-      return `${concept} is the part that carries out its own step before the result is passed on.`;
-    case 'market':
-      return `${concept} is a force that pushes price or quantity in one direction.`;
-    case 'history':
-      return `${concept} is the pressure that set the next events in motion.`;
-    case 'system':
-    case 'distributed':
-    case 'record':
-    case 'coordination':
-      return nextRelated
-        ? `${concept} receives the request, does its work, then hands off to ${nextRelated}.`
-        : `${concept} receives a request, does its work, then returns a result.`;
-    case 'cycle':
-    case 'process':
-    case 'scientific':
-      return nextRelated
-        ? `${concept} is the step that prepares the conditions ${nextRelated} needs.`
-        : `${concept} is one step whose output becomes the next step's input.`;
-    default:
-      return `${concept} is the piece that does one specific job in the bigger picture.`;
-  }
+// Pick a phrasing from a list by index so consecutive concepts never get the
+// identical sentence (the old fallback reused one template per role, so six
+// concepts read as the same line with the name swapped — meaningless scaffolding).
+function pickVariant(list, index) {
+  if (!list.length) return '';
+  return list[((index % list.length) + list.length) % list.length];
 }
 
-function buildPromptAwareImportance(concept, role, rootConcept, concepts) {
+// Topic-mode facet concepts are title-prefixed (e.g. "The Water Cycle Structures")
+// so they read as headings, but repeating that full title in every sentence is the
+// "caption reads like scaffolding, super duplicated" defect. For PROSE use the short
+// facet word ("Structures"); fall back to the full concept if stripping leaves nothing.
+function shortConceptLabel(concept, rootConcept) {
+  const full = String(concept || '').trim();
+  const root = String(rootConcept || '').trim();
+  if (!root || full.toLowerCase() === root.toLowerCase()) return full;
+  if (full.toLowerCase().startsWith(root.toLowerCase())) {
+    const tail = full.slice(root.length).replace(/^[\s:–—-]+/, '').trim();
+    if (tail) return tail;
+  }
+  return full;
+}
+
+// Map the fine-grained role to a coarse family the phrasing banks switch on.
+function promptAwareRoleFamily(role) {
+  if (role.startsWith('system') || role.startsWith('distributed') || role.startsWith('record') || role.startsWith('coordination')) return 'system';
+  if (role.startsWith('biology')) return 'biology';
+  if (role.startsWith('market')) return 'market';
+  if (role.startsWith('history')) return 'history';
+  if (role.startsWith('cycle') || role.startsWith('process') || role.startsWith('scientific')) return 'process';
+  return 'general';
+}
+
+function buildPromptAwareDefinition(concept, role, rootConcept, concepts, conceptIndex = 0, stripPrefix = rootConcept) {
   const isRootConcept = isSamePromptConcept(concept, rootConcept);
-  const related = concepts.filter((entry) => entry !== concept).slice(0, 2);
-  const relatedText = related.length ? related.join(' and ') : rootConcept;
+  const relatedRaw = concepts.filter((entry) => entry !== concept).slice(0, 2);
+  const related = relatedRaw.map((entry) => shortConceptLabel(entry, stripPrefix));
+  const self = shortConceptLabel(concept, stripPrefix);
+  const relatedText = related.length ? related.join(' and ') : shortConceptLabel(rootConcept, stripPrefix);
+  const family = promptAwareRoleFamily(role);
 
   if (isRootConcept) {
-    if (role.startsWith('system') || role.startsWith('distributed') || role.startsWith('record') || role.startsWith('coordination')) {
-      return `Follow it as request → processing → response, and ${relatedText} fall into a clear order.`;
-    }
-    return `Once you see how ${relatedText} fit together, the whole idea stops feeling like scattered terms.`;
+    const rootByFamily = {
+      system: `${concept} is a coordinated exchange between connected parts: one side sends a request, another handles it, and a response travels back — together they form ${relatedText}.`,
+      biology: `${concept} is a living system in which structures like ${relatedText} each play a role, interacting in order to produce a visible result.`,
+      market: `${concept} is shaped by forces such as supply, demand, and price, and ${relatedText} are the levers that move it one way or the other.`,
+      history: `${concept} unfolds as a chain in which earlier pressures lead to events and consequences, with ${relatedText} marking the turning points along the way.`,
+      process: `${concept} is a sequence of connected stages, where ${relatedText} each transform what arrives and pass it on so the next stage can act.`,
+      general: `${concept} is the through-line that ties ${relatedText} together into a single, coherent idea rather than a list of separate terms.`,
+    };
+    return rootByFamily[family];
   }
 
   const nextRelated = related[0];
-  return nextRelated
-    ? `It matters because what ${concept} produces is exactly what ${nextRelated} needs next.`
-    : `It matters because skipping ${concept} breaks the chain that follows.`;
+  const linkTo = nextRelated ? ` and feeds into ${nextRelated}` : '';
+  const banks = {
+    system: [
+      `${self} takes in the incoming request, does its specific job, then passes the result onward${linkTo}.`,
+      `${self} is one station on the path: it handles what reaches it and forwards a result${linkTo}.`,
+      `${self} acts on the data it receives and returns something the next part can use${linkTo}.`,
+    ],
+    biology: [
+      `${self} carries out its own step in the process before the result moves on${linkTo}.`,
+      `${self} is the structure responsible for one specific change${linkTo}.`,
+      `${self} performs a single function, then the outcome is handed to what follows${linkTo}.`,
+    ],
+    market: [
+      `${self} is a force that pushes price or quantity in a particular direction${linkTo}.`,
+      `${self} shifts the balance of the market, changing what buyers and sellers decide${linkTo}.`,
+      `${self} tilts the outcome whenever the conditions around it change${linkTo}.`,
+    ],
+    history: [
+      `${self} is the pressure that set the events that came after it in motion${linkTo}.`,
+      `${self} is a turning point that redirected what happened next${linkTo}.`,
+      `${self} built on what came before and pushed the story toward its outcome${linkTo}.`,
+    ],
+    process: [
+      `${self} is the stage that prepares the conditions the next stage relies on${linkTo}.`,
+      `${self} is one step whose output becomes the input for what follows${linkTo}.`,
+      `${self} transforms what reaches it and passes the result forward${linkTo}.`,
+    ],
+    general: [
+      `${self} does one specific job that the rest of the idea depends on${linkTo}.`,
+      `${self} is a distinct piece with a clear role inside the whole${linkTo}.`,
+      `${self} contributes one part of the picture${linkTo}.`,
+    ],
+  };
+  return pickVariant(banks[family], conceptIndex);
 }
 
-function buildPromptAwareDetails(concept, role, rootConcept, concepts) {
+function buildPromptAwareImportance(concept, role, rootConcept, concepts, conceptIndex = 0, stripPrefix = rootConcept) {
   const isRootConcept = isSamePromptConcept(concept, rootConcept);
-  const related = concepts.filter((entry) => entry !== concept).slice(0, 2);
+  const relatedRaw = concepts.filter((entry) => entry !== concept).slice(0, 2);
+  const related = relatedRaw.map((entry) => shortConceptLabel(entry, stripPrefix));
+  const self = shortConceptLabel(concept, stripPrefix);
+  const relatedText = related.length ? related.join(' and ') : shortConceptLabel(rootConcept, stripPrefix);
+  const family = promptAwareRoleFamily(role);
 
   if (isRootConcept) {
-    if (role.startsWith('system') || role.startsWith('distributed') || role.startsWith('record') || role.startsWith('coordination')) {
-      return uniqueNormalizedStrings([
-        `It begins with a sender and a receiver on two ends.`,
+    const rootByFamily = {
+      system: `Trace it as request → processing → response and ${relatedText} fall into a clear order instead of feeling like scattered parts.`,
+      biology: `Once you see how ${relatedText} interact in sequence, the whole process makes sense as one connected system.`,
+      market: `Watch how ${relatedText} pull against each other and the resulting price or quantity stops looking arbitrary.`,
+      history: `Read it as cause leading to event leading to consequence, and ${relatedText} line up into a single story.`,
+      process: `Follow the stages in order and ${relatedText} explain why the outcome turns out the way it does.`,
+      general: `Once you see how ${relatedText} fit together, the whole idea stops feeling like a pile of disconnected terms.`,
+    };
+    return rootByFamily[family];
+  }
+
+  const nextRelated = related[0];
+  const banks = nextRelated ? [
+    `It matters because what ${self} produces is exactly what ${nextRelated} needs to do its part.`,
+    `Without ${self}, ${nextRelated} would have nothing to work with.`,
+    `${self} is the link that lets ${nextRelated} continue the chain.`,
+  ] : [
+    `It matters because skipping ${self} breaks the chain that follows it.`,
+    `Remove ${self} and the steps after it lose their starting point.`,
+    `${self} is the piece that keeps the rest of the process moving.`,
+  ];
+  return pickVariant(banks, conceptIndex);
+}
+
+function buildPromptAwareDetails(concept, role, rootConcept, concepts, conceptIndex = 0, stripPrefix = rootConcept) {
+  const isRootConcept = isSamePromptConcept(concept, rootConcept);
+  const relatedRaw = concepts.filter((entry) => entry !== concept).slice(0, 2);
+  const related = relatedRaw.map((entry) => shortConceptLabel(entry, stripPrefix));
+  const self = shortConceptLabel(concept, stripPrefix);
+  const family = promptAwareRoleFamily(role);
+
+  if (isRootConcept) {
+    const rootByFamily = {
+      system: [
+        `It starts with a sender and a receiver at the two ends.`,
         `A request carries what is asked for; a response carries what comes back.`,
         related[0] ? `${related[0]} is one hop along that path, not a separate topic.` : '',
-      ], 3);
-    }
-    return uniqueNormalizedStrings([
-      `Its parts hand work to one another in order.`,
-      related[0] ? `What ${related[0]} does next depends on what came before it.` : '',
-      `Follow the parts in sequence and the outcome explains itself.`,
-    ], 3);
+      ],
+      biology: [
+        `Each structure does its own job, then the result moves to the next.`,
+        related[0] ? `${related[0]} acts only after the step before it finishes.` : '',
+        `Follow the parts in order and the final outcome explains itself.`,
+      ],
+      market: [
+        `Supply and demand meet at a price where the two balance.`,
+        related[0] ? `When ${related[0]} changes, that balance point shifts.` : '',
+        `Read the direction of each force to predict where the outcome lands.`,
+      ],
+      history: [
+        `Earlier pressures build until they tip into an event.`,
+        related[0] ? `${related[0]} marks one of those turning points.` : '',
+        `Each consequence becomes the setup for what happens next.`,
+      ],
+      process: [
+        `Its stages hand work to one another in a fixed order.`,
+        related[0] ? `What ${related[0]} does depends on what came before it.` : '',
+        `Follow the stages in sequence and the result becomes predictable.`,
+      ],
+      general: [
+        `Its parts hand work to one another in order.`,
+        related[0] ? `What ${related[0]} does next depends on what came before it.` : '',
+        `Follow the parts in sequence and the outcome explains itself.`,
+      ],
+    };
+    return uniqueNormalizedStrings(rootByFamily[family], 3);
   }
 
-  if (role.startsWith('system') || role.startsWith('distributed') || role.startsWith('record') || role.startsWith('coordination')) {
-    return uniqueNormalizedStrings([
-      `${concept} sits at one point along the request path.`,
-      related[0] ? `${concept} passes information to ${related[0]} or takes it back.` : '',
-      `Its job is to send, handle, store, or return — one of those.`,
-    ], 3);
-  }
-
-  return uniqueNormalizedStrings([
-    `${concept} handles one step on its own.`,
-    related[0] ? `Its output is the input ${related[0]} works on.` : '',
-    `Remove it and the steps after it have nothing to act on.`,
-  ], 3);
+  const nextRelated = related[0];
+  const banksByFamily = {
+    system: [
+      `${self} sits at one point along the request path.`,
+      nextRelated ? `${self} passes information to ${nextRelated} or returns it back.` : `${self} sends, handles, stores, or returns — one clear job.`,
+      `Its single responsibility keeps the exchange flowing.`,
+    ],
+    biology: [
+      `${self} performs one step and nothing more.`,
+      nextRelated ? `Its result becomes what ${nextRelated} acts on.` : `Its result is what the next structure acts on.`,
+      `Skip it and the steps after it have nothing to continue with.`,
+    ],
+    market: [
+      `${self} pushes the outcome in one direction.`,
+      nextRelated ? `Its movement reshapes how ${nextRelated} responds.` : `Its movement reshapes the balance of the whole market.`,
+      `Track its direction and the price or quantity follows.`,
+    ],
+    history: [
+      `${self} applied pressure at a specific moment.`,
+      nextRelated ? `That pressure set up ${nextRelated} as the next turn.` : `That pressure set up the events that followed.`,
+      `Its effect carried forward into later consequences.`,
+    ],
+    process: [
+      `${self} handles one step on its own.`,
+      nextRelated ? `Its output is the input ${nextRelated} works on.` : `Its output is the input the next step works on.`,
+      `Remove it and the steps after it have nothing to act on.`,
+    ],
+    general: [
+      `${self} handles one step on its own.`,
+      nextRelated ? `Its output is the input ${nextRelated} works on.` : `Its output is what the next part works on.`,
+      `Remove it and the steps after it have nothing to act on.`,
+    ],
+  };
+  return uniqueNormalizedStrings(banksByFamily[family], 3);
 }
 
 function buildPromptAwareTeachingApproach(field, topicText, concepts) {
@@ -684,13 +783,13 @@ function buildPromptAwareTopicComprehension(topicText, field, title) {
   const rootConcept = concepts[0] || coreTitle || title;
   const supportConcepts = concepts.slice(1, 5);
   const supportSummary = supportConcepts.length ? supportConcepts.join(', ') : 'its main components and outcomes';
-  const keyTopics = concepts.slice(0, 6).map((concept) => {
+  const keyTopics = concepts.slice(0, 6).map((concept, conceptIndex) => {
     const role = detectPromptAwareConceptRole(concept, resolvedField, rootConcept);
     return buildTopicEntry(
       concept,
-      buildPromptAwareDefinition(concept, role, rootConcept, concepts),
-      buildPromptAwareImportance(concept, role, rootConcept, concepts),
-      buildPromptAwareDetails(concept, role, rootConcept, concepts),
+      buildPromptAwareDefinition(concept, role, rootConcept, concepts, conceptIndex, coreTitle),
+      buildPromptAwareImportance(concept, role, rootConcept, concepts, conceptIndex, coreTitle),
+      buildPromptAwareDetails(concept, role, rootConcept, concepts, conceptIndex, coreTitle),
       supportConcepts
         .filter((entry) => entry !== concept)
         .slice(0, 2)
@@ -5153,3 +5252,5 @@ function parseJSON(raw) {
     throw new Error(`Invalid JSON in model response: ${cleaned.slice(0, 120)}`);
   }
 }
+
+
