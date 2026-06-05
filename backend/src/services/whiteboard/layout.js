@@ -166,7 +166,11 @@ export function fitTextToSlots(frags) {
         else if (pt.anchor === 'end') maxWidth = Math.max(40, pt.x0raw - box.x0 - PAD);
         else maxWidth = Math.max(40, box.x1 - pt.x0raw - PAD);
         const below = box.y1 - pt.y0raw;
-        maxLines = Math.max(1, Math.min(4, Math.floor(below / (fs * LINE_H))));
+        // Cap kept generous (not 4): after growBoxesToFitText has stretched the
+        // box and reflowed the column, the real bound is the box height and the
+        // floorBelow/roomLines clamp below — so a grown box can show its full
+        // multi-line text instead of being re-truncated here.
+        maxLines = Math.max(1, Math.min(9, Math.floor(below / (fs * LINE_H))));
       }
     } else {
       const anchor = pt.anchor;
@@ -256,6 +260,172 @@ export function dropCollidingText(frags) {
     kept.push(b);
     return true;
   });
+}
+
+// -----------------------------------------------------------------------------
+// GROW-THE-BOX-TO-FIT — the preferred fix for over-long text.
+// -----------------------------------------------------------------------------
+// The template layer (`fitText` in templateLibrary.js) shrinks the font and, as a
+// last resort, clamps the string with a "…". When it had to clamp, it stashes the
+// FULL text on the fragment as `_fullText`. This pass tries to AVOID the "…" by
+// growing the container box taller to fit the whole sentence and pushing the
+// column of fragments below it down by the same amount — so the student reads the
+// complete text instead of a truncated one. It only falls back to truncation when
+// the content band has no room left to grow into.
+// -----------------------------------------------------------------------------
+
+// Line count for `text` wrapped to `maxWidth` at `fontSize` (matches renderer).
+function wrapLines(text, maxWidth, fontSize) {
+  const charsPerLine = Math.max(6, Math.floor(maxWidth / (fontSize * CHAR_W)));
+  const words = String(text || '').split(/\s+/).filter(Boolean);
+  let lines = 1, cur = 0;
+  for (const w of words) {
+    const add = (cur ? 1 : 0) + w.length;
+    if (cur + add > charsPerLine && cur) { lines++; cur = w.length; } else cur += add;
+  }
+  return lines;
+}
+
+// Axis-aligned box of any growable container fragment, or null.
+function boxOfFrag(f) {
+  if (f.type === 'draw_rect') return { x0: f.x, y0: f.y, x1: f.x + (f.width || 0), y1: f.y + (f.height || 0) };
+  if (f.type === 'draw_circle') { const [cx, cy] = f.center || [0, 0]; const r = f.radius || 0; return { x0: cx - r, y0: cy - r, x1: cx + r, y1: cy + r, circle: true, r }; }
+  if (f.type === 'draw_object' || f.type === 'draw_physics_shape') { const [x, y] = f.position || [0, 0]; const [w, h] = f.size || [120, 100]; return { x0: x, y0: y, x1: x + w, y1: y + h }; }
+  return null;
+}
+
+// Smallest filled, non-background box frag containing `pt` (excluding `self`).
+function findContainerFrag(pt, frags, self) {
+  let best = null, bestArea = Infinity;
+  for (const g of frags) {
+    if (g === self) continue;
+    if (g.type === 'draw_rect') { const fill = g.style && g.style.fill; if (!fill || fill === 'none') continue; }
+    else if (g.type === 'draw_circle') { const fill = g.style && g.style.fill; if (!fill || fill === 'none') continue; }
+    else if (g.type !== 'draw_object' && g.type !== 'draw_physics_shape') continue;
+    const b = boxOfFrag(g); if (!b) continue;
+    const w = b.x1 - b.x0, h = b.y1 - b.y0;
+    if (w >= 760 || h >= 440) continue;   // background, not a slot
+    if (pt.x >= b.x0 - 2 && pt.x <= b.x1 + 2 && pt.y >= b.y0 - 2 && pt.y <= b.y1 + 6) {
+      const area = w * h;
+      if (area < bestArea) { best = g; bestArea = area; }
+    }
+  }
+  return best;
+}
+
+// x-span of any fragment (for column-overlap detection during reflow).
+function xSpanOf(f) {
+  if (f.type === 'draw_text') { const mw = (f.style && f.style.maxWidth) || 120; return textXSpan(f, mw); }
+  const b = boxOfFrag(f) || frameBoxOf(f);
+  if (b) return [b.x0, b.x1];
+  return null;
+}
+
+// Top-y of any fragment (for "is it below the grown box" tests).
+function topYOf(f) {
+  if (f.type === 'draw_text') { const fs = (f.style && f.style.fontSize) || 14; return (f.position?.[1] ?? 0) - fs; }
+  const b = boxOfFrag(f) || frameBoxOf(f);
+  return b ? b.y0 : null;
+}
+
+// Shift a fragment DOWN by dy in place (mutates). Covers the fragment kinds that
+// appear stacked in a column; connectors (lines/paths) are left as-is — they are
+// not counted by the overlap gate and only slightly mis-aim at worst.
+function shiftDown(f, dy) {
+  switch (f.type) {
+    case 'draw_rect': f.y = (f.y || 0) + dy; break;
+    case 'draw_circle': if (f.center) f.center = [f.center[0], f.center[1] + dy]; break;
+    case 'draw_text': case 'draw_badge': case 'show_equation': case 'draw_callout':
+    case 'draw_object': case 'draw_physics_shape':
+      if (f.position) f.position = [f.position[0], f.position[1] + dy]; break;
+    default: break; // lines/paths/etc — leave
+  }
+}
+
+export function growBoxesToFitText(frags) {
+  // Clone so callers' arrays aren't mutated; style cloned too (we resize boxes).
+  const out = frags.map((f) => ({ ...f, style: f.style ? { ...f.style } : f.style }));
+  const maxBottom = Math.min(CAPTION_TOP - 4, CANVAS_H - 8);
+
+  // 1. Restore any text the template pre-clamped with "…" so we measure (and,
+  //    after growing, can show) the FULL sentence.
+  for (const f of out) {
+    if (f.type === 'draw_text' && f._fullText) { f.content = f._fullText; }
+  }
+
+  // 2. For every text bound to a container box, compute the height it really
+  //    needs (full wrapped content). requiredH per box = max over its texts.
+  const required = new Map(); // boxFrag -> needed height (px)
+  for (const f of out) {
+    if (f.type !== 'draw_text' || !String(f.content || '').trim()) continue;
+    const pt = textAnchorPoint(f);
+    const boxFrag = findContainerFrag(pt, out, f);
+    if (!boxFrag) continue;
+    const box = boxOfFrag(boxFrag);
+    const fs = (f.style && f.style.fontSize) || 14;
+    // Width available inside the box (mirror fitTextToSlots' middle-anchor case).
+    const w = box.x1 - box.x0;
+    const maxWidth = (f.style && f.style.maxWidth) || Math.max(40, w - PAD * 2);
+    // text top relative to box top + full wrapped block height + bottom pad.
+    const top = (pt.y0raw - fs) - box.y0;
+    const need = Math.max(0, top) + wrapLines(f.content, maxWidth, fs) * fs * LINE_H + PAD;
+    const prev = required.get(boxFrag) || 0;
+    if (need > prev) required.set(boxFrag, need);
+  }
+
+  // 3. Group boxes into rows (similar top-y) so a row stays uniform, then grow
+  //    each needy row and reflow everything below it. Process rows top→bottom so
+  //    earlier growth pushes later rows down before they grow.
+  const boxFrags = out.filter((f) => required.has(f));
+  const rows = [];
+  for (const bf of boxFrags) {
+    const b = boxOfFrag(bf);
+    let row = rows.find((r) => Math.abs(r.y0 - b.y0) < 10 && Math.abs((r.h) - (b.y1 - b.y0)) < 24);
+    if (!row) { row = { y0: b.y0, h: b.y1 - b.y0, members: [] }; rows.push(row); }
+    row.members.push(bf);
+  }
+  rows.sort((a, b) => a.y0 - b.y0);
+
+  for (const row of rows) {
+    // Target height = the largest requirement across the row's boxes.
+    let target = row.h;
+    for (const bf of row.members) target = Math.max(target, required.get(bf) || 0);
+    let delta = target - row.h;
+    if (delta <= 1) continue;
+
+    // Room beneath the row: lowest point of any fragment below it (x-overlapping
+    // a row member) bounded by the content band.
+    const memberBoxes = row.members.map(boxOfFrag);
+    const rowBottom = Math.max(...memberBoxes.map((b) => b.y1));
+    const xOverlapsRow = (span) => memberBoxes.some((b) => !(span[1] <= b.x0 + 4 || span[0] >= b.x1 - 4));
+    let colBottom = rowBottom;
+    const below = [];
+    for (const g of out) {
+      if (row.members.includes(g)) continue;
+      const gTop = topYOf(g); if (gTop == null || gTop < rowBottom - 4) continue;
+      const span = xSpanOf(g); if (!span || !xOverlapsRow(span)) continue;
+      below.push(g);
+      const gb = boxOfFrag(g) || frameBoxOf(g);
+      const gBot = gb ? gb.y1 : gTop + ((g.style && g.style.fontSize) || 14) * LINE_H;
+      if (gBot > colBottom) colBottom = gBot;
+    }
+    const grow = Math.min(delta, Math.max(0, maxBottom - colBottom));
+    if (grow <= 0.5) continue;
+
+    // Grow every box in the row by the same amount (keeps the row uniform) and
+    // push the below-column down so nothing collides.
+    for (const bf of row.members) {
+      if (bf.type === 'draw_rect') bf.height = (bf.height || 0) + grow;
+      else if (bf.type === 'draw_object' || bf.type === 'draw_physics_shape') bf.size = [bf.size?.[0] ?? 120, (bf.size?.[1] ?? 100) + grow];
+      else if (bf.type === 'draw_circle') { bf.radius = (bf.radius || 0) + grow / 2; bf.center = [bf.center?.[0] ?? 0, (bf.center?.[1] ?? 0) + grow / 2]; }
+    }
+    for (const g of below) shiftDown(g, grow);
+  }
+
+  // Drop the stash markers; fitTextToSlots now fits text into the grown boxes
+  // (and only truncates a slot whose box still can't hold the full text).
+  for (const f of out) if (f._fullText) delete f._fullText;
+  return out;
 }
 
 export { CAPTION_TOP };

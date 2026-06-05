@@ -272,7 +272,7 @@ function fitText(content, cx, boxTopY, boxW, boxH, opts = {}) {
   const blockH = lines * fs * lineRatio;
   // First-line baseline so the wrapped block is vertically centred in the slot.
   const baseline = boxTopY + (boxH - blockH) / 2 + fs;
-  return txt(clamped, cx, baseline, {
+  const frag = txt(clamped, cx, baseline, {
     fontSize: fs,
     fontWeight: opts.fontWeight ?? '600',
     color: opts.color ?? '#0f172a',
@@ -280,6 +280,13 @@ function fitText(content, cx, boxTopY, boxW, boxH, opts = {}) {
     maxWidth: maxW,
     maxLines: lines,
   });
+  // If we had to clamp the string to fit the slot, stash the FULL text so the
+  // composer's grow-the-box pass (layout.growBoxesToFitText) can stretch the
+  // container to fit and restore the complete sentence — instead of leaving the
+  // user staring at a "…". The clamped `content` keeps raw template renders (the
+  // overlap gate) collision-free; the grow pass only runs in the composer.
+  if (frag && clamped !== text) frag._fullText = text;
+  return frag;
 }
 
 // Coerce a slot to an array (string→[string], null→[]), so templates can read

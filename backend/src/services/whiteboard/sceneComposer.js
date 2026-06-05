@@ -22,7 +22,7 @@ import {
   getTemplate,
   getTemplatesByIntent,
 } from './templateLibrary.js';
-import { fitTextToSlots, pruneEmptyContainers, dropCollidingText, CAPTION_TOP } from './layout.js';
+import { growBoxesToFitText, fitTextToSlots, pruneEmptyContainers, dropCollidingText, CAPTION_TOP } from './layout.js';
 import { cleanString } from './validator.js';
 
 const CANVAS = { w: 800, h: 500 };
@@ -289,10 +289,13 @@ function composeScene(pscene, ctx, used, seed) {
   const templateId = chosen ? chosen.id : (pscene.template || 'definition_spotlight');
   used.add(templateId);
 
-  // Make every drawn text fit its slot so it can never spill onto a neighbour,
-  // then drop any container left empty + purely-decorative shapes (no empty
-  // boxes, no meaningless flashing svg), and finally drop text fragments that
+  // Make every drawn text fit its slot so it can never spill onto a neighbour.
+  // First GROW boxes so the full sentence shows (no "…") — stretching the
+  // container taller and reflowing the column below it — then run the fit pass
+  // (which only truncates when the band is genuinely full), drop any container
+  // left empty + purely-decorative shapes, and finally drop text fragments that
   // heavily overlap a previously-kept one (e.g. a title landing on the subtitle).
+  fragments = growBoxesToFitText(fragments);
   fragments = fitTextToSlots(fragments);
   fragments = pruneEmptyContainers(fragments);
   fragments = dropCollidingText(fragments);
