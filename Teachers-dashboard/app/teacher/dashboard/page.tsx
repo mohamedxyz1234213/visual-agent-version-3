@@ -1,6 +1,7 @@
 "use client";
 
 import { useTeacherDashboard } from "@/features/teacher/hooks";
+import type { TeacherLesson } from "@/features/teacher/types";
 import { StatsCard } from "@/components/shared";
 import { Users, BookOpen, FileCheck, BarChart3 } from "lucide-react";
 import { IconFileText, IconCode, IconClipboard, IconUsers } from "@/components/shared/FluxIcons";
@@ -49,9 +50,9 @@ export default function TeacherDashboard() {
 
         <div className="bg-white rounded-2xl p-6 shadow-sm">
           <h3 className="font-semibold text-[#18181B] mb-4">Recent Lessons</h3>
-          {data?.recentLessons?.length > 0 ? (
+          {data?.recentLessons && data.recentLessons.length > 0 ? (
             <div className="space-y-2">
-              {data.recentLessons.map((l) => (
+              {data.recentLessons.map((l: TeacherLesson) => (
                 <div key={l._id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
                   <div className={`w-2 h-2 rounded-full ${l.isPublished ? "bg-green-500" : "bg-gray-300"}`} />
                   <span className="text-sm text-[#18181B] truncate flex-1">{l.title}</span>

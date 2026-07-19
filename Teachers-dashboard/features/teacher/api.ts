@@ -5,6 +5,9 @@ const request = apiRequest;
 
 import type { TeacherDashboard, TeacherLesson, TeacherExercise, TeacherExam, TeacherSubmission, ClassData } from "./types";
 
+// Re-export types so hooks can import them from this module
+export type { TeacherDashboard, TeacherLesson, TeacherExercise, TeacherExam, TeacherSubmission, ClassData } from "./types";
+
 export async function getTeacherDashboard(): Promise<TeacherDashboard> {
   return request("/teacher/dashboard");
 }

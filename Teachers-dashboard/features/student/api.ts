@@ -12,6 +12,21 @@ import type {
   ConceptMastery,
 } from "./types";
 
+// Re-export types so hooks can import them from this module
+export type {
+  StudentDashboard,
+  Lesson,
+  Exercise,
+  Submission,
+  Achievement,
+  LeaderboardResponse,
+  Notification,
+  WeeklyChallenge,
+  AvatarSession,
+  AvatarMessage,
+  ConceptMastery,
+} from "./types";
+
 import { apiRequest } from "../shared/config";
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────

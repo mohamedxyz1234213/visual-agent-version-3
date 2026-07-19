@@ -218,7 +218,7 @@ router.post('/users', async (req, res, next) => {
     const email = String(req.body?.email || '').trim().toLowerCase();
     const username = String(req.body?.username || '').trim().toLowerCase();
     const password = String(req.body?.password || '');
-    const role = req.body?.role === 'admin' ? 'admin' : 'user';
+    const role = req.body?.role === 'admin' ? 'admin' : req.body?.role === 'teacher' ? 'teacher' : req.body?.role === 'student' ? 'student' : 'user';
     const maxAiRequests = Number.isFinite(Number(req.body?.max_ai_requests))
       ? Math.max(0, Math.min(1000, Number(req.body?.max_ai_requests)))
       : 3;
@@ -238,6 +238,15 @@ router.post('/users', async (req, res, next) => {
       status: 'active',
       maxAiRequests,
     });
+
+    // Create student/teacher profile if needed
+    if (role === 'student') {
+      const { Student } = await import('../../coding-teacher/models/index.js');
+      await Student.create({ userId: user._id, status: 'active' });
+    } else if (role === 'teacher') {
+      const { Teacher } = await import('../../coding-teacher/models/index.js');
+      await Teacher.create({ userId: user._id });
+    }
 
     res.status(201).json({ ok: true, user: user.toSafeJSON() });
   } catch (err) { next(err); }
@@ -261,7 +270,7 @@ router.patch('/users/:id', async (req, res, next) => {
     if (req.body?.status && ['active', 'disabled'].includes(req.body.status)) {
       user.status = req.body.status;
     }
-    if (req.body?.role && ['user', 'admin'].includes(req.body.role)) {
+    if (req.body?.role && ['user', 'admin', 'teacher', 'student'].includes(req.body.role)) {
       // Don't allow the last admin to demote themselves
       if (user._id.toString() === req.user._id.toString() && req.body.role !== 'admin') {
         return bad(res, 'You cannot demote your own admin account.', 409);

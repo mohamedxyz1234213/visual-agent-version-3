@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useAuthStore } from "@/store/authStore";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 function IconCode({ className = "w-5 h-5" }: { className?: string }) {
   return (
@@ -15,12 +15,22 @@ function IconCode({ className = "w-5 h-5" }: { className?: string }) {
 }
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#EDEDED] flex items-center justify-center"><div className="w-8 h-8 border-3 border-[#D6F63E] border-t-transparent rounded-full animate-spin" /></div>}>
+      <LoginPageInner />
+    </Suspense>
+  );
+}
+
+function LoginPageInner() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { login } = useAuthStore();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -28,6 +38,14 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const user = await login(identifier, password);
+      // If a ?next= redirect was specified, go there first (only internal paths)
+      try {
+        const decoded = next ? decodeURIComponent(next) : null;
+        if (decoded && decoded.startsWith("/")) {
+          router.push(decoded);
+          return;
+        }
+      } catch { /* malformed next param — ignore and fall through */ }
       const role = user.role;
       if (role === "admin") router.push("/admin");
       else if (role === "teacher") router.push("/teacher/dashboard");

@@ -9,7 +9,7 @@ import { useEffect } from "react";
 const teacherNavItems = [
   { label: "Dashboard", href: "/teacher/dashboard", icon: "dashboard" },
   { label: "My Classes", href: "/teacher/my-classes", icon: "users" },
-  { label: "Registrations", href: "/teacher/registration-requests", icon: "shield" },
+  { label: "Add Students", href: "/teacher/registration-requests", icon: "users" },
   { label: "Lessons", href: "/teacher/lessons", icon: "book" },
   { label: "Exercises", href: "/teacher/exercises", icon: "code" },
   { label: "Exams", href: "/teacher/exams", icon: "clipboard" },

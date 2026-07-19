@@ -27,6 +27,7 @@ import {
   aiRoutes,
   gamificationRoutes,
   registrationRoutes,
+  codingTeacherAdminRoutes,
 } from './coding-teacher/routes/index.js';
 
 import { loadUser } from './auth/middleware/auth.js';
@@ -43,7 +44,7 @@ if (process.env.TRUST_PROXY === 'true') {
 }
 
 // ── Middleware ────────────────────────────────────────────────────────────────
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:3001')
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:3001,http://localhost:3002')
   .split(',')
   .map((o) => o.trim());
 
@@ -88,6 +89,7 @@ app.use('/api/v1/parent', parentRoutes);
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/gamification', gamificationRoutes);
 app.use('/api/v1/registration', registrationRoutes);
+app.use('/api/v1/admin', codingTeacherAdminRoutes);
 
 // Health check
 app.get('/health', (_req, res) => res.json({ status: 'ok', version: '2.0.0', features: ['whiteboard', 'coding-teacher'] }));
