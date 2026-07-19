@@ -25,6 +25,7 @@ services:
       - ./backend/.env
     environment:
       MONGODB_URI: mongodb://mongo:27017/ai_teacher
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3001,http://localhost:3002
     ports:
       - "8000:8000"
     depends_on:
@@ -34,16 +35,42 @@ services:
       - ./backend:/app
       - /app/node_modules
 
-  # ─── Frontend (Next.js) ───────────────────────────────────────────────────────
-  frontend:
+  # ─── Frontend: Student (main site + landing + whiteboard feature) ─────────────
+  frontend-student:
     build:
-      context: ./frontend
+      context: ./frontend-student
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
     ports:
       - "3000:3000"
+    depends_on:
+      - backend
+
+  # ─── Frontend: Admin ───────────────────────────────────────────────────────────
+  frontend-admin:
+    build:
+      context: ./frontend-admin
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+    ports:
+      - "3001:3001"
+    depends_on:
+      - backend
+
+  # ─── Frontend: Teacher ─────────────────────────────────────────────────────────
+  frontend-teacher:
+    build:
+      context: ./frontend-teacher
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+    ports:
+      - "3002:3002"
     depends_on:
       - backend
 

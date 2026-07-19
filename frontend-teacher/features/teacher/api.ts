@@ -58,6 +58,54 @@ export async function getSubmissions(params?: { exerciseId?: string; studentId?:
   return request(`/teacher/submissions${q ? `?${q}` : ""}`);
 }
 
+// ── Registration Approval ─────────────────────────────────────────────────────
+export interface RegistrationRequest {
+  id: string;
+  fullName: string;
+  username: string;
+  schoolEmail: string;
+  parentPhone: string;
+  nationalId: string;
+  dateOfBirth: string;
+  age: number;
+  matchedSchoolYear: { _id: string; name: string; grade?: number } | null;
+  section: string;
+  createdAt: string;
+}
+
+export async function getRegistrationRequests(): Promise<{ requests: RegistrationRequest[] }> {
+  return request("/teacher/registration-requests");
+}
+
+export async function approveRegistrationRequest(
+  id: string,
+  data?: { schoolYearId?: string; section?: string }
+): Promise<{ ok: boolean; studentId: string; userId: string }> {
+  return request(`/teacher/registration-requests/${id}/approve`, { method: "POST", body: JSON.stringify(data || {}) });
+}
+
+export async function rejectRegistrationRequest(id: string, reason?: string): Promise<{ ok: boolean }> {
+  return request(`/teacher/registration-requests/${id}/reject`, { method: "POST", body: JSON.stringify({ reason }) });
+}
+
+// ── Teacher-Assigned Challenges ────────────────────────────────────────────────
+export async function getTeacherChallenges(): Promise<{ challenges: any[] }> {
+  return request("/teacher/challenges");
+}
+
+export async function createTeacherChallenge(data: {
+  title: string;
+  description?: string;
+  exerciseId: string;
+  rules?: string;
+  startDate: string;
+  endDate: string;
+  rewards?: { xp?: number; coins?: number };
+  studentIds?: string[];
+}): Promise<{ ok: boolean; challenge: any }> {
+  return request("/teacher/challenges", { method: "POST", body: JSON.stringify(data) });
+}
+
 export async function gradeSubmission(id: string, data: { teacherFeedback?: string; score?: number }): Promise<{ ok: boolean }> {
   return request(`/teacher/submissions/${id}/feedback`, { method: "PUT", body: JSON.stringify(data) });
 }

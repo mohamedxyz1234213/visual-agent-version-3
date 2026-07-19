@@ -7,16 +7,19 @@ interface StatsCardProps {
   value: string | number;
   unit?: string;
   change?: number;
-  icon: React.ReactNode;
+  icon: React.ComponentType<{ className?: string; size?: number }>;
+  accentColor?: string;
 }
 
-export function StatsCard({ title, value, unit, change, icon }: StatsCardProps) {
+export function StatsCard({ title, value, unit, change, icon: Icon, accentColor }: StatsCardProps) {
   return (
     <div className="flux-card flex flex-col gap-3">
       {/* Top row: icon chip + label + kebab */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="flux-icon-chip">{icon}</div>
+          <div className="flux-icon-chip" style={accentColor ? { color: accentColor } : undefined}>
+            <Icon size={18} />
+          </div>
           <span className="flux-stat-label">{title}</span>
         </div>
         <button className="w-6 h-6 flex items-center justify-center text-[#6B6B6B] hover:bg-gray-100 rounded-lg transition-colors">

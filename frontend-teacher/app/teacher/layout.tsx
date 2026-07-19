@@ -9,12 +9,13 @@ import { useEffect } from "react";
 const teacherNavItems = [
   { label: "Dashboard", href: "/teacher/dashboard", icon: "dashboard" },
   { label: "My Classes", href: "/teacher/my-classes", icon: "users" },
+  { label: "Registrations", href: "/teacher/registration-requests", icon: "shield" },
   { label: "Lessons", href: "/teacher/lessons", icon: "book" },
   { label: "Exercises", href: "/teacher/exercises", icon: "code" },
   { label: "Exams", href: "/teacher/exams", icon: "clipboard" },
+  { label: "Challenges", href: "/teacher/challenges", icon: "trophy" },
   { label: "Submissions", href: "/teacher/submissions", icon: "check" },
   { label: "Analytics", href: "/teacher/analytics", icon: "chart" },
-  { label: "Whiteboard", href: "/teacher/whiteboard", icon: "palette" },
 ];
 
 export default function TeacherLayout({ children }: { children: React.ReactNode }) {

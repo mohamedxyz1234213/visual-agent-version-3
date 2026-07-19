@@ -239,6 +239,36 @@ export async function verifyInvite(token: string): Promise<{ email: string; user
   return data;
 }
 
+export async function registerStudent(input: {
+  fullName: string;
+  username: string;
+  schoolEmail: string;
+  parentPhone: string;
+  nationalId: string;
+  dateOfBirth: string;
+  password: string;
+}): Promise<{ ok: true; message: string; request_id: string }> {
+  const res = await fetch(`${BASE}/registration/student`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Registration failed: ${res.status}`);
+  return data;
+}
+
+export async function checkStudentRegistrationStatus(
+  schoolEmail: string,
+  nationalId: string
+): Promise<{ status: string; rejectionReason?: string; submittedAt: string; reviewedAt?: string }> {
+  const params = new URLSearchParams({ schoolEmail, nationalId });
+  const res = await fetch(`${BASE}/registration/student/status?${params.toString()}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Lookup failed: ${res.status}`);
+  return data;
+}
+
 export async function completeSignup(input: {
   token: string;
   email: string;

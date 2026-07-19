@@ -124,10 +124,6 @@ export default function HomePage() {
 
   function getDashboardPath(role: string) {
     switch (role) {
-      case "admin":
-        return "/admin";
-      case "teacher":
-        return "/teacher/dashboard";
       case "student":
         return "/student/dashboard";
       default:
@@ -148,9 +144,12 @@ export default function HomePage() {
           </span>
         </div>
         <div className="flex items-center gap-4">
+          <Link href="/contact" className="text-sm font-medium text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors hidden sm:inline-block">
+            Contact
+          </Link>
           {loading ? (
             <div className="w-20 h-9 bg-gray-200 rounded-full animate-pulse" />
-          ) : user ? (
+          ) : user && user.role === "student" ? (
             <Link
               href={getDashboardPath(user.role)}
               className="flux-btn-lime flex items-center gap-2"
@@ -168,7 +167,7 @@ export default function HomePage() {
                 Sign In
               </Link>
               <Link
-                href="/login"
+                href="/register"
                 className="flux-btn-lime flex items-center gap-2"
               >
                 Get Started

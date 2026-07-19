@@ -8,12 +8,18 @@ import {
   getExercises,
   getExams,
   getSubmissions,
+  getRegistrationRequests,
+  approveRegistrationRequest,
+  rejectRegistrationRequest,
+  getTeacherChallenges,
+  createTeacherChallenge,
   type TeacherDashboard,
   type ClassData,
   type TeacherLesson,
   type TeacherExercise,
   type TeacherExam,
   type TeacherSubmission,
+  type RegistrationRequest,
 } from "../api";
 
 export function useTeacherDashboard() {
@@ -80,4 +86,43 @@ export function useTeacherSubmissions() {
   }, []);
   useEffect(() => { refresh(); }, [refresh]);
   return { submissions, loading, refresh };
+}
+
+export function useRegistrationRequests() {
+  const [requests, setRequests] = useState<RegistrationRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try { const d = await getRegistrationRequests(); setRequests(d.requests || []); } catch {} finally { setLoading(false); }
+  }, []);
+  useEffect(() => { refresh(); }, [refresh]);
+
+  const approve = useCallback(async (id: string, data?: { schoolYearId?: string; section?: string }) => {
+    await approveRegistrationRequest(id, data);
+    await refresh();
+  }, [refresh]);
+
+  const reject = useCallback(async (id: string, reason?: string) => {
+    await rejectRegistrationRequest(id, reason);
+    await refresh();
+  }, [refresh]);
+
+  return { requests, loading, refresh, approve, reject };
+}
+
+export function useTeacherChallenges() {
+  const [challenges, setChallenges] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try { const d = await getTeacherChallenges(); setChallenges(d.challenges || []); } catch {} finally { setLoading(false); }
+  }, []);
+  useEffect(() => { refresh(); }, [refresh]);
+
+  const create = useCallback(async (data: Parameters<typeof createTeacherChallenge>[0]) => {
+    await createTeacherChallenge(data);
+    await refresh();
+  }, [refresh]);
+
+  return { challenges, loading, refresh, create };
 }
