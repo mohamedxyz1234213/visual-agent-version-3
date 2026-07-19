@@ -3,13 +3,21 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { IconPalette } from "@/components/shared/FluxIcons";
+import { AuthGate } from "@/components/Auth/AuthGate";
 
 export default function StudentWhiteboardPage() {
   const router = useRouter();
 
+  return (
+    <AuthGate>
+      <RedirectToUpload router={router} />
+    </AuthGate>
+  );
+}
+
+function RedirectToUpload({ router }: { router: ReturnType<typeof useRouter> }) {
   useEffect(() => {
-    // Redirect to the existing whiteboard feature
-    router.push("/upload");
+    router.replace("/upload");
   }, [router]);
 
   return (
@@ -20,10 +28,6 @@ export default function StudentWhiteboardPage() {
         </div>
         <h3 className="text-lg font-semibold text-[#18181B] mb-2">Opening Whiteboard...</h3>
         <p className="text-sm text-gray-500">Redirecting to the interactive whiteboard.</p>
-        <button onClick={() => router.push("/upload")}
-          className="mt-4 px-4 py-2 bg-[#D4F542] text-[#18181B] rounded-xl text-sm font-semibold hover:bg-[#c5e63d] transition-colors">
-          Go to Whiteboard
-        </button>
       </div>
     </div>
   );

@@ -39,13 +39,11 @@ function LoginPageInner() {
     try {
       const user = await login(identifier, password);
       // If a ?next= redirect was specified, go there first (only internal paths)
-      try {
-        const decoded = next ? decodeURIComponent(next) : null;
-        if (decoded && decoded.startsWith("/")) {
-          router.push(decoded);
-          return;
-        }
-      } catch { /* malformed next param — ignore and fall through */ }
+      const decoded = next ? decodeURIComponent(next) : null;
+      if (decoded && decoded.startsWith("/")) {
+        router.push(decoded);
+        return;
+      }
       const role = user.role;
       if (role === "admin") router.push("/admin");
       else if (role === "teacher") router.push("/teacher/dashboard");

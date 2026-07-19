@@ -29,6 +29,32 @@ router.get('/dashboard', requireRole('student'), async (req, res, next) => {
       .limit(5)
       .lean();
 
+    // Weekly activity — lessons completed per day of week
+    const weeklyActivity = [];
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const dailyCounts = await Submission.aggregate([
+      {
+        $match: {
+          studentId: student._id,
+          createdAt: { $gte: sevenDaysAgo },
+        },
+      },
+      {
+        $group: {
+          _id: { $dayOfWeek: '$createdAt' },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+    const countMap = {};
+    dailyCounts.forEach((d) => { countMap[d._id] = d.count; });
+    // Normalize MongoDB dayOfWeek (1=Sun..7=Sat) to 0=Mon..6=Sun
+    for (let i = 0; i < 7; i++) {
+      const mongoDay = ((i + 1) % 7) + 1; // Mon=2, Tue=3, ..., Sun=1
+      weeklyActivity.push({ day: i, count: countMap[mongoDay] || 0 });
+    }
+
     res.json({
       student: {
         id: student._id,
@@ -50,6 +76,7 @@ router.get('/dashboard', requireRole('student'), async (req, res, next) => {
       recentSubmissions,
       unreadNotifications,
       recentAchievements,
+      weeklyActivity,
     });
   } catch (err) {
     next(err);
@@ -347,7 +374,9 @@ router.get('/leaderboard', requireRole('student'), async (req, res, next) => {
 });
 
 // ── GET /api/v1/student/notifications ─────────────────────────────────────────
-router.get('/notifications', requireRole('student'), async (req, res, next) => {
+// Note: uses requireAuth only (not requireRole('student')) so that teachers
+// can also read their own notifications via this route.
+router.get('/notifications', async (req, res, next) => {
   try {
     const notifications = await Notification.find({ userId: req.userId })
       .sort({ createdAt: -1 })
@@ -366,7 +395,7 @@ router.get('/notifications', requireRole('student'), async (req, res, next) => {
 });
 
 // ── PUT /api/v1/student/notifications/:id/read ────────────────────────────────
-router.put('/notifications/:id/read', requireRole('student'), async (req, res, next) => {
+router.put('/notifications/:id/read', async (req, res, next) => {
   try {
     await Notification.findOneAndUpdate(
       { _id: req.params.id, userId: req.userId },
@@ -379,7 +408,7 @@ router.put('/notifications/:id/read', requireRole('student'), async (req, res, n
 });
 
 // ── PUT /api/v1/student/notifications/read-all ────────────────────────────────
-router.put('/notifications/read-all', requireRole('student'), async (req, res, next) => {
+router.put('/notifications/read-all', async (req, res, next) => {
   try {
     await Notification.updateMany(
       { userId: req.userId, isRead: false },

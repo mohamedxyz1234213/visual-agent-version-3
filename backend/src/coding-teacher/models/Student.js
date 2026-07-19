@@ -56,12 +56,12 @@ const studentSchema = new Schema(
 );
 
 // Auto-generate student code
-studentSchema.pre('save', async function (next) {
-  if (this.studentCode) return next();
+// Note: Mongoose 9 removed the `next` param from async hooks — just return.
+studentSchema.pre('save', async function () {
+  if (this.studentCode) return;
   const year = new Date().getFullYear();
   const count = await mongoose.model('Student').countDocuments();
   this.studentCode = `STU-${year}-${String(count + 1).padStart(4, '0')}`;
-  next();
 });
 
 // Calculate level from XP

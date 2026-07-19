@@ -28,6 +28,7 @@ export interface StudentDashboard {
   recentSubmissions: Submission[];
   unreadNotifications: number;
   recentAchievements: Achievement[];
+  weeklyActivity: { day: number; count: number }[];
 }
 
 export interface SubjectProgress {

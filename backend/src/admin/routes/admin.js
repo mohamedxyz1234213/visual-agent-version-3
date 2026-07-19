@@ -7,6 +7,7 @@ import { sendInviteEmail, getEmailMode } from '../../auth/services/emailService.
 import { requireAdmin } from '../../auth/middleware/auth.js';
 import { getClientIp, getUserAgent } from '../../auth/services/request.js';
 import { logAdminPageViews } from '../middleware/logPageViews.js';
+import { Student, Teacher } from '../../coding-teacher/models/index.js';
 
 const router = Router();
 router.use(requireAdmin);
@@ -241,10 +242,8 @@ router.post('/users', async (req, res, next) => {
 
     // Create student/teacher profile if needed
     if (role === 'student') {
-      const { Student } = await import('../../coding-teacher/models/index.js');
       await Student.create({ userId: user._id, status: 'active' });
     } else if (role === 'teacher') {
-      const { Teacher } = await import('../../coding-teacher/models/index.js');
       await Teacher.create({ userId: user._id });
     }
 

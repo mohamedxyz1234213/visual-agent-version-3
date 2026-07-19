@@ -120,3 +120,26 @@ export async function generateAILesson(topic: string, subjectId?: string, diffic
 export async function generateAIExercise(topic: string, difficulty?: string, type?: string): Promise<{ exercise: any }> {
   return request("/ai/generate-exercise", { method: "POST", body: JSON.stringify({ topic, difficulty, type }) });
 }
+
+// ── Teacher Notifications ─────────────────────────────────────────────────────
+export async function sendNotification(data: {
+  studentIds: string[];
+  type?: string;
+  title: string;
+  message?: string;
+  priority?: 'low' | 'normal' | 'high' | 'urgent';
+}): Promise<{ ok: boolean; sent: number }> {
+  return request("/teacher/notifications", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function getStudentNotifications(): Promise<{ notifications: Notification[]; unreadCount: number }> {
+  return request("/student/notifications");
+}
+
+export async function markNotificationRead(id: string): Promise<{ ok: boolean }> {
+  return request(`/student/notifications/${id}/read`, { method: "PUT" });
+}
+
+export async function markAllNotificationsRead(): Promise<{ ok: boolean }> {
+  return request("/student/notifications/read-all", { method: "PUT" });
+}

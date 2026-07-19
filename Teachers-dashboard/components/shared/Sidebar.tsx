@@ -109,19 +109,8 @@ export function Sidebar({ items, title, subtitle, bottomContent }: SidebarProps)
         })}
       </nav>
 
-      {/* Bottom promo card */}
-      {bottomContent || (
-        <div className="p-3">
-          <div className="bg-[#D6F63E] rounded-[16px] p-4 text-center">
-            <p className="text-[13px] font-bold text-[#0F0F0F] mb-1">Upgrade Now</p>
-            <p className="text-[11px] text-[#0F0F0F]/70 mb-2">Get all premium features</p>
-            <button className="flux-btn-primary flex items-center gap-2 mx-auto px-4 py-1.5 text-[12px]">
-              Go Pro
-              <IconArrowRight size={14} />
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Bottom content or empty spacer */}
+      {bottomContent || <div className="p-3" />}
     </aside>
   );
 }

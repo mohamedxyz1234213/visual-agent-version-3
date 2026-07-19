@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { IconKebab } from "./FluxIcons";
 
 interface StatsCardProps {
@@ -7,18 +8,20 @@ interface StatsCardProps {
   value: string | number;
   unit?: string;
   change?: number;
-  icon: React.ComponentType<{ className?: string; size?: number }>;
+  icon: React.ComponentType<{ className?: string; size?: number }> | React.ReactNode;
   accentColor?: string;
 }
 
-export function StatsCard({ title, value, unit, change, icon: Icon, accentColor }: StatsCardProps) {
+export function StatsCard({ title, value, unit, change, icon, accentColor }: StatsCardProps) {
+  const isComponent = typeof icon === 'function' || (icon !== null && typeof icon === 'object' && 'render' in icon);
+  const iconEl = isComponent ? React.createElement(icon as React.ComponentType<any>, { size: 18 }) : icon;
   return (
     <div className="flux-card flex flex-col gap-3">
       {/* Top row: icon chip + label + kebab */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="flux-icon-chip" style={accentColor ? { color: accentColor } : undefined}>
-            <Icon size={18} />
+            {iconEl}
           </div>
           <span className="flux-stat-label">{title}</span>
         </div>

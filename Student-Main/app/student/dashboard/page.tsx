@@ -44,26 +44,22 @@ export default function StudentDashboard() {
     );
   }
 
-  const progressBars = [
-    {
-      name: "Python",
-      pct: data?.progress?.[0]?.completion || 45,
-      colorClass: "flux-progress-lavender",
-    },
-    {
-      name: "JavaScript",
-      pct: data?.progress?.[1]?.completion || 30,
-      colorClass: "flux-progress-dark",
-    },
-    {
-      name: "C++",
-      pct: data?.progress?.[2]?.completion || 25,
-      colorClass: "flux-progress-lime",
-    },
-  ];
+  interface ProgressItem { subjectId?: { name?: string; color?: string }; completion?: number }
+  interface WeeklyEntry { day: number; count: number }
 
-  const weeklyHeights = [40, 65, 30, 80, 55, 70, 45];
+  const progressBars = (data?.progress || []).map((p: ProgressItem, i: number) => ({
+    name: p.subjectId?.name || `Subject ${i + 1}`,
+    pct: p.completion || 0,
+    color: p.subjectId?.color || ['#C4B5F5', '#A78BFA', '#8B5CF6', '#7C3AED', '#6D28D9', '#5B21B6'][i % 6],
+  }));
+
+  // Weekly activity chart data from API
+  const weeklyData: WeeklyEntry[] = data?.weeklyActivity || [];
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const weeklyHeights = days.map((_: string, i: number) => {
+    const entry = weeklyData.find((w: WeeklyEntry) => w.day === i);
+    return entry ? Math.min(entry.count * 10, 100) : 0;
+  });
   const todayIdx = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
 
   return (
@@ -184,8 +180,7 @@ export default function StudentDashboard() {
               </div>
               <div className="flux-progress-track">
                 <div
-                  className={bar.colorClass}
-                  style={{ width: `${bar.pct}%` }}
+                  style={{ width: `${bar.pct}%`, backgroundColor: bar.color, height: '100%', borderRadius: '6px', transition: 'all 0.4s ease' }}
                 />
               </div>
             </div>

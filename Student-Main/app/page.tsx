@@ -201,7 +201,7 @@ export default function HomePage() {
             <IconArrowRight className="w-5 h-5" />
           </Link>
           <Link
-            href={user ? "/upload" : "/request-access?feature=whiteboard"}
+            href={user ? "/upload" : "/login?next=" + encodeURIComponent("/upload")}
             className="flux-btn-primary text-base px-8 py-4 flex items-center gap-2 hover:scale-105 transition-transform"
           >
             <IconBoard className="w-5 h-5" />

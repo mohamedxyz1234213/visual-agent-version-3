@@ -10,7 +10,7 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "CodeBuddy — AI Coding Teacher",
+  title: "CodeBuddy —  Teachers Dashboard",
   description: "Learn to code with an AI-powered teacher",
 };
 

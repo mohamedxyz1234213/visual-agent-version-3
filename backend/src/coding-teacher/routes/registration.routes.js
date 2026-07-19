@@ -3,6 +3,7 @@ import { StudentRegistrationRequest, SchoolYear } from '../models/index.js';
 import { User } from '../../auth/models/index.js';
 import { hashPassword } from '../../auth/services/crypto.js';
 import { getClientIp, getUserAgent } from '../../auth/services/request.js';
+import { calculateAge } from '../../utils/age.js';
 
 const router = Router();
 
@@ -25,11 +26,6 @@ function rateLimit(ip, key, max = 5, windowMs = 60_000) {
 
 function bad(res, msg, code = 400) {
   return res.status(code).json({ error: msg });
-}
-
-function calculateAge(dob) {
-  const diff = Date.now() - new Date(dob).getTime();
-  return Math.floor(diff / (365.25 * 24 * 60 * 60 * 1000));
 }
 
 // ── POST /api/v1/registration/student ─────────────────────────────────────────

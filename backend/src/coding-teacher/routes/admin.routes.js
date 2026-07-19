@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAuth, requireAdmin } from '../../auth/middleware/auth.js';
 import { Student, Teacher, Subject, CodingLesson, Exercise, Exam, Submission, StudentRegistrationRequest } from '../models/index.js';
+import { calculateAge } from '../../utils/age.js';
 
 const router = Router();
 
@@ -46,10 +47,6 @@ router.get('/dashboard-metrics', async (req, res, next) => {
 // account only becomes usable once an admin reviews and approves it here. On
 // approval, the student is NOT auto-assigned to any teacher — teachers add
 // already-approved students to their own class by student code afterward.
-function calculateAge(dob) {
-  const diff = Date.now() - new Date(dob).getTime();
-  return Math.floor(diff / (365.25 * 24 * 60 * 60 * 1000));
-}
 
 router.get('/registration-requests', async (req, res, next) => {
   try {
@@ -104,6 +101,7 @@ router.post('/registration-requests/:id/approve', async (req, res, next) => {
     // Import User dynamically to avoid circular dependency
     const { User } = await import('../../auth/models/index.js');
 
+    // Check for existing user BEFORE creating anything
     const existingUser = await User.findOne({ $or: [{ email: request.schoolEmail }, { username: request.username }] });
     if (existingUser) {
       return res.status(409).json({ error: 'A user with this email or username already exists.' });
@@ -117,27 +115,46 @@ router.post('/registration-requests/:id/approve', async (req, res, next) => {
       status: 'active',
     });
 
-    const student = await Student.create({
-      userId: user._id,
-      nationalId: request.nationalId,
-      schoolEmail: request.schoolEmail,
-      parentPhone: request.parentPhone,
-      dateOfBirth: request.dateOfBirth,
-      schoolYearId,
-      section,
-      teacherIds: [], // unassigned — a teacher must add them by student code
-      status: 'active',
-    });
+    let student;
+    try {
+      student = await Student.create({
+        userId: user._id,
+        nationalId: request.nationalId,
+        schoolEmail: request.schoolEmail,
+        parentPhone: request.parentPhone,
+        dateOfBirth: request.dateOfBirth,
+        schoolYearId,
+        section,
+        teacherIds: [], // unassigned — a teacher must add them by student code
+        status: 'active',
+      });
+    } catch (studentErr) {
+      // Cleanup: delete the already-created user to avoid orphan records
+      await User.findByIdAndDelete(user._id).catch(() => {});
+      throw studentErr;
+    }
 
-    request.status = 'approved';
-    request.reviewedBy = req.userId;
-    request.reviewedAt = new Date();
-    request.createdUserId = user._id;
-    request.createdStudentId = student._id;
-    await request.save();
+    try {
+      request.status = 'approved';
+      request.reviewedBy = req.userId;
+      request.reviewedAt = new Date();
+      request.createdUserId = user._id;
+      request.createdStudentId = student._id;
+      await request.save();
+    } catch (saveErr) {
+      // Cleanup: delete both user and student to avoid orphan records
+      await User.findByIdAndDelete(user._id).catch(() => {});
+      await Student.findByIdAndDelete(student._id).catch(() => {});
+      throw saveErr;
+    }
 
     res.json({ ok: true, studentId: student._id, userId: user._id, studentCode: student.studentCode });
   } catch (err) {
+    // If this is a known error (e.g., next is not a function from Mongoose hooks),
+    // log it clearly so we can debug
+    if (err && err.message && err.message.includes('next is not a function')) {
+      console.error('[MONGOOSE HOOK ERROR] A Mongoose 9 pre-save hook is calling next() which is no longer supported. Check Student model pre-save hook.');
+    }
     next(err);
   }
 });

@@ -488,4 +488,46 @@ router.post('/challenges', requireRole('teacher'), async (req, res, next) => {
   }
 });
 
+// ── Teacher Notification Sending ─────────────────────────────────────────────
+// POST /api/v1/teacher/notifications — send a notification to specific students
+// Note: requireAuth is applied at the router level (router.use(requireAuth) at top)
+router.post('/notifications', requireRole('teacher'), async (req, res, next) => {
+  try {
+    const { studentIds, type, title, message, priority = 'normal' } = req.body;
+    if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+      return res.status(400).json({ error: 'At least one studentId is required.' });
+    }
+    if (!title) return res.status(400).json({ error: 'Title is required.' });
+
+    // Verify all students belong to this teacher
+    const owned = await Student.find({
+      _id: { $in: studentIds },
+      teacherIds: req.userId,
+    }).select('userId').lean();
+
+    if (owned.length !== studentIds.length) {
+      return res.status(403).json({ error: 'You can only send notifications to your own students.' });
+    }
+
+    const { Notification } = await import('../models/index.js');
+    const notifications = owned.map((s) => ({
+      userId: s.userId,
+      type: type || 'teacher-message',
+      title,
+      message: message || '',
+      priority,
+      metadata: {
+        entityType: 'teacher-notification',
+        entityId: req.userId,
+      },
+    }));
+
+    await Notification.insertMany(notifications);
+
+    res.status(201).json({ ok: true, sent: notifications.length });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

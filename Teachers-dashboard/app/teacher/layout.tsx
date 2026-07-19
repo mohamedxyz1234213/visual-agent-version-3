@@ -5,6 +5,7 @@ import { Header } from "@/components/shared";
 import { useAuthStore } from "@/store/authStore";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { useClasses } from "@/features/teacher/hooks";
 
 const teacherNavItems = [
   { label: "Dashboard", href: "/teacher/dashboard", icon: "dashboard" },
@@ -21,6 +22,15 @@ const teacherNavItems = [
 export default function TeacherLayout({ children }: { children: React.ReactNode }) {
   const { user, initialized, refresh } = useAuthStore();
   const router = useRouter();
+  const { classes } = useClasses();
+
+  // Flatten all students from all classes for the notification compose modal
+  const allStudents = Object.values(classes || {}).flat().map((s: any) => ({
+    id: s.id,
+    username: s.username || s.studentCode,
+    studentCode: s.studentCode,
+    section: s.section || '',
+  }));
 
   useEffect(() => { if (!initialized) refresh(); }, [initialized, refresh]);
   useEffect(() => {
@@ -36,7 +46,7 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
     <div className="min-h-screen bg-[#EDEDED]">
       <Sidebar items={teacherNavItems} title="CodeBuddy" subtitle={user.username} />
       <main className="ml-[244px] min-h-screen p-5">
-        <Header title="Teacher Portal" subtitle="Manage your classes" username={user.username} />
+        <Header title="Teacher Portal" subtitle="Manage your classes" username={user.username} students={allStudents} />
         {children}
       </main>
     </div>
