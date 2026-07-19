@@ -10,8 +10,6 @@ import {
   Submission,
   Subject,
   Progress,
-  StudentRegistrationRequest,
-  SchoolYear,
   WeeklyChallenge,
 } from '../models/index.js';
 import { User } from '../../auth/models/index.js';
@@ -19,11 +17,6 @@ import { User } from '../../auth/models/index.js';
 const router = Router();
 
 router.use(requireAuth);
-
-function calculateAge(dob) {
-  const diff = Date.now() - new Date(dob).getTime();
-  return Math.floor(diff / (365.25 * 24 * 60 * 60 * 1000));
-}
 
 // ── GET /api/v1/teacher/dashboard ─────────────────────────────────────────────
 router.get('/dashboard', requireRole('teacher'), async (req, res, next) => {
@@ -355,111 +348,85 @@ router.get('/analytics/:classId', requireRole('teacher'), async (req, res, next)
   }
 });
 
-// ── Student Registration Approval ─────────────────────────────────────────────
-// GET /api/v1/teacher/registration-requests — pending signups whose computed
-// age falls inside one of this teacher's assigned school years (or all pending
-// requests if the teacher has no school-year restriction configured yet).
-router.get('/registration-requests', requireRole('teacher'), async (req, res, next) => {
-  try {
-    const teacher = await Teacher.findOne({ userId: req.userId }).lean();
-    if (!teacher) return res.status(404).json({ error: 'Teacher profile not found' });
+// ── Add Students to Class ─────────────────────────────────────────────────────
+// Student accounts are only created after admin approval (see
+// admin.routes.js#/registration-requests). A teacher never approves accounts —
+// they search for an already-approved, active student by their student code
+// and add them to their own class. A student can belong to more than one
+// teacher's class at once (Student.teacherIds is an array).
 
-    const requests = await StudentRegistrationRequest.find({ status: 'pending' })
-      .populate('schoolYearId', 'name grade minAge maxAge')
-      .sort({ createdAt: -1 })
+// GET /api/v1/teacher/students/search?code=STU-2026-0001
+router.get('/students/search', requireRole('teacher'), async (req, res, next) => {
+  try {
+    const code = String(req.query?.code || '').trim();
+    if (!code) return res.status(400).json({ error: 'Student code is required.' });
+
+    const student = await Student.findOne({ studentCode: code, status: 'active' })
+      .populate('userId', 'username email')
+      .populate('schoolYearId', 'name grade')
       .lean();
 
-    const teacherYearIds = new Set((teacher.schoolYears || []).map((id) => id.toString()));
-    const filtered = teacherYearIds.size === 0
-      ? requests
-      : requests.filter((r) => !r.schoolYearId || teacherYearIds.has(r.schoolYearId._id?.toString()));
+    if (!student) return res.status(404).json({ error: 'No active student found with that code.' });
 
     res.json({
-      requests: filtered.map((r) => ({
-        id: r._id,
-        fullName: r.fullName,
-        username: r.username,
-        schoolEmail: r.schoolEmail,
-        parentPhone: r.parentPhone,
-        nationalId: r.nationalId,
-        dateOfBirth: r.dateOfBirth,
-        age: calculateAge(r.dateOfBirth),
-        matchedSchoolYear: r.schoolYearId,
-        section: r.section,
-        createdAt: r.createdAt,
-      })),
+      student: {
+        id: student._id,
+        studentCode: student.studentCode,
+        username: student.userId?.username,
+        email: student.userId?.email,
+        schoolYear: student.schoolYearId,
+        section: student.section,
+        alreadyAssigned: (student.teacherIds || []).some((id) => id.toString() === req.userId),
+      },
     });
   } catch (err) {
     next(err);
   }
 });
 
-// POST /api/v1/teacher/registration-requests/:id/approve
-router.post('/registration-requests/:id/approve', requireRole('teacher'), async (req, res, next) => {
+// POST /api/v1/teacher/students/add — add an already-approved student to this
+// teacher's class by student code.
+router.post('/students/add', requireRole('teacher'), async (req, res, next) => {
   try {
+    const code = String(req.body?.studentCode || '').trim();
+    if (!code) return res.status(400).json({ error: 'Student code is required.' });
+
     const teacher = await Teacher.findOne({ userId: req.userId });
     if (!teacher) return res.status(404).json({ error: 'Teacher profile not found' });
 
-    const request = await StudentRegistrationRequest.findOne({ _id: req.params.id, status: 'pending' });
-    if (!request) return res.status(404).json({ error: 'Registration request not found or already reviewed' });
+    const student = await Student.findOne({ studentCode: code, status: 'active' });
+    if (!student) return res.status(404).json({ error: 'No active student found with that code.' });
 
-    const schoolYearId = req.body?.schoolYearId || request.schoolYearId;
-    const section = req.body?.section || request.section || '';
-
-    const existingUser = await User.findOne({ $or: [{ email: request.schoolEmail }, { username: request.username }] });
-    if (existingUser) {
-      return res.status(409).json({ error: 'A user with this email or username already exists.' });
+    if ((student.teacherIds || []).some((id) => id.toString() === req.userId)) {
+      return res.status(400).json({ error: 'This student is already in your class.' });
     }
 
-    const user = await User.create({
-      email: request.schoolEmail,
-      username: request.username,
-      passwordHash: request.passwordHash,
-      role: 'student',
-      status: 'active',
-    });
-
-    const student = await Student.create({
-      userId: user._id,
-      nationalId: request.nationalId,
-      schoolEmail: request.schoolEmail,
-      parentPhone: request.parentPhone,
-      dateOfBirth: request.dateOfBirth,
-      schoolId: teacher.schoolId,
-      schoolYearId,
-      section,
-      teacherIds: [req.userId],
-      status: 'active',
-    });
+    student.teacherIds = [...(student.teacherIds || []), req.userId];
+    await student.save();
 
     teacher.students = teacher.students || [];
-    teacher.students.push(student._id);
-    await teacher.save();
+    if (!teacher.students.some((id) => id.toString() === student._id.toString())) {
+      teacher.students.push(student._id);
+      await teacher.save();
+    }
 
-    request.status = 'approved';
-    request.reviewedBy = req.userId;
-    request.reviewedAt = new Date();
-    request.createdUserId = user._id;
-    request.createdStudentId = student._id;
-    await request.save();
-
-    res.json({ ok: true, studentId: student._id, userId: user._id });
+    res.json({ ok: true, studentId: student._id });
   } catch (err) {
     next(err);
   }
 });
 
-// POST /api/v1/teacher/registration-requests/:id/reject
-router.post('/registration-requests/:id/reject', requireRole('teacher'), async (req, res, next) => {
+// DELETE /api/v1/teacher/students/:id — remove a student from this teacher's
+// class only (does not affect the student's other teacher assignments).
+router.delete('/students/:id', requireRole('teacher'), async (req, res, next) => {
   try {
-    const request = await StudentRegistrationRequest.findOne({ _id: req.params.id, status: 'pending' });
-    if (!request) return res.status(404).json({ error: 'Registration request not found or already reviewed' });
+    const student = await Student.findOne({ _id: req.params.id, teacherIds: req.userId });
+    if (!student) return res.status(404).json({ error: 'Student not found in your class.' });
 
-    request.status = 'rejected';
-    request.reviewedBy = req.userId;
-    request.reviewedAt = new Date();
-    request.rejectionReason = String(req.body?.reason || '').trim().slice(0, 500);
-    await request.save();
+    student.teacherIds = (student.teacherIds || []).filter((id) => id.toString() !== req.userId);
+    await student.save();
+
+    await Teacher.updateOne({ userId: req.userId }, { $pull: { students: student._id } });
 
     res.json({ ok: true });
   } catch (err) {

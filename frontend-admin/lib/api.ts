@@ -337,6 +337,22 @@ export interface AdminStats {
   activity_7d: { logins: number; ai_requests: number; early_access: number };
 }
 
+export interface AdminRegistrationRequest {
+  id: string;
+  fullName: string;
+  username: string;
+  schoolEmail: string;
+  parentPhone: string;
+  nationalId: string;
+  dateOfBirth: string;
+  age: number;
+  matchedSchoolYear: { _id: string; name: string; grade?: number } | null;
+  section: string;
+  status: "pending" | "approved" | "rejected";
+  rejectionReason?: string;
+  createdAt: string;
+}
+
 async function adminRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
@@ -368,6 +384,23 @@ export const adminApi = {
     ),
   deleteEarlyAccess: (id: string) =>
     adminRequest<{ ok: boolean }>(`/admin/early-access/${id}`, { method: "DELETE" }),
+
+  listRegistrationRequests: (status?: string, search?: string) => {
+    const qs = new URLSearchParams();
+    if (status) qs.set("status", status);
+    if (search) qs.set("search", search);
+    return adminRequest<{ requests: AdminRegistrationRequest[] }>(`/admin/registration-requests${qs.toString() ? `?${qs}` : ""}`);
+  },
+  approveRegistrationRequest: (id: string, data?: { schoolYearId?: string; section?: string }) =>
+    adminRequest<{ ok: boolean; studentId: string; userId: string; studentCode: string }>(
+      `/admin/registration-requests/${id}/approve`,
+      { method: "POST", body: JSON.stringify(data || {}) },
+    ),
+  rejectRegistrationRequest: (id: string, reason?: string) =>
+    adminRequest<{ ok: boolean }>(
+      `/admin/registration-requests/${id}/reject`,
+      { method: "POST", body: JSON.stringify({ reason }) },
+    ),
 
   listUsers: (search?: string) =>
     adminRequest<AdminUser[]>(`/admin/users${search ? `?search=${encodeURIComponent(search)}` : ""}`),

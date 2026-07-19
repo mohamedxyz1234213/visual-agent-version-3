@@ -8,9 +8,9 @@ import {
   getExercises,
   getExams,
   getSubmissions,
-  getRegistrationRequests,
-  approveRegistrationRequest,
-  rejectRegistrationRequest,
+  searchStudentByCode,
+  addStudentByCode,
+  removeStudentFromClass,
   getTeacherChallenges,
   createTeacherChallenge,
   type TeacherDashboard,
@@ -19,7 +19,7 @@ import {
   type TeacherExercise,
   type TeacherExam,
   type TeacherSubmission,
-  type RegistrationRequest,
+  type StudentSearchResult,
 } from "../api";
 
 export function useTeacherDashboard() {
@@ -88,26 +88,37 @@ export function useTeacherSubmissions() {
   return { submissions, loading, refresh };
 }
 
-export function useRegistrationRequests() {
-  const [requests, setRequests] = useState<RegistrationRequest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const refresh = useCallback(async () => {
+export function useAddStudent() {
+  const [result, setResult] = useState<StudentSearchResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const search = useCallback(async (code: string) => {
     setLoading(true);
-    try { const d = await getRegistrationRequests(); setRequests(d.requests || []); } catch {} finally { setLoading(false); }
+    setError(null);
+    setResult(null);
+    try {
+      const { student } = await searchStudentByCode(code);
+      setResult(student);
+    } catch (err: any) {
+      setError(err.message || "Student not found");
+    } finally {
+      setLoading(false);
+    }
   }, []);
-  useEffect(() => { refresh(); }, [refresh]);
 
-  const approve = useCallback(async (id: string, data?: { schoolYearId?: string; section?: string }) => {
-    await approveRegistrationRequest(id, data);
-    await refresh();
-  }, [refresh]);
+  const add = useCallback(async (code: string) => {
+    await addStudentByCode(code);
+    setResult(null);
+  }, []);
 
-  const reject = useCallback(async (id: string, reason?: string) => {
-    await rejectRegistrationRequest(id, reason);
-    await refresh();
-  }, [refresh]);
+  return { result, error, loading, search, add };
+}
 
-  return { requests, loading, refresh, approve, reject };
+export function useRemoveStudent() {
+  return useCallback(async (id: string) => {
+    await removeStudentFromClass(id);
+  }, []);
 }
 
 export function useTeacherChallenges() {

@@ -104,12 +104,12 @@ connectDB()
   .then(async () => {
     await bootstrapAdmin();
     app.listen(PORT, () => {
-      console.log(`\n🚀 Server running on port ${PORT}`);
-      console.log(`📚 Whiteboard features: /api/v1/upload, /api/v1/explain, /api/v1/lessons`);
-      console.log(`🎓 Coding teacher:     /api/v1/student, /api/v1/teacher, /api/v1/ai`);
-      console.log(`👨‍👩‍👧 Parent portal:       /api/v1/parent`);
-      console.log(`🎮 Gamification:       /api/v1/gamification`);
-      console.log(`🔧 Admin enhanced:     /api/v1/admin\n`);
+      console.log(`\n Server running on port ${PORT}`);
+      console.log(` Whiteboard features: /api/v1/upload, /api/v1/explain, /api/v1/lessons`);
+      console.log(`Coding teacher:     /api/v1/student, /api/v1/teacher, /api/v1/ai`);
+      console.log(` Parent portal:       /api/v1/parent`);
+      console.log(` Gamification:       /api/v1/gamification`);
+      console.log(` Admin enhanced:     /api/v1/admin\n`);
     });
   })
   .catch((err) => {

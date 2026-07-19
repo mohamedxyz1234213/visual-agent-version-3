@@ -58,34 +58,30 @@ export async function getSubmissions(params?: { exerciseId?: string; studentId?:
   return request(`/teacher/submissions${q ? `?${q}` : ""}`);
 }
 
-// ── Registration Approval ─────────────────────────────────────────────────────
-export interface RegistrationRequest {
+// ── Add Students to Class ─────────────────────────────────────────────────────
+// Students are only created after admin approval. Teachers search for an
+// already-approved, active student by their student code and add them to
+// their own class (a student can belong to more than one teacher's class).
+export interface StudentSearchResult {
   id: string;
-  fullName: string;
+  studentCode: string;
   username: string;
-  schoolEmail: string;
-  parentPhone: string;
-  nationalId: string;
-  dateOfBirth: string;
-  age: number;
-  matchedSchoolYear: { _id: string; name: string; grade?: number } | null;
+  email: string;
+  schoolYear: { _id: string; name: string; grade?: number } | null;
   section: string;
-  createdAt: string;
+  alreadyAssigned: boolean;
 }
 
-export async function getRegistrationRequests(): Promise<{ requests: RegistrationRequest[] }> {
-  return request("/teacher/registration-requests");
+export async function searchStudentByCode(code: string): Promise<{ student: StudentSearchResult }> {
+  return request(`/teacher/students/search?code=${encodeURIComponent(code)}`);
 }
 
-export async function approveRegistrationRequest(
-  id: string,
-  data?: { schoolYearId?: string; section?: string }
-): Promise<{ ok: boolean; studentId: string; userId: string }> {
-  return request(`/teacher/registration-requests/${id}/approve`, { method: "POST", body: JSON.stringify(data || {}) });
+export async function addStudentByCode(studentCode: string): Promise<{ ok: boolean; studentId: string }> {
+  return request("/teacher/students/add", { method: "POST", body: JSON.stringify({ studentCode }) });
 }
 
-export async function rejectRegistrationRequest(id: string, reason?: string): Promise<{ ok: boolean }> {
-  return request(`/teacher/registration-requests/${id}/reject`, { method: "POST", body: JSON.stringify({ reason }) });
+export async function removeStudentFromClass(id: string): Promise<{ ok: boolean }> {
+  return request(`/teacher/students/${id}`, { method: "DELETE" });
 }
 
 // ── Teacher-Assigned Challenges ────────────────────────────────────────────────

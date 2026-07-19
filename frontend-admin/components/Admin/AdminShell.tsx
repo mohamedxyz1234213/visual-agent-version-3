@@ -8,6 +8,7 @@ import { useAuthStore } from "@/store/authStore";
 const NAV = [
   { href: "/admin", label: "Overview", icon: IconGrid },
   { href: "/admin/early-access", label: "Early Access", icon: IconMail },
+  { href: "/admin/registration-requests", label: "Student Registrations", icon: IconUsers },
   { href: "/admin/users", label: "Users", icon: IconUsers },
   { href: "/admin/lessons", label: "Lessons", icon: IconBoard },
   { href: "/admin/logs/login", label: "Login Logs", icon: IconKey },
