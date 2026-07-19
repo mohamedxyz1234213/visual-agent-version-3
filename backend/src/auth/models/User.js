@@ -9,7 +9,7 @@ const userSchema = new Schema(
     username: { type: String, required: true, trim: true, index: true },
     passwordHash: { type: String, required: true },
 
-    role: { type: String, enum: ['user', 'admin'], default: 'user', index: true },
+    role: { type: String, enum: ['user', 'admin', 'super-admin', 'teacher', 'student', 'parent'], default: 'user', index: true },
     status: { type: String, enum: ['active', 'disabled'], default: 'active', index: true },
 
     // Quota (lessons the user is allowed to generate)

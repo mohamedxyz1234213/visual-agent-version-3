@@ -89,18 +89,32 @@ router.get('/achievements', async (req, res, next) => {
 });
 
 // ── GET /api/v1/gamification/challenges ───────────────────────────────────────
+// Visible challenges = school-wide (no assignedBy) OR assigned to this exact
+// student OR created by one of this student's assigned teachers.
 router.get('/challenges', async (req, res, next) => {
   try {
     const now = new Date();
+    const student = await Student.findOne({ userId: req.userId }).lean();
+
+    const scopeFilter = student
+      ? {
+          $or: [
+            { assignedBy: { $exists: false } },
+            { assignedBy: null },
+            { assignedTo: student._id },
+            { $and: [{ assignedBy: { $in: student.teacherIds || [] } }, { assignedTo: { $size: 0 } }] },
+          ],
+        }
+      : { $or: [{ assignedBy: { $exists: false } }, { assignedBy: null }] };
+
     const challenges = await WeeklyChallenge.find({
       isActive: true,
       startDate: { $lte: now },
       endDate: { $gte: now },
+      ...scopeFilter,
     })
       .populate('exerciseId', 'title difficulty')
       .lean();
-
-    const student = await Student.findOne({ userId: req.userId }).lean();
 
     res.json({
       challenges: challenges.map((c) => ({

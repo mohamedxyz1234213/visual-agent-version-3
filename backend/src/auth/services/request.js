@@ -1,9 +1,7 @@
 export function getClientIp(req) {
-  const xff = req.headers?.['x-forwarded-for'];
-  if (xff) {
-    const first = String(xff).split(',')[0].trim();
-    if (first) return first;
-  }
+  // req.ip already resolves X-Forwarded-For safely when (and only when)
+  // Express's `trust proxy` is enabled — never parse the header ourselves,
+  // otherwise a client could spoof it to bypass IP-based rate limiting.
   return req.ip || req.socket?.remoteAddress || null;
 }
 

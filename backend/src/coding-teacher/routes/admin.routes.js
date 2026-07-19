@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, requireAdmin } from '../../auth/middleware/auth.js';
-import { Student, Teacher, Subject, Lesson, Exercise, Exam, Submission, Notification } from '../models/index.js';
+import { Student, Teacher, Subject, CodingLesson, Exercise, Exam, Submission, Notification } from '../models/index.js';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { User, EarlyAccessRequest, LoginLog, AiRequestLog, PageViewLog } from '../../auth/models/index.js';

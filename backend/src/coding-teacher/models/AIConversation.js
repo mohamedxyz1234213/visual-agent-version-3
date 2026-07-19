@@ -13,7 +13,7 @@ const aiConversationSchema = new Schema(
     },
     topic: { type: String, default: '' },
     subjectId: { type: Schema.Types.ObjectId, ref: 'Subject' },
-    lessonId: { type: Schema.Types.ObjectId, ref: 'Lesson' },
+    lessonId: { type: Schema.Types.ObjectId, ref: 'CodingLesson' },
     messages: [
       {
         id: String,

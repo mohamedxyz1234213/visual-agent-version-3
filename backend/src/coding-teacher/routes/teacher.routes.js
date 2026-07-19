@@ -1,12 +1,29 @@
 import { Router } from 'express';
 import { requireAuth } from '../../auth/middleware/auth.js';
 import { requireRole } from '../middleware/roles.js';
-import { Teacher, Student, Lesson, Exercise, Exam, Submission, Subject, Progress } from '../models/index.js';
+import {
+  Teacher,
+  Student,
+  CodingLesson,
+  Exercise,
+  Exam,
+  Submission,
+  Subject,
+  Progress,
+  StudentRegistrationRequest,
+  SchoolYear,
+  WeeklyChallenge,
+} from '../models/index.js';
 import { User } from '../../auth/models/index.js';
 
 const router = Router();
 
 router.use(requireAuth);
+
+function calculateAge(dob) {
+  const diff = Date.now() - new Date(dob).getTime();
+  return Math.floor(diff / (365.25 * 24 * 60 * 60 * 1000));
+}
 
 // ── GET /api/v1/teacher/dashboard ─────────────────────────────────────────────
 router.get('/dashboard', requireRole('teacher'), async (req, res, next) => {
@@ -14,20 +31,22 @@ router.get('/dashboard', requireRole('teacher'), async (req, res, next) => {
     const teacher = await Teacher.findOne({ userId: req.userId }).lean();
     if (!teacher) return res.status(404).json({ error: 'Teacher profile not found' });
 
-    const [studentCount, lessonCount, pendingSubmissions, examCount] = await Promise.all([
+    const [studentCount, lessonCount, pendingSubmissions, examCount, myStudentIds] = await Promise.all([
       Student.countDocuments({ teacherIds: req.userId, status: 'active' }),
-      Lesson.countDocuments({ teacherId: req.userId }),
+      CodingLesson.countDocuments({ teacherId: req.userId }),
       Submission.countDocuments({ status: 'pending' }).limit(10),
       Exam.countDocuments({ teacherId: req.userId }),
+      Student.find({ teacherIds: req.userId, status: 'active' }).distinct('_id'),
     ]);
 
-    // Average class score
+    // Average class score \u2014 computed from the live teacherIds assignment,
+    // not the (potentially stale) Teacher.students array.
     const avgProgress = await Progress.aggregate([
-      { $match: { studentId: { $in: teacher.students } } },
+      { $match: { studentId: { $in: myStudentIds } } },
       { $group: { _id: null, avgCompletion: { $avg: '$overallCompletion' } } },
     ]);
 
-    const recentLessons = await Lesson.find({ teacherId: req.userId })
+    const recentLessons = await CodingLesson.find({ teacherId: req.userId })
       .sort({ createdAt: -1 })
       .limit(5)
       .select('title status isPublished createdAt totalStudents averageScore')
@@ -117,7 +136,7 @@ router.get('/lessons', requireRole('teacher'), async (req, res, next) => {
     if (status) filter.isPublished = status === 'published';
     if (subjectId) filter.subjectId = subjectId;
 
-    const lessons = await Lesson.find(filter)
+    const lessons = await CodingLesson.find(filter)
       .sort({ createdAt: -1 })
       .populate('subjectId', 'name color')
       .lean();
@@ -130,7 +149,7 @@ router.get('/lessons', requireRole('teacher'), async (req, res, next) => {
 
 router.get('/lessons/:id', requireRole('teacher'), async (req, res, next) => {
   try {
-    const lesson = await Lesson.findOne({ _id: req.params.id, teacherId: req.userId }).lean();
+    const lesson = await CodingLesson.findOne({ _id: req.params.id, teacherId: req.userId }).lean();
     if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
     res.json({ lesson });
   } catch (err) {
@@ -143,7 +162,7 @@ router.post('/lessons', requireRole('teacher'), async (req, res, next) => {
     const { title, subjectId, content, difficulty, duration, tags, codeSnippets, order } = req.body;
     if (!title) return res.status(400).json({ error: 'Title is required' });
 
-    const lesson = await Lesson.create({
+    const lesson = await CodingLesson.create({
       title,
       subjectId,
       teacherId: req.userId,
@@ -163,7 +182,7 @@ router.post('/lessons', requireRole('teacher'), async (req, res, next) => {
 
 router.put('/lessons/:id', requireRole('teacher'), async (req, res, next) => {
   try {
-    const lesson = await Lesson.findOneAndUpdate(
+    const lesson = await CodingLesson.findOneAndUpdate(
       { _id: req.params.id, teacherId: req.userId },
       { $set: req.body },
       { new: true }
@@ -177,7 +196,7 @@ router.put('/lessons/:id', requireRole('teacher'), async (req, res, next) => {
 
 router.delete('/lessons/:id', requireRole('teacher'), async (req, res, next) => {
   try {
-    const result = await Lesson.findOneAndDelete({ _id: req.params.id, teacherId: req.userId });
+    const result = await CodingLesson.findOneAndDelete({ _id: req.params.id, teacherId: req.userId });
     if (!result) return res.status(404).json({ error: 'Lesson not found' });
     res.json({ ok: true });
   } catch (err) {
@@ -331,6 +350,172 @@ router.get('/analytics/:classId', requireRole('teacher'), async (req, res, next)
         averageScore: s.averageScore,
       })),
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Student Registration Approval ─────────────────────────────────────────────
+// GET /api/v1/teacher/registration-requests — pending signups whose computed
+// age falls inside one of this teacher's assigned school years (or all pending
+// requests if the teacher has no school-year restriction configured yet).
+router.get('/registration-requests', requireRole('teacher'), async (req, res, next) => {
+  try {
+    const teacher = await Teacher.findOne({ userId: req.userId }).lean();
+    if (!teacher) return res.status(404).json({ error: 'Teacher profile not found' });
+
+    const requests = await StudentRegistrationRequest.find({ status: 'pending' })
+      .populate('schoolYearId', 'name grade minAge maxAge')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const teacherYearIds = new Set((teacher.schoolYears || []).map((id) => id.toString()));
+    const filtered = teacherYearIds.size === 0
+      ? requests
+      : requests.filter((r) => !r.schoolYearId || teacherYearIds.has(r.schoolYearId._id?.toString()));
+
+    res.json({
+      requests: filtered.map((r) => ({
+        id: r._id,
+        fullName: r.fullName,
+        username: r.username,
+        schoolEmail: r.schoolEmail,
+        parentPhone: r.parentPhone,
+        nationalId: r.nationalId,
+        dateOfBirth: r.dateOfBirth,
+        age: calculateAge(r.dateOfBirth),
+        matchedSchoolYear: r.schoolYearId,
+        section: r.section,
+        createdAt: r.createdAt,
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/v1/teacher/registration-requests/:id/approve
+router.post('/registration-requests/:id/approve', requireRole('teacher'), async (req, res, next) => {
+  try {
+    const teacher = await Teacher.findOne({ userId: req.userId });
+    if (!teacher) return res.status(404).json({ error: 'Teacher profile not found' });
+
+    const request = await StudentRegistrationRequest.findOne({ _id: req.params.id, status: 'pending' });
+    if (!request) return res.status(404).json({ error: 'Registration request not found or already reviewed' });
+
+    const schoolYearId = req.body?.schoolYearId || request.schoolYearId;
+    const section = req.body?.section || request.section || '';
+
+    const existingUser = await User.findOne({ $or: [{ email: request.schoolEmail }, { username: request.username }] });
+    if (existingUser) {
+      return res.status(409).json({ error: 'A user with this email or username already exists.' });
+    }
+
+    const user = await User.create({
+      email: request.schoolEmail,
+      username: request.username,
+      passwordHash: request.passwordHash,
+      role: 'student',
+      status: 'active',
+    });
+
+    const student = await Student.create({
+      userId: user._id,
+      nationalId: request.nationalId,
+      schoolEmail: request.schoolEmail,
+      parentPhone: request.parentPhone,
+      dateOfBirth: request.dateOfBirth,
+      schoolId: teacher.schoolId,
+      schoolYearId,
+      section,
+      teacherIds: [req.userId],
+      status: 'active',
+    });
+
+    teacher.students = teacher.students || [];
+    teacher.students.push(student._id);
+    await teacher.save();
+
+    request.status = 'approved';
+    request.reviewedBy = req.userId;
+    request.reviewedAt = new Date();
+    request.createdUserId = user._id;
+    request.createdStudentId = student._id;
+    await request.save();
+
+    res.json({ ok: true, studentId: student._id, userId: user._id });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/v1/teacher/registration-requests/:id/reject
+router.post('/registration-requests/:id/reject', requireRole('teacher'), async (req, res, next) => {
+  try {
+    const request = await StudentRegistrationRequest.findOne({ _id: req.params.id, status: 'pending' });
+    if (!request) return res.status(404).json({ error: 'Registration request not found or already reviewed' });
+
+    request.status = 'rejected';
+    request.reviewedBy = req.userId;
+    request.reviewedAt = new Date();
+    request.rejectionReason = String(req.body?.reason || '').trim().slice(0, 500);
+    await request.save();
+
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Teacher-Assigned Challenges ───────────────────────────────────────────────
+// GET /api/v1/teacher/challenges — challenges this teacher created.
+router.get('/challenges', requireRole('teacher'), async (req, res, next) => {
+  try {
+    const challenges = await WeeklyChallenge.find({ assignedBy: req.userId })
+      .populate('exerciseId', 'title difficulty')
+      .populate('assignedTo', 'studentCode')
+      .sort({ createdAt: -1 })
+      .lean();
+    res.json({ challenges });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/v1/teacher/challenges — create a challenge scoped to this teacher's
+// assigned students. If `studentIds` is omitted/empty, it applies to every
+// student currently assigned to this teacher.
+router.post('/challenges', requireRole('teacher'), async (req, res, next) => {
+  try {
+    const { title, description, exerciseId, rules, startDate, endDate, rewards, studentIds } = req.body;
+    if (!title || !exerciseId || !startDate || !endDate) {
+      return res.status(400).json({ error: 'Title, exerciseId, startDate, and endDate are required.' });
+    }
+
+    let assignedTo = [];
+    if (Array.isArray(studentIds) && studentIds.length > 0) {
+      const owned = await Student.find({ _id: { $in: studentIds }, teacherIds: req.userId }).select('_id').lean();
+      assignedTo = owned.map((s) => s._id);
+      if (assignedTo.length !== studentIds.length) {
+        return res.status(403).json({ error: 'You can only assign challenges to your own students.' });
+      }
+    }
+
+    const challenge = await WeeklyChallenge.create({
+      title,
+      description: description || '',
+      exerciseId,
+      rules: rules || '',
+      startDate,
+      endDate,
+      rewards: rewards || undefined,
+      assignedBy: req.userId,
+      assignedTo,
+      createdBy: req.userId,
+      isActive: true,
+    });
+
+    res.status(201).json({ ok: true, challenge });
   } catch (err) {
     next(err);
   }

@@ -7,6 +7,9 @@ const studentSchema = new Schema(
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     studentCode: { type: String, unique: true, index: true }, // STU-{YEAR}-{SEQ}
     nationalId: { type: String, default: '' }, // 14 digits, encrypted in production
+    schoolEmail: { type: String, default: '', lowercase: true, trim: true },
+    parentPhone: { type: String, default: '' },
+    dateOfBirth: { type: Date },
     schoolId: { type: Schema.Types.ObjectId, ref: 'School' },
     schoolYearId: { type: Schema.Types.ObjectId, ref: 'SchoolYear' },
     section: { type: String, default: '' },

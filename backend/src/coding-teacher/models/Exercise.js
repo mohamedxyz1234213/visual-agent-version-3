@@ -6,7 +6,7 @@ const exerciseSchema = new Schema(
   {
     title: { type: String, required: true, trim: true },
     description: { type: String, default: '' },
-    lessonId: { type: Schema.Types.ObjectId, ref: 'Lesson', index: true },
+    lessonId: { type: Schema.Types.ObjectId, ref: 'CodingLesson', index: true },
     subjectId: { type: Schema.Types.ObjectId, ref: 'Subject', index: true },
     teacherId: { type: Schema.Types.ObjectId, ref: 'User' },
     schoolId: { type: Schema.Types.ObjectId, ref: 'School' },

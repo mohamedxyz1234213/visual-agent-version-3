@@ -29,6 +29,12 @@ const weeklyChallengeSchema = new Schema(
     },
     isActive: { type: Boolean, default: true },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
+
+    // When set, this challenge is private to a teacher's assigned students —
+    // only those in `assignedTo` (or, if empty, every student assigned to
+    // `assignedBy`) can see/join it. When both are unset, it's school-wide.
+    assignedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    assignedTo: [{ type: Schema.Types.ObjectId, ref: 'Student' }],
   },
   { timestamps: true }
 );

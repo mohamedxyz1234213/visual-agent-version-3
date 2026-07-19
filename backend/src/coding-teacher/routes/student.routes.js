@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../../auth/middleware/auth.js';
 import { requireRole } from '../middleware/roles.js';
-import { Student, Progress, Submission, Exercise, Lesson, Achievement, AIConversation, Notification } from '../models/index.js';
+import { Student, Progress, Submission, Exercise, CodingLesson, Achievement, AIConversation, Notification } from '../models/index.js';
 import { User } from '../../auth/models/index.js';
 
 const router = Router();
@@ -67,7 +67,7 @@ router.get('/lessons', requireRole('student'), async (req, res, next) => {
     if (subjectId) filter.subjectId = subjectId;
     if (difficulty) filter.difficulty = difficulty;
 
-    const lessons = await Lesson.find(filter)
+    const lessons = await CodingLesson.find(filter)
       .sort({ order: 1 })
       .select('title subjectId duration difficulty tags totalExercises isPublished order')
       .lean();
@@ -81,11 +81,11 @@ router.get('/lessons', requireRole('student'), async (req, res, next) => {
 // ── GET /api/v1/student/lessons/:id ───────────────────────────────────────────
 router.get('/lessons/:id', requireRole('student'), async (req, res, next) => {
   try {
-    const lesson = await Lesson.findById(req.params.id).lean();
+    const lesson = await CodingLesson.findById(req.params.id).lean();
     if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
 
     // Increment view count
-    await Lesson.findByIdAndUpdate(req.params.id, { $inc: { viewCount: 1 } });
+    await CodingLesson.findByIdAndUpdate(req.params.id, { $inc: { viewCount: 1 } });
 
     res.json({ lesson });
   } catch (err) {
@@ -99,7 +99,7 @@ router.post('/lessons/:id/complete', requireRole('student'), async (req, res, ne
     const student = await Student.findOne({ userId: req.userId });
     if (!student) return res.status(404).json({ error: 'Student profile not found' });
 
-    const lesson = await Lesson.findById(req.params.id).lean();
+    const lesson = await CodingLesson.findById(req.params.id).lean();
     if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
 
     // Add XP

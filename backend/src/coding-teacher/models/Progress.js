@@ -9,7 +9,7 @@ const progressSchema = new Schema(
     overallCompletion: { type: Number, default: 0 }, // percentage 0-100
     lessonCompletions: [
       {
-        lessonId: { type: Schema.Types.ObjectId, ref: 'Lesson' },
+        lessonId: { type: Schema.Types.ObjectId, ref: 'CodingLesson' },
         completedAt: Date,
         score: Number,
         timeSpent: Number, // seconds

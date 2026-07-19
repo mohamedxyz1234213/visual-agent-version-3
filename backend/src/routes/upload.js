@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
+import path from 'path';
 import { Lesson, LessonPart } from '../models/Lesson.js';
 import { LessonSeries } from '../models/LessonSeries.js';
 import { extractText } from '../services/documentExtractor.js';
@@ -13,7 +14,18 @@ import { reserveAiRequest, markAiRequestFinished, releaseAiRequest } from '../au
 import { requireAuth } from '../auth/middleware/auth.js';
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+const ALLOWED_EXTENSIONS = new Set(['.pdf', '.docx', '.doc', '.txt', '.md', '.png', '.jpg', '.jpeg', '.webp', '.bmp', '.tiff']);
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    if (!ALLOWED_EXTENSIONS.has(ext)) {
+      return cb(new Error('Unsupported file type.'));
+    }
+    return cb(null, true);
+  },
+});
 
 // All upload routes require an authenticated user
 router.use(requireAuth);

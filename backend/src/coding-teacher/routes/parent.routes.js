@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../../auth/middleware/auth.js';
 import { requireRole } from '../middleware/roles.js';
-import { Student, Progress, Submission, Achievement, Lesson } from '../models/index.js';
+import { Student, Progress, Submission, Achievement } from '../models/index.js';
 import { User } from '../../auth/models/index.js';
 
 const router = Router();

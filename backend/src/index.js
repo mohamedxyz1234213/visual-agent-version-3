@@ -3,6 +3,8 @@ import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { connectDB } from './db.js';
 
 // ── Existing Whiteboard Routes ────────────────────────────────────────────────
@@ -24,6 +26,7 @@ import {
   parentRoutes,
   aiRoutes,
   gamificationRoutes,
+  registrationRoutes,
 } from './coding-teacher/routes/index.js';
 
 import { loadUser } from './auth/middleware/auth.js';
@@ -33,15 +36,34 @@ import { toErrorResponse } from './utils/errors.js';
 const app = express();
 const PORT = process.env.PORT || 8000;
 
+// Only trust the reverse proxy's X-Forwarded-For when explicitly configured —
+// otherwise clients could spoof their IP and bypass rate limiting.
+if (process.env.TRUST_PROXY === 'true') {
+  app.set('trust proxy', 1);
+}
+
 // ── Middleware ────────────────────────────────────────────────────────────────
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:3001')
   .split(',')
   .map((o) => o.trim());
 
+app.use(helmet());
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
+
+// General API rate limit — auth routes additionally enforce their own
+// tighter, action-specific limits.
+app.use(
+  '/api/',
+  rateLimit({
+    windowMs: 60_000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+  }),
+);
 
 // Resolve the current user (if any) on every request — non-blocking
 app.use(loadUser);
@@ -65,6 +87,7 @@ app.use('/api/v1/teacher', teacherRoutes);
 app.use('/api/v1/parent', parentRoutes);
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/gamification', gamificationRoutes);
+app.use('/api/v1/registration', registrationRoutes);
 
 // Health check
 app.get('/health', (_req, res) => res.json({ status: 'ok', version: '2.0.0', features: ['whiteboard', 'coding-teacher'] }));

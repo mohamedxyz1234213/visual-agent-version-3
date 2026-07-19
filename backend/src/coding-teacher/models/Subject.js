@@ -18,7 +18,7 @@ const subjectSchema = new Schema(
         title: String,
         description: String,
         order: Number,
-        lessons: [{ type: Schema.Types.ObjectId, ref: 'Lesson' }],
+        lessons: [{ type: Schema.Types.ObjectId, ref: 'CodingLesson' }],
         isPublished: { type: Boolean, default: false },
       },
     ],

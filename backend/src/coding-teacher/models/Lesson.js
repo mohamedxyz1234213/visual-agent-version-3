@@ -25,7 +25,7 @@ const lessonSchema = new Schema(
       enum: ['beginner', 'intermediate', 'advanced'],
       default: 'beginner',
     },
-    prerequisites: [{ type: Schema.Types.ObjectId, ref: 'Lesson' }],
+    prerequisites: [{ type: Schema.Types.ObjectId, ref: 'CodingLesson' }],
     tags: [String],
     codeSnippets: [
       {
@@ -48,4 +48,4 @@ const lessonSchema = new Schema(
 lessonSchema.index({ subjectId: 1, order: 1 });
 lessonSchema.index({ teacherId: 1, isPublished: 1 });
 
-export const Lesson = mongoose.model('Lesson', lessonSchema);
+export const CodingLesson = mongoose.model('CodingLesson', lessonSchema);
