@@ -219,8 +219,29 @@ YOUR TASK — edit the visuals while composing:
 3. Vary intents across beats — NEVER use the same define→process→recap pattern as other
    parts. Mix: map, cause, timeline, formula, data, cycle, cluster, compare, example
 4. For science/biology/chemistry/physics/medical topics: include at least one "map"
-   beat with "diagram" (atom|dna|cell|neuron|wave|gear|battery|magnet|field) and
-   "labels" naming the key parts — this renders a real SVG figure on the board
+   beat with "diagram" naming a shape from the 200+ SHAPE LIBRARY and "labels"
+   naming the key parts — this renders a real SVG figure on the board.
+   Choose the most specific shape for your concept:
+   BIOLOGY: dna_advanced, cell_animal, cell_bacteria, mitochondria, chloroplast,
+     endoplasmic_reticulum, ribosome, golgi_apparatus, nucleus_detailed,
+     neuron_detailed, synapse, heart_organ, lung, brain, kidney, liver, stomach,
+     virus, antibody, stem_cell, red_blood_cell, white_blood_cell, platelet,
+     leaf_detailed, tree_detailed, flower, mushroom, spider, butterfly, fish,
+     bird, pollen_grain, ecosystem, food_chain, water_cycle, carbon_cycle
+   MATH: coordinate_plane, number_line, fraction_bar, pie_chart, bar_chart,
+     line_graph, pyramid, set_venn, cube, sphere, cylinder, cone, prism
+   PHYSICS: spring, pendulum, inclined_plane, pulley, free_body_diagram,
+     force_vector, electric_circuit, lens, mirror, magnet_shape, electric_field,
+     wave_pulse, standing_wave, energy_bar, lever, ramp
+   CHEMISTRY: beaker, flask, test_tube, molecule_water, molecule_co2, methane,
+     benzene_ring, electron_config, phase_diagram, periodic_cell, bond_single,
+     bond_double, bond_triple, ph_scale
+   ENGINEERING: gear_detailed, motor, generator, transformer, arduino, sensor
+   PROGRAMMING: flowchart_process, flowchart_decision, server_icon, database_icon,
+     cloud_service, api_box, firewall, linked_list, tree_node, hash_table, json_block
+   BUSINESS: funnel, org_chart, swot_matrix, gauge_meter, donut_chart, kpi
+   Synonyms are resolved automatically (e.g. "heart" → heart_organ, "brain" → brain,
+   "DNA" → dna_advanced, "circuit" → electric_circuit).
 5. For processes/systems: use "process" or "cause" with "steps" or "items" as named
    nodes ({title, detail}) — these render as icon-and-arrow flow diagrams
 6. For math: use "formula" beats with "formula" + "terms", and separate "process"
@@ -365,12 +386,69 @@ Available intents (choose the right one for each teaching moment):
 - "recap" - summarizing key takeaways
 - "formula" - explaining equations or mathematical relationships
 - "map" - showing labeled diagrams or anatomical structures. For science topics
-  you may add a "diagram" field naming a pre-built figure to draw:
-  "atom", "dna", "neuron", "cell", "wave", "gear", "battery", "magnet", or
-  "field". Pair it with "labels" (key parts) — e.g.
-  { "intent": "map", "goal": "atom structure", "diagram": "atom",
-    "labels": ["Nucleus", "Electron shell", "Proton"] }.
+  you may add a "diagram" field naming a pre-built figure to draw. The renderer
+  has a MASSIVE SHAPE LIBRARY with 200+ educational SVG shapes — choose the most
+  specific shape that fits your concept. Pair it with "labels" (key parts) — e.g.
+  { "intent": "map", "goal": "cell structure", "diagram": "cell_animal",
+    "labels": ["Nucleus", "Mitochondria", "Ribosome"] }.
   Only use "diagram" when the figure genuinely fits the concept.
+
+  SHAPE LIBRARY (by domain — use the exact name or any natural synonym):
+  
+  BIOLOGY & MEDICINE (45+ shapes):
+    dna_advanced, cell_animal, cell_bacteria, mitochondria, chloroplast,
+    endoplasmic_reticulum, ribosome, golgi_apparatus, nucleus_detailed,
+    virus, antibody, stem_cell, white_blood_cell, red_blood_cell, platelet,
+    neuron_detailed, synapse, heart_organ, lung, brain, kidney, liver,
+    stomach, leaf_detailed, tree_detailed, flower, mushroom, spider,
+    butterfly, fish, bird, pollen_grain, ecosystem
+  
+  MATHEMATICS & GEOMETRY (25+ shapes):
+    coordinate_plane, number_line, fraction_bar, pie_chart, bar_chart,
+    line_graph, pyramid, set_venn, triangle, square, pentagon, hexagon,
+    octagon, star_shape, circle_shape, oval, parallelogram, trapezoid,
+    diamond, cube, sphere, cylinder, cone, prism
+  
+  PHYSICS (25+ shapes):
+    spring, pendulum, inclined_plane, pulley, free_body_diagram,
+    force_vector, electric_circuit, lens, concave_lens, mirror,
+    magnet_shape, electric_field, gravitational_field, wave_pulse,
+    standing_wave, energy_bar, velocity_arrow, acceleration_arrow,
+    friction_arrow, normal_force, gravity_arrow, lever, wheel_axle,
+    screw, wedge, ramp
+  
+  CHEMISTRY (16 shapes):
+    beaker, flask, test_tube, molecule_water, molecule_co2, methane,
+    reaction_arrow, equilibrium_arrow, benzene_ring, electron_config,
+    phase_diagram, periodic_cell, bond_single, bond_double, bond_triple,
+    ph_scale
+  
+  ENGINEERING & TECH (14 shapes):
+    gear_detailed, bolt, nut, valve, pipe, heat_exchanger, motor,
+    generator, transformer, breadboard, arduino, raspberry_pi, sensor,
+    antenna
+  
+  PROGRAMMING & CS (22 shapes):
+    flowchart_process, flowchart_decision, flowchart_start, flowchart_end,
+    flowchart_io, server_icon, database_icon, cloud_service, api_box,
+    cache_box, queue_box, firewall, lock_icon, key_icon, shield_icon,
+    stack_icon, linked_list, tree_node, hash_table, http_request,
+    http_response, json_block
+  
+  BUSINESS & GENERAL (20 shapes):
+    funnel, org_chart, timeline_bar, swot_matrix, gauge_meter,
+    progress_ring, donut_chart, kpi, target_icon, bulb_icon, rocket_icon,
+    flag_icon, star_badge, warning_triangle, check_circle, cross_circle,
+    arrow_up, arrow_down, hourglass, compass   WEATHER & NATURE (14 shapes):
+    sun, moon, cloud, rain_cloud, snowflake, lightning, tornado,
+    volcano, mountain, wave_nature, rock_cycle, water_cycle,
+    carbon_cycle, food_chain
+
+  You may also use natural language synonyms — the renderer resolves fuzzy
+  matches (e.g. "heart" → heart_organ, "brain" → brain, "DNA" → dna_advanced,
+  "circuit" → electric_circuit, "server" → server_icon, "database" → database_icon).
+  CHOOSE SHAPES DYNAMICALLY based on what teaches THIS specific concept best.
+  Don't default to generic boxes when a specialized shape exists.
 
 FLOW / ICON DIAGRAMS (use these to make boards feel like a real teacher's diagram,
 not a bullet list). Several templates render labeled ICON NODES connected by smooth

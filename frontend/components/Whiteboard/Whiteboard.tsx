@@ -82,14 +82,27 @@ interface DrawGraphP {
 // ─── Component ─────────────────────────────────────────────────────────────────
 
 // Draw-first animations — elements are written/drawn, never pasted in via fade.
+// Enhanced with cinematic animations for dynamic whiteboard effects.
 const ENTRANCE_ANIMATIONS = [
   "wb-write-on", "wb-teach", "wb-write", "wb-draw",
+  "wb-stagger-draw", "wb-glow-reveal", "wb-diagram-build",
 ];
 const SHAPE_ANIMATIONS = [
   "wb-draw", "wb-write-on", "wb-scale",
+  "wb-morph-entry", "wb-glow-reveal", "wb-diagram-build",
 ];
 const LABEL_ANIMATIONS = [
   "wb-write-on", "wb-teach", "wb-write",
+  "wb-stagger-draw",
+];
+const MATH_STEP_ANIMATIONS = [
+  "wb-math-step", "wb-stagger-draw", "wb-write-on",
+];
+const CODE_ANIMATIONS = [
+  "wb-code-reveal", "wb-stagger-draw", "wb-write-on",
+];
+const CONNECTOR_ANIMATIONS = [
+  "wb-connector-draw", "wb-draw",
 ];
 
 function pickAnimation(id: string, pool: string[]): string {
@@ -245,8 +258,7 @@ export default function Whiteboard({
           transition: camera.transition,
           transformOrigin: 'center center'
         }}
-      >
-        <defs>
+      >          <defs>
           {/* Canvas clip — nothing escapes the board boundary */}
           <clipPath id="wb-clip">
             <rect x="0" y="0" width={width} height={height} />
@@ -281,9 +293,50 @@ export default function Whiteboard({
             <feDropShadow dx="0" dy="0" stdDeviation="10" floodColor="#93c5fd" floodOpacity="0.24" />
           </filter>
 
+          {/* Cinematic glow filter — warm luminous halo for emphasized elements */}
+          <filter id="wb-glow-warm" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur" />
+            <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0.8 0.6 0 0 0  0 0 0.2 0 0  0 0 0 0.4 0" result="glow" />
+            <feMerge>
+              <feMergeNode in="glow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+
+          {/* Blue glow for science/math elements */}
+          <filter id="wb-glow-blue" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
+            <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.15  0 0 0 0 0.39  0 0 0 0 0.9  0 0 0 0.35 0" result="glow" />
+            <feMerge>
+              <feMergeNode in="glow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+
+          {/* Green glow for success/answer elements */}
+          <filter id="wb-glow-green" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
+            <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.09  0 0 0 0 0.64  0 0 0 0 0.29  0 0 0 0.35 0" result="glow" />
+            <feMerge>
+              <feMergeNode in="glow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+
+          {/* Shadow with colored tint for interactive elements */}
+          <filter id="wb-shadow-accent" x="-10%" y="-10%" width="120%" height="130%">
+            <feDropShadow dx="0" dy="3" stdDeviation="5" floodOpacity="0.18" />
+          </filter>
+
           <linearGradient id="wb-panel-fill" x1="0" x2="1" y1="0" y2="1">
             <stop offset="0%" stopColor="#ffffff" stopOpacity="0.98" />
             <stop offset="100%" stopColor="#f8fafc" stopOpacity="0.9" />
+          </linearGradient>
+
+          {/* Gradient for math/code backgrounds */}
+          <linearGradient id="wb-code-bg" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#0f172a" stopOpacity="1" />
+            <stop offset="100%" stopColor="#1e293b" stopOpacity="1" />
           </linearGradient>
         </defs>
 
@@ -1055,7 +1108,7 @@ function DrawArrow({ id, p }: { id: string; p: DrawArrowP }) {
   // in — the self-draw dashoffset trick can't coexist with a dash pattern.
   if (s.dashed) {
     return (
-      <g key={id} className="wb-appear">
+      <g key={id} className={pickAnimation(id, CONNECTOR_ANIMATIONS)}>
         <line
           x1={x1} y1={y1} x2={x2} y2={y2}
           stroke={color}
@@ -1072,7 +1125,7 @@ function DrawArrow({ id, p }: { id: string; p: DrawArrowP }) {
   }
 
   return (
-    <g key={id}>
+    <g key={id} className={pickAnimation(id, CONNECTOR_ANIMATIONS)}>
       <line
         x1={x1} y1={y1} x2={x2} y2={y2}
         stroke={color}
@@ -1137,7 +1190,7 @@ function DrawPath({ id, p }: { id: string; p: DrawPathP }) {
         strokeWidth={s.strokeWidth ?? 2}
         strokeLinejoin="round"
         strokeLinecap="round"
-        className="wb-appear"
+        className={pickAnimation(id, SHAPE_ANIMATIONS)}
       />
     );
   }
@@ -1265,17 +1318,33 @@ function DrawLine({ id, p }: { id: string; p: DrawLineP }) {
   const [x2, y2] = p.to   ?? [100, 0];
   const s = p.style ?? {};
   const length = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+  const animClass = pickAnimation(id, CONNECTOR_ANIMATIONS);
+
+  if (s.dashed) {
+    return (
+      <line
+        key={id}
+        className={animClass}
+        x1={x1} y1={y1} x2={x2} y2={y2}
+        stroke={s.color ?? "#94a3b8"}
+        strokeWidth={s.strokeWidth ?? 1.5}
+        strokeDasharray="6 4"
+        strokeLinecap="round"
+      />
+    );
+  }
 
   return (
     <line
       key={id}
+      className={animClass}
       x1={x1} y1={y1} x2={x2} y2={y2}
       stroke={s.color ?? "#94a3b8"}
       strokeWidth={s.strokeWidth ?? 1.5}
-      strokeDasharray={s.dashed ? "6 4" : `${length}`}
-      strokeDashoffset={s.dashed ? 0 : length}
+      strokeDasharray={length}
+      strokeDashoffset={length}
       strokeLinecap="round"
-      style={s.dashed ? { animation: "fadeInUp 0.3s ease forwards" } : { animation: "wbDrawLine 0.5s ease forwards" }}
+      style={{ ["--path-len" as string]: length }}
     />
   );
 }
@@ -1292,7 +1361,7 @@ function ShowEquation({ id, p }: { id: string; p: ShowEquationP }) {
   const h    = fs + 20;
 
   return (
-    <g key={id} className="wb-expand">
+    <g key={id} className={pickAnimation(id, MATH_STEP_ANIMATIONS)}>
       <ellipse cx={x} cy={y} rx={estW / 2 + 14} ry={h / 2 + 8} fill={color} fillOpacity={0.12} filter="url(#wb-glow)" className="wb-halo" />
       <rect x={x - estW / 2 - 2} y={y - h / 2} width={estW + 4} height={h}
         rx={6} fill="#f5f3ff" stroke={color} strokeWidth={1.5} />

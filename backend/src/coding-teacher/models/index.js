@@ -1,0 +1,13 @@
+export { Student } from './Student.js';
+export { Teacher } from './Teacher.js';
+export { Subject } from './Subject.js';
+export { Lesson } from './Lesson.js';
+export { Exercise } from './Exercise.js';
+export { Exam } from './Exam.js';
+export { Submission } from './Submission.js';
+export { AIConversation } from './AIConversation.js';
+export { Achievement } from './Achievement.js';
+export { Badge, StudentBadge } from './Badge.js';
+export { Progress } from './Progress.js';
+export { Notification } from './Notification.js';
+export { WeeklyChallenge } from './WeeklyChallenge.js';

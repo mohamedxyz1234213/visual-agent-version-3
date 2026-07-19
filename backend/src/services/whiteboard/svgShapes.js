@@ -1,9 +1,14 @@
 // -----------------------------------------------------------------------------
-// SVG Shape Library - Pre-built scientific diagrams and educational shapes
+// SVG Shape Library - Re-exports the massive shape library + legacy shapes
 // -----------------------------------------------------------------------------
-// Provides reusable, high-quality SVG shapes for templates to use.
-// All shapes are designed to be clear, educational, and visually appealing.
+// The MASSIVE library lives in svgShapeLibrary.js (200+ shapes across 7 categories).
+// This file re-exports everything for backward compatibility with templates
+// that import from './svgShapes.js'.
 // -----------------------------------------------------------------------------
+
+import {
+  SHAPE_REGISTRY, SHAPE_ALIASES, resolveShape, renderShape, searchShapes, getShapeCategories
+} from './svgShapeLibrary.js';
 
 /**
  * Generate a DNA double helix
@@ -396,6 +401,8 @@ export function magneticFieldLines(x, y, width, height) {
   return segments;
 }
 
+// Legacy SVG_SHAPES object — backward-compatible with existing templates.
+// Templates that do `SVG_SHAPES.atom(x, y, sz)` keep working unchanged.
 export const SVG_SHAPES = {
   dnaHelix,
   neuron,
@@ -405,5 +412,9 @@ export const SVG_SHAPES = {
   gear,
   battery,
   magnet,
-  magneticFieldLines
+  magneticFieldLines,
 };
+
+// Re-export the massive shape library for direct access.
+export { SHAPE_REGISTRY, SHAPE_ALIASES, resolveShape, renderShape, searchShapes, getShapeCategories };
+
