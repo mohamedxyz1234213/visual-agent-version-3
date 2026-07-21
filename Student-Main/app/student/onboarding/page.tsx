@@ -120,8 +120,9 @@ export default function OnboardingPage() {
           experienceLevel: string;
         });
         setCompleted(true);
-      } catch {
-        setSubmitError("Something went wrong saving your profile. Please try again.");
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Something went wrong saving your profile. Please try again.";
+        setSubmitError(msg);
       } finally {
         setSubmitting(false);
       }

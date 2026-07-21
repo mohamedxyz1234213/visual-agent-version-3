@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../../auth/middleware/auth.js';
 import { requireRole } from '../middleware/roles.js';
-import { Student, Progress, Submission, Exercise, CodingLesson, Achievement, AIConversation, Notification, ExerciseBlock } from '../models/index.js';
+import { Student, Progress, Submission, Exercise, CodingLesson, Achievement, AIConversation, Notification, ExerciseBlock, Exam } from '../models/index.js';
 import { executeCode, calculateScore, determineStatus } from '../services/code-execution/sandbox.service.js';
 import { User } from '../../auth/models/index.js';
 
@@ -162,11 +162,65 @@ publicRouter.get('/search', async (req, res, next) => {
 // All student routes require auth + student role
 router.use(requireAuth);
 
-// ── GET /api/v1/student/dashboard ─────────────────────────────────────────────
-router.get('/dashboard', requireRole('student'), async (req, res, next) => {
+// ── Helper: resolve student by studentCode or auth ────────────────────────────
+async function resolveStudent(req, studentCode) {
+  if (studentCode) {
+    const student = await Student.findOne({ studentCode: String(studentCode).toUpperCase(), status: 'active' });
+    if (!student) throw new Error('Student not found with that code');
+    return student;
+  }
+  const student = await Student.findOne({ userId: req.userId });
+  if (!student) throw new Error('Student profile not found');
+  return student;
+}
+
+// ── POST /api/v1/student/identify ─────────────────────────────────────────────
+// Identify a student by their studentCode (used before exercises/exams)
+router.post('/identify', async (req, res, next) => {
   try {
-    const student = await Student.findOne({ userId: req.userId }).lean();
-    if (!student) return res.status(404).json({ error: 'Student profile not found' });
+    const { studentCode } = req.body;
+    if (!studentCode) return res.status(400).json({ error: 'Student code is required' });
+
+    const student = await Student.findOne({ studentCode: String(studentCode).toUpperCase(), status: 'active' })
+      .populate('userId', 'username email')
+      .populate('schoolYearId', 'name grade')
+      .lean();
+
+    if (!student) return res.status(404).json({ error: 'No active student found with that code' });
+
+    res.json({
+      ok: true,
+      student: {
+        id: student._id,
+        code: student.studentCode,
+        username: student.userId?.username || 'Unknown',
+        email: student.userId?.email || '',
+        schoolYear: student.schoolYearId,
+        section: student.section,
+        level: student.level,
+        xp: student.xp,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── GET /api/v1/student/dashboard ─────────────────────────────────────────────
+router.get('/dashboard', requireAuth, async (req, res, next) => {
+  try {
+    let student = await Student.findOne({ userId: req.userId });
+    if (!student) {
+      const user = await User.findById(req.userId);
+      if (!user) return res.status(404).json({ error: 'User not found' });
+      student = await Student.create({ userId: user._id, status: 'active' });
+    }
+    // Ensure studentCode exists (may be missing for legacy students)
+    if (!student.studentCode) {
+      student.studentCode = undefined; // triggers pre('save') hook to generate
+      await student.save();
+    }
+    const studentLean = student.toObject();
 
     const progress = await Progress.find({ studentId: student._id }).lean();
     const recentSubmissions = await Submission.find({ studentId: student._id })
@@ -210,16 +264,16 @@ router.get('/dashboard', requireRole('student'), async (req, res, next) => {
 
     res.json({
       student: {
-        id: student._id,
-        studentCode: student.studentCode,
-        xp: student.xp,
-        level: student.level,
-        streak: student.streak,
-        coins: student.coins,
-        totalLessonsCompleted: student.totalLessonsCompleted,
-        totalExercisesCompleted: student.totalExercisesCompleted,
-        averageScore: student.averageScore,
-        totalTimeSpent: student.totalTimeSpent,
+        id: studentLean._id,
+        studentCode: studentLean.studentCode,
+        xp: studentLean.xp,
+        level: studentLean.level,
+        streak: studentLean.streak,
+        coins: studentLean.coins,
+        totalLessonsCompleted: studentLean.totalLessonsCompleted,
+        totalExercisesCompleted: studentLean.totalExercisesCompleted,
+        averageScore: studentLean.averageScore,
+        totalTimeSpent: studentLean.totalTimeSpent,
       },
       progress: progress.map((p) => ({
         subjectId: p.subjectId,
@@ -390,9 +444,7 @@ router.get('/lessons/:id/exercises', requireRole('student'), async (req, res, ne
 // Submit a solution to an exercise block within a lesson
 router.post('/lessons/:id/lesson-exercises/:blockId/submit', requireRole('student'), async (req, res, next) => {
   try {
-    const student = await Student.findOne({ userId: req.userId });
-    if (!student) return res.status(404).json({ error: 'Student profile not found' });
-
+    const student = await resolveStudent(req, req.body.studentCode);
     const block = await ExerciseBlock.findById(req.params.blockId).lean();
     if (!block) return res.status(404).json({ error: 'Exercise block not found' });
 
@@ -441,9 +493,7 @@ router.post('/lessons/:id/lesson-exercises/:blockId/submit', requireRole('studen
 // ── POST /api/v1/student/exercises/:id/submit ─────────────────────────────────
 router.post('/exercises/:id/submit', requireRole('student'), async (req, res, next) => {
   try {
-    const student = await Student.findOne({ userId: req.userId });
-    if (!student) return res.status(404).json({ error: 'Student profile not found' });
-
+    const student = await resolveStudent(req, req.body.studentCode);
     const exercise = await Exercise.findById(req.params.id).lean();
     if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
 
@@ -662,17 +712,387 @@ router.put('/settings', requireRole('student'), async (req, res, next) => {
   }
 });
 
-// ── GET /api/v1/student/adaptive-onboarding-status ────────────────────────────
-// Check if the student has completed their learning style onboarding
-router.get('/adaptive-onboarding-status', requireRole('student'), async (req, res, next) => {
+// ── GET /api/v1/student/exams ────────────────────────────────────────────────────
+// List exams assigned to the current student
+router.get('/exams', requireRole('student'), async (req, res, next) => {
   try {
     const student = await Student.findOne({ userId: req.userId }).lean();
     if (!student) return res.status(404).json({ error: 'Student profile not found' });
 
+    const exams = await Exam.find({
+      assignedTo: student._id,
+      isPublished: true,
+    })
+      .populate('subjectId', 'name color')
+      .select('-questions.correctAnswer -questions.explanation')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Check if the student already has submissions for each exam
+    const examIds = exams.map((e) => e._id);
+    const submissions = await Submission.find({
+      studentId: student._id,
+      examId: { $in: examIds },
+    }).lean();
+
+    const submittedMap = {};
+    submissions.forEach((s) => {
+      submittedMap[s.examId.toString()] = s;
+    });
+
+    const result = exams.map((exam) => ({
+      _id: exam._id,
+      title: exam.title,
+      type: exam.type,
+      subjectId: exam.subjectId,
+      duration: exam.duration,
+      totalPoints: exam.totalPoints,
+      questionCount: exam.questions?.length || 0,
+      instructions: exam.instructions,
+      attemptsAllowed: exam.attemptsAllowed,
+      status: submittedMap[exam._id.toString()]
+        ? submittedMap[exam._id.toString()].status === 'passed'
+          ? 'passed'
+          : 'attempted'
+        : 'pending',
+      submission: submittedMap[exam._id.toString()]
+        ? {
+            score: submittedMap[exam._id.toString()].score,
+            maxScore: submittedMap[exam._id.toString()].maxScore || exam.totalPoints,
+            status: submittedMap[exam._id.toString()].status,
+          }
+        : null,
+    }));
+
+    res.json({ exams: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── GET /api/v1/student/exams/:id ──────────────────────────────────────────────
+// Get full exam details (without correct answers) for taking
+router.get('/exams/:id', requireRole('student'), async (req, res, next) => {
+  try {
+    const student = await Student.findOne({ userId: req.userId }).lean();
+    if (!student) return res.status(404).json({ error: 'Student profile not found' });
+
+    const exam = await Exam.findOne({
+      _id: req.params.id,
+      assignedTo: student._id,
+      isPublished: true,
+    })
+      .populate('subjectId', 'name color')
+      .lean();
+
+    if (!exam) return res.status(404).json({ error: 'Exam not found or not assigned to you' });
+
+    // Check existing submission
+    const existingSubmission = await Submission.findOne({
+      studentId: student._id,
+      examId: exam._id,
+    }).lean();
+
+    if (existingSubmission && existingSubmission.status !== 'pending') {
+      // Already completed — send results instead
+      return res.json({
+        exam: {
+          _id: exam._id,
+          title: exam.title,
+          type: exam.type,
+          subjectId: exam.subjectId,
+          instructions: exam.instructions,
+          duration: exam.duration,
+          totalPoints: exam.totalPoints,
+          questionCount: exam.questions?.length || 0,
+          questions: exam.questions.map((q) => ({
+            id: q.id,
+            type: q.type,
+            question: q.question,
+            code: q.code,
+            codeLanguage: q.codeLanguage,
+            options: q.options,
+            points: q.points,
+            difficulty: q.difficulty,
+            tags: q.tags,
+            // Include correct answer & explanation only in results view
+            correctAnswer: exam.showCorrectAnswers ? q.correctAnswer : undefined,
+            explanation: exam.showCorrectAnswers ? q.explanation : undefined,
+          })),
+        },
+        submission: {
+          id: existingSubmission._id,
+          score: existingSubmission.score,
+          maxScore: existingSubmission.maxScore || exam.totalPoints,
+          status: existingSubmission.status,
+          results: existingSubmission.results,
+          timeSpent: existingSubmission.timeSpent,
+          submittedAt: existingSubmission.createdAt,
+        },
+        completed: true,
+      });
+    }
+
+    // Strip correct answers for taking
+    const safeQuestions = exam.questions.map((q) => ({
+      id: q.id,
+      type: q.type,
+      question: q.question,
+      code: q.code,
+      codeLanguage: q.codeLanguage,
+      options: q.options,
+      points: q.points,
+      difficulty: q.difficulty,
+      tags: q.tags,
+    }));
+
     res.json({
-      onboardingCompleted: student.onboardingCompleted || false,
-      learningProfile: student.learningProfile || {},
-      completedAt: student.onboardingCompletedAt || null,
+      exam: {
+        _id: exam._id,
+        title: exam.title,
+        type: exam.type,
+        subjectId: exam.subjectId,
+        instructions: exam.instructions,
+        duration: exam.duration,
+        totalPoints: exam.totalPoints,
+        questions: safeQuestions,
+      },
+      completed: false,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── POST /api/v1/student/exams/:id/start ────────────────────────────────────────
+// Start an exam attempt (creates a pending submission if none exists)
+router.post('/exams/:id/start', requireRole('student'), async (req, res, next) => {
+  try {
+    const student = await resolveStudent(req, req.body.studentCode);
+
+    const exam = await Exam.findOne({
+      _id: req.params.id,
+      assignedTo: student._id,
+      isPublished: true,
+    }).lean();
+
+    if (!exam) return res.status(404).json({ error: 'Exam not found or not assigned to you' });
+
+    // Check for existing submission
+    let submission = await Submission.findOne({
+      studentId: student._id,
+      examId: exam._id,
+    });
+
+    if (submission) {
+      if (submission.status !== 'pending') {
+        // Check attempts allowed
+        const attemptsUsed = await Submission.countDocuments({
+          studentId: student._id,
+          examId: exam._id,
+          status: { $ne: 'pending' },
+        });
+        if (attemptsUsed >= (exam.attemptsAllowed || 1)) {
+          return res.status(400).json({ error: 'No more attempts allowed for this exam' });
+        }
+      }
+    } else {
+      // Create new pending submission
+      submission = await Submission.create({
+        studentId: student._id,
+        examId: exam._id,
+        status: 'pending',
+        score: 0,
+        maxScore: exam.totalPoints,
+        timeSpent: 0,
+        attemptNumber: 1,
+      });
+    }
+
+    res.json({
+      ok: true,
+      submissionId: submission._id,
+      duration: exam.duration,
+      startedAt: submission.createdAt || new Date(),
+      attemptNumber: submission.attemptNumber,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── POST /api/v1/student/exams/:id/submit ───────────────────────────────────────
+// Submit exam answers for grading
+router.post('/exams/:id/submit', requireRole('student'), async (req, res, next) => {
+  try {
+    const student = await resolveStudent(req, req.body.studentCode);
+
+    const exam = await Exam.findOne({
+      _id: req.params.id,
+      assignedTo: student._id,
+      isPublished: true,
+    }).lean();
+
+    if (!exam) return res.status(404).json({ error: 'Exam not found or not assigned to you' });
+
+    const submission = await Submission.findOne({
+      studentId: student._id,
+      examId: exam._id,
+      status: 'pending',
+    });
+
+    if (!submission) {
+      return res.status(400).json({ error: 'No active exam attempt found. Start the exam first.' });
+    }
+
+    const { answers, timeSpent } = req.body;
+    if (!answers || typeof answers !== 'object') {
+      return res.status(400).json({ error: 'Answers object is required' });
+    }
+
+    // Grade each question
+    let totalScore = 0;
+    const maxScore = exam.totalPoints || 0;
+    const results = exam.questions.map((q) => {
+      const studentAnswer = answers[q.id] || '';
+      let correct = false;
+
+      if (q.type === 'mcq') {
+        correct = studentAnswer.trim().toLowerCase() === (q.correctAnswer || '').trim().toLowerCase();
+      } else if (q.type === 'fill-blank') {
+        correct = studentAnswer.trim().toLowerCase() === (q.correctAnswer || '').trim().toLowerCase();
+      } else if (q.type === 'predict-output') {
+        correct = studentAnswer.trim() === (q.correctAnswer || '').trim();
+      } else if (q.type === 'code' || q.type === 'bug-fix') {
+        // For code questions, use the sandbox to run against test cases
+        // For now, do a basic comparison — will enhance with sandbox
+        correct = studentAnswer.trim() === (q.correctAnswer || '').trim();
+        // Try to match loosely
+        if (!correct) {
+          const norm = (s) => s.replace(/\s+/g, ' ').trim();
+          correct = norm(studentAnswer) === norm(q.correctAnswer || '');
+        }
+      }
+
+      const points = correct ? (q.points || 1) : 0;
+      totalScore += points;
+
+      return {
+        questionId: q.id,
+        questionType: q.type,
+        question: q.question,
+        studentAnswer,
+        correctAnswer: q.correctAnswer,
+        correct,
+        points,
+        maxPoints: q.points || 1,
+        explanation: q.explanation || '',
+      };
+    });
+
+    // Calculate percentage score
+    const percentageScore = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
+    const passed = percentageScore >= (exam.passingScore || 60);
+    const status = passed ? 'passed' : 'failed';
+
+    // Update submission
+    submission.score = totalScore;
+    submission.maxScore = maxScore;
+    submission.status = status;
+    submission.results = results;
+    submission.timeSpent = timeSpent || submission.timeSpent || 0;
+    await submission.save();
+
+    // Award XP if passed
+    let xpEarned = 0;
+    let coinsEarned = 0;
+    if (passed) {
+      xpEarned = exam.type === 'final' ? 100 : exam.type === 'midterm' ? 60 : 30;
+      coinsEarned = xpEarned;
+      student.addXP(xpEarned);
+      student.coins += coinsEarned;
+      student.totalExamsCompleted = (student.totalExamsCompleted || 0) + 1;
+      await student.save();
+    }
+
+    res.json({
+      ok: true,
+      submission: {
+        id: submission._id,
+        score: totalScore,
+        maxScore,
+        percentage: percentageScore,
+        status,
+        passed,
+        results,
+      },
+      xpEarned,
+      coinsEarned,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── GET /api/v1/student/exams/:id/results ───────────────────────────────────────
+// Get exam results after submission
+router.get('/exams/:id/results', requireRole('student'), async (req, res, next) => {
+  try {
+    const student = await Student.findOne({ userId: req.userId }).lean();
+    if (!student) return res.status(404).json({ error: 'Student profile not found' });
+
+    const [exam, submission] = await Promise.all([
+      Exam.findById(req.params.id)
+        .populate('subjectId', 'name color')
+        .lean(),
+      Submission.findOne({
+        studentId: student._id,
+        examId: req.params.id,
+        status: { $ne: 'pending' },
+      }).lean(),
+    ]);
+
+    if (!exam) return res.status(404).json({ error: 'Exam not found' });
+    if (!submission) return res.status(404).json({ error: 'No completed submission found for this exam' });
+
+    res.json({
+      exam: {
+        _id: exam._id,
+        title: exam.title,
+        type: exam.type,
+        subjectId: exam.subjectId,
+        totalPoints: exam.totalPoints,
+        passingScore: exam.passingScore,
+        questionCount: exam.questions?.length || 0,
+        showCorrectAnswers: exam.showCorrectAnswers,
+      },
+      submission: {
+        id: submission._id,
+        score: submission.score,
+        maxScore: submission.maxScore,
+        percentage: submission.maxScore > 0 ? Math.round((submission.score / submission.maxScore) * 100) : 0,
+        status: submission.status,
+        passed: submission.status === 'passed',
+        results: submission.results,
+        timeSpent: submission.timeSpent,
+        submittedAt: submission.createdAt,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── GET /api/v1/student/adaptive-onboarding-status ────────────────────────────
+// Check if the student has completed their learning style onboarding
+router.get('/adaptive-onboarding-status', requireAuth, async (req, res, next) => {
+  try {
+    const student = await Student.findOne({ userId: req.userId }).lean();
+
+    res.json({
+      onboardingCompleted: student?.onboardingCompleted || false,
+      learningProfile: student?.learningProfile || {},
+      completedAt: student?.onboardingCompletedAt || null,
     });
   } catch (err) {
     next(err);
@@ -681,10 +1101,20 @@ router.get('/adaptive-onboarding-status', requireRole('student'), async (req, re
 
 // ── POST /api/v1/student/adaptive-onboarding ───────────────────────────────────
 // Submit the 5 learning style questions to create the student's adaptive profile
-router.post('/adaptive-onboarding', requireRole('student'), async (req, res, next) => {
+router.post('/adaptive-onboarding', requireAuth, async (req, res, next) => {
   try {
-    const student = await Student.findOne({ userId: req.userId });
-    if (!student) return res.status(404).json({ error: 'Student profile not found' });
+    // Try to find existing student profile; auto-create if missing
+    let student = await Student.findOne({ userId: req.userId });
+    if (!student) {
+      const { User } = await import('../../auth/models/index.js');
+      const user = await User.findById(req.userId);
+      if (!user) return res.status(404).json({ error: 'User not found' });
+
+      student = await Student.create({
+        userId: user._id,
+        status: 'active',
+      });
+    }
 
     const { learningStyle, pacing, practiceFrequency, problemSolvingApproach, experienceLevel } = req.body;
 
@@ -727,10 +1157,15 @@ router.post('/adaptive-onboarding', requireRole('student'), async (req, res, nex
 
 // ── GET /api/v1/student/adaptive-path ──────────────────────────────────────────
 // Get personalized learning recommendations based on the student's learning profile
-router.get('/adaptive-path', requireRole('student'), async (req, res, next) => {
+router.get('/adaptive-path', requireAuth, async (req, res, next) => {
   try {
-    const student = await Student.findOne({ userId: req.userId }).lean();
-    if (!student) return res.status(404).json({ error: 'Student profile not found' });
+    let student = await Student.findOne({ userId: req.userId }).lean();
+    if (!student) {
+      const user = await User.findById(req.userId);
+      if (!user) return res.status(404).json({ error: 'User not found' });
+      const doc = await Student.create({ userId: user._id, status: 'active' });
+      student = doc.toObject();
+    }
 
     const profile = student.learningProfile || {};
     const weaknesses = student.weaknesses || [];

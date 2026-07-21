@@ -89,11 +89,12 @@ const PROVIDER_MODELS: Record<string, Array<{
   id: string; label: string; modelName: string; desc: string; badge: string | null;
 }>> = {
   blaze: [
-    { id: "qwen3.6-plus-thinking", label: "Premium",  modelName: "qwen3.6-plus-thinking", desc: "Deepest analysis",   badge: "Recommended" },
-    { id: "qwen3.6-plus",          label: "Standard", modelName: "qwen3.6-plus",           desc: "Fast & accurate",   badge: null },
-    { id: "grok-4.20-fast", label: "Grok 4.20 Fast", modelName: "grok-4.20-fast", desc: "Low-latency reasoning", badge: null },
-    { id: "qwen3.6-max-preview-thinking", label: "Qwen 3.6 Max Preview", modelName: "qwen3.6-max-preview-thinking", desc: "Extended thinking preview", badge: null },
-    { id: "moonshotai/kimi-k2.6", label: "Kimi K2.6", modelName: "moonshotai/kimi-k2.6", desc: "Long-context generalist", badge: null },
+    { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash", modelName: "deepseek-v4-flash", desc: "Fast & accurate", badge: "Recommended" },
+    { id: "deepseek-v4-pro", label: "DeepSeek V4 Pro", modelName: "deepseek-v4-pro", desc: "Deepest analysis", badge: null },
+  ],
+  blazeapi: [
+    { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash", modelName: "deepseek-v4-flash", desc: "Fast & accurate", badge: "Recommended" },
+    { id: "deepseek-v4-pro", label: "DeepSeek V4 Pro", modelName: "deepseek-v4-pro", desc: "Deepest analysis", badge: null },
   ],
 };
 

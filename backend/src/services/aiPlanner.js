@@ -4526,7 +4526,7 @@ export async function testAIConnection(aiProvider, analysisModel) {
   }
 }
 
-async function callAIRace(prompt, maxTokens, timeoutMs = AI_TIMEOUT_MS, aiProvider = null, analysisModel = null) {
+export async function callAIRace(prompt, maxTokens, timeoutMs = AI_TIMEOUT_MS, aiProvider = null, analysisModel = null) {
   if (process.env.DISABLE_AI_PLANNER === 'true') {
     throw new Error('AI planner disabled by configuration');
   }

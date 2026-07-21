@@ -46,7 +46,6 @@ export default function StudentDashboard() {
       difficulty: 'beginner' as const,
       avatarVoice: false,
       avatarDialect: 'msa' as const,
-      theme: 'light' as const,
     },
   };
 

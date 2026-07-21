@@ -19,7 +19,6 @@ export interface StudentPreferences {
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   avatarVoice: boolean;
   avatarDialect: 'msa' | 'egyptian';
-  theme: 'light' | 'dark' | 'system';
 }
 
 export interface StudentDashboard {

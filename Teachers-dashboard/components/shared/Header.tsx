@@ -5,7 +5,6 @@ import { logoutRequest } from "@/lib/api";
 import { useNotifications } from "@/features/student/hooks";
 import { markAllNotificationsRead, markNotificationRead } from "@/features/student/api";
 import { NotificationCompose } from "@/components/Notifications/NotificationCompose";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   IconBell,
   IconChevronDown,
@@ -65,7 +64,7 @@ export function Header({ title, subtitle, username, onLogout, onToggleSidebar, s
       <div className="flex items-center gap-3">
         <button
           onClick={onToggleSidebar}
-          className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+          className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-black/5 transition-colors"
           aria-label="Toggle sidebar"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -75,11 +74,11 @@ export function Header({ title, subtitle, username, onLogout, onToggleSidebar, s
           </svg>
         </button>
         <div>
-          <h1 className="text-[28px] font-bold text-[#0F0F0F] dark:text-white tracking-tight leading-tight">
+          <h1 className="text-[28px] font-bold text-[#0F0F0F] tracking-tight leading-tight">
             {title}
           </h1>
           {subtitle && (
-            <p className="text-[13px] text-[#6B6B6B] dark:text-slate-400 mt-0.5">{subtitle}</p>
+            <p className="text-[13px] text-[#6B6B6B] mt-0.5">{subtitle}</p>
           )}
         </div>
       </div>
@@ -87,16 +86,13 @@ export function Header({ title, subtitle, username, onLogout, onToggleSidebar, s
       {/* Right: Notifications + Message + Profile */}
       <div className="flex items-center gap-3">
         {/* Date label */}
-        <span className="text-[13px] text-[#6B6B6B] dark:text-slate-400 hidden lg:block">
+        <span className="text-[13px] text-[#6B6B6B] hidden lg:block">
           {new Date().toLocaleDateString("en-US", {
             day: "numeric",
             month: "short",
             year: "numeric",
           })}
         </span>
-
-        {/* Theme toggle */}
-        <ThemeToggle />
 
         {/* Send Notification button */}
         {students.length > 0 && (
@@ -127,8 +123,8 @@ export function Header({ title, subtitle, username, onLogout, onToggleSidebar, s
           {showNotifications && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-              <div className="absolute right-0 mt-2 w-[380px] bg-white dark:bg-[#1A1A1A] rounded-2xl shadow-xl border border-slate-200 dark:border-[#2A2A2A] z-50 max-h-[500px] flex flex-col">
-                <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-[#2A2A2A]">
+              <div className="absolute right-0 mt-2 w-[380px] bg-white rounded-2xl shadow-xl border border-slate-200 z-50 max-h-[500px] flex flex-col">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white">Notifications</h3>
                   {unreadCount > 0 && (
                     <button
@@ -140,23 +136,23 @@ export function Header({ title, subtitle, username, onLogout, onToggleSidebar, s
                   )}
                 </div>
                 <div className="flex-1 overflow-y-auto">
-                  {notifications.length === 0 ? (                      <div className="px-5 py-10 text-center text-sm text-slate-400 dark:text-slate-500">
+                  {notifications.length === 0 ? (                      <div className="px-5 py-10 text-center text-sm text-slate-400">
                       No notifications yet
                     </div>
                   ) : (
                     notifications.slice(0, 20).map((n) => (
                       <div
                         key={n._id}
-                        className={`px-5 py-3 border-b border-slate-50 dark:border-[#2A2A2A] hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer ${
-                          !n.isRead ? 'bg-blue-50/50 dark:bg-blue-900/20' : ''
+                        className={`px-5 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer ${
+                          !n.isRead ? 'bg-blue-50/50' : ''
                         }`}
                         onClick={() => !n.isRead && handleMarkRead(n._id)}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{n.title}</p>
+                            <p className="text-sm font-semibold text-slate-900 truncate">{n.title}</p>
                             {n.message && (
-                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">{n.message}</p>
+                              <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{n.message}</p>
                             )}
                           </div>
                           {!n.isRead && (
@@ -199,9 +195,9 @@ export function Header({ title, subtitle, username, onLogout, onToggleSidebar, s
                 className="fixed inset-0 z-40"
                 onClick={() => setShowProfile(false)}
               />
-              <div className="absolute right-0 mt-2 w-52 bg-white dark:bg-[#1A1A1A] rounded-[20px] shadow-card py-2 z-50">
-                <div className="px-4 py-3 border-b border-[#E5E5E5] dark:border-[#2A2A2A]">
-                  <p className="text-[14px] font-semibold text-[#0F0F0F] dark:text-white">
+              <div className="absolute right-0 mt-2 w-52 bg-white rounded-[20px] shadow-card py-2 z-50">
+                <div className="px-4 py-3 border-b border-[#E5E5E5]">
+                  <p className="text-[14px] font-semibold text-[#0F0F0F]">
                     {username}
                   </p>
                   <span className="flux-badge-lime mt-1 inline-block">
@@ -210,7 +206,7 @@ export function Header({ title, subtitle, username, onLogout, onToggleSidebar, s
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[#6B6B6B] dark:text-[#8A8A8A] hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[#6B6B6B] hover:bg-gray-50 transition-colors"
                 >
                   <IconLogout size={16} />
                   Sign Out

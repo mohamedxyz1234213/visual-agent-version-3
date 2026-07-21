@@ -483,6 +483,134 @@ router.put('/exams/:id', requireRole('teacher'), async (req, res, next) => {
   }
 });
 
+router.delete('/exams/:id', requireRole('teacher'), async (req, res, next) => {
+  try {
+    const result = await Exam.findOneAndDelete({ _id: req.params.id, teacherId: req.userId });
+    if (!result) return res.status(404).json({ error: 'Exam not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── GET /api/v1/teacher/exams/:id/analytics ─────────────────────────────────────
+// Per-question stats, grade distribution, class averages for a given exam
+router.get('/exams/:id/analytics', requireRole('teacher'), async (req, res, next) => {
+  try {
+    const exam = await Exam.findOne({ _id: req.params.id, teacherId: req.userId }).lean();
+    if (!exam) return res.status(404).json({ error: 'Exam not found' });
+
+    // All non-pending submissions for this exam
+    const submissions = await Submission.find({
+      examId: exam._id,
+      status: { $nin: ['pending', 'running'] },
+    })
+      .populate('studentId', 'studentCode')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (submissions.length === 0) {
+      return res.json({
+        examTitle: exam.title,
+        totalPoints: exam.totalPoints,
+        passingScore: exam.passingScore,
+        totalStudents: 0,
+        submittedCount: 0,
+        avgScore: 0,
+        medianScore: 0,
+        highestScore: 0,
+        lowestScore: 0,
+        passRate: 0,
+        gradeDistribution: { A: 0, B: 0, C: 0, D: 0, F: 0 },
+        perQuestionStats: [],
+        studentResults: [],
+      });
+    }
+
+    // Calculate per-question stats
+    const questionStats = exam.questions.map((q) => {
+      let correctCount = 0;
+      let totalAttempts = 0;
+
+      submissions.forEach((sub) => {
+        const result = (sub.results || []).find((r) => r.questionId === q.id);
+        if (result) {
+          totalAttempts++;
+          if (result.correct) correctCount++;
+        }
+      });
+
+      return {
+        questionId: q.id,
+        questionText: q.question?.substring(0, 100) + (q.question?.length > 100 ? '...' : ''),
+        type: q.type,
+        points: q.points || 1,
+        correctCount,
+        totalAttempts,
+        correctRate: totalAttempts > 0 ? Math.round((correctCount / totalAttempts) * 100) : 0,
+      };
+    });
+
+    // Collect all percentage scores
+    const scores = submissions.map((sub) => {
+      const percentage = sub.maxScore > 0 ? Math.round((sub.score / sub.maxScore) * 100) : 0;
+      return percentage;
+    });
+
+    scores.sort((a, b) => a - b);
+    const total = scores.length;
+    const avgScore = Math.round(scores.reduce((sum, s) => sum + s, 0) / total);
+    const medianScore = total % 2 === 0
+      ? Math.round((scores[total / 2 - 1] + scores[total / 2]) / 2)
+      : scores[Math.floor(total / 2)];
+    const highestScore = scores[total - 1];
+    const lowestScore = scores[0];
+
+    // Grade distribution
+    const gradeMap = { A: 0, B: 0, C: 0, D: 0, F: 0 };
+    scores.forEach((s) => {
+      if (s >= 90) gradeMap.A++;
+      else if (s >= 80) gradeMap.B++;
+      else if (s >= 70) gradeMap.C++;
+      else if (s >= 60) gradeMap.D++;
+      else gradeMap.F++;
+    });
+
+    const passed = scores.filter((s) => s >= (exam.passingScore || 60)).length;
+    const passRate = Math.round((passed / total) * 100);
+
+    // Student-level results
+    const studentResults = submissions.map((sub) => ({
+      studentCode: sub.studentId?.studentCode || 'Unknown',
+      score: sub.score,
+      maxScore: sub.maxScore,
+      percentage: sub.maxScore > 0 ? Math.round((sub.score / sub.maxScore) * 100) : 0,
+      status: sub.status,
+      passed: sub.status === 'passed',
+      timeSpent: sub.timeSpent,
+      submittedAt: sub.createdAt,
+    }));
+
+    res.json({
+      examTitle: exam.title,
+      totalPoints: exam.totalPoints,
+      passingScore: exam.passingScore,
+      totalStudents: exam.assignedTo?.length || 0,
+      submittedCount: total,
+      avgScore,
+      medianScore,
+      highestScore,
+      lowestScore,
+      passRate,
+      gradeDistribution: gradeMap,
+      perQuestionStats: questionStats,
+      studentResults,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── Submissions & Grading ─────────────────────────────────────────────────────
 router.get('/submissions', requireRole('teacher'), async (req, res, next) => {
   try {

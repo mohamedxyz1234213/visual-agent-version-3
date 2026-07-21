@@ -11,6 +11,10 @@ import type {
   AvatarMessage,
   ConceptMastery,
   AdaptivePathResponse,
+  StudentExam,
+  ExamDetail,
+  ExamSubmission,
+  ExamStartResponse,
 } from "./types";
 
 export type {
@@ -22,6 +26,21 @@ export type {
   LeaderboardResponse,
   Notification,
   WeeklyChallenge,
+  StudentExam,
+  ExamDetail,
+  ExamSubmission,
+  ExamStartResponse,
+}
+
+// ── Student Identification ────────────────────────────────────────────────────
+export async function identifyStudent(studentCode: string): Promise<{
+  ok: boolean;
+  student: { id: string; code: string; username: string; email: string; schoolYear: any; section: string; level: number; xp: number };
+}> {
+  return apiRequest("/student/identify", {
+    method: "POST",
+    body: JSON.stringify({ studentCode }),
+  });
 }
 
 import { apiRequest } from "../shared/config";
@@ -77,13 +96,33 @@ export async function getExercise(id: string): Promise<{ exercise: Exercise }> {
 
 export async function submitExercise(
   id: string,
-  data: { code: string; language?: string; timeSpent?: number }
+  data: { code: string; language?: string; timeSpent?: number; studentCode?: string }
 ): Promise<{
   ok: boolean;
   submission: { id: string; status: string; score: number; results: any[] };
   xpEarned: number;
 }> {
   return apiRequest(`/student/exercises/${id}/submit`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+// ── Lesson Exercise Blocks ────────────────────────────────────────────────────
+export async function getLessonExerciseBlocks(lessonId: string): Promise<{ blocks: any[] }> {
+  return apiRequest(`/student/lessons/${lessonId}/exercises`);
+}
+
+export async function submitLessonExerciseBlock(
+  lessonId: string,
+  blockId: string,
+  data: { code: string; language?: string; timeSpent?: number; studentCode?: string }
+): Promise<{
+  ok: boolean;
+  submission: { id: string; status: string; score: number };
+  xpEarned: number;
+}> {
+  return apiRequest(`/student/lessons/${lessonId}/lesson-exercises/${blockId}/submit`, {
     method: "POST",
     body: JSON.stringify(data),
   });
@@ -234,6 +273,55 @@ export async function submitOnboarding(data: {
 // ── Adaptive Learning Path ────────────────────────────────────────────────────
 export async function getAdaptivePath(): Promise<AdaptivePathResponse> {
   return apiRequest("/student/adaptive-path");
+}
+
+// ── Exams ─────────────────────────────────────────────────────────────────────
+export async function getStudentExams(): Promise<{ exams: StudentExam[] }> {
+  return apiRequest("/student/exams");
+}
+
+export async function getStudentExamDetail(
+  id: string
+): Promise<{
+  exam: ExamDetail;
+  completed: boolean;
+  submission?: ExamSubmission;
+}> {
+  return apiRequest(`/student/exams/${id}`);
+}
+
+export async function startStudentExam(
+  id: string,
+  studentCode?: string
+): Promise<ExamStartResponse> {
+  return apiRequest(`/student/exams/${id}/start`, {
+    method: "POST",
+    body: JSON.stringify({ studentCode }),
+  });
+}
+
+export async function submitStudentExam(
+  id: string,
+  data: { answers: Record<string, string>; timeSpent: number; studentCode?: string }
+): Promise<{
+  ok: boolean;
+  submission: ExamSubmission;
+  xpEarned: number;
+  coinsEarned: number;
+}> {
+  return apiRequest(`/student/exams/${id}/submit`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getStudentExamResults(
+  id: string
+): Promise<{
+  exam: { _id: string; title: string; totalPoints: number; passingScore: number; showCorrectAnswers: boolean };
+  submission: ExamSubmission;
+}> {
+  return apiRequest(`/student/exams/${id}/results`);
 }
 
 

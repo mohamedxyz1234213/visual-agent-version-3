@@ -54,7 +54,7 @@ function SearchSection() {
         <input
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
-          placeholder="e.g. STU-2026-0001"
+          placeholder="e.g. A3X8K2M1"
           className="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-[#18181B] placeholder-gray-400 focus:border-[#A78BFA] focus:outline-none focus:ring-2 focus:ring-[#A78BFA]/30 font-mono tracking-wide"
         />
         <button

@@ -43,8 +43,24 @@ export interface LessonPart {
   narration: string | null;
   duration_seconds: number;
   audio_url: string | null;
-  part_type: "content" | "quiz" | "final_quiz";
+  part_type: "content" | "quiz" | "final_quiz" | "exercise";
   scenes: StoryboardScene[];
+  exercise_block_id?: string;
+}
+
+export interface LessonExerciseBlock {
+  _id: string;
+  lessonId: string;
+  title: string;
+  instructions: string;
+  language: string;
+  starterCode: string;
+  hints: { order: number; text: string }[];
+  difficulty: string;
+  order: number;
+  isRequired: boolean;
+  xpReward: number;
+  testCases: { id: string; input: string; expectedOutput: string; isHidden: boolean; description: string }[];
 }
 
 export interface Lesson {

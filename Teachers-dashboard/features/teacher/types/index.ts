@@ -56,6 +56,7 @@ export interface TeacherExam {
   duration: number;
   totalPoints: number;
   isPublished: boolean;
+  assignedTo?: { _id: string; studentCode?: string }[] | string[];
 }
 
 export interface TeacherSubmission {
@@ -83,4 +84,49 @@ export interface StudentInClass {
   averageScore: number;
   totalLessonsCompleted: number;
   lastActivityDate: string;
+}
+
+export interface PerQuestionStat {
+  questionId: string;
+  questionText: string;
+  type: string;
+  points: number;
+  correctCount: number;
+  totalAttempts: number;
+  correctRate: number;
+}
+
+export interface GradeDistribution {
+  A: number;
+  B: number;
+  C: number;
+  D: number;
+  F: number;
+}
+
+export interface StudentExamResult {
+  studentCode: string;
+  score: number;
+  maxScore: number;
+  percentage: number;
+  status: string;
+  passed: boolean;
+  timeSpent: number;
+  submittedAt: string;
+}
+
+export interface ExamAnalytics {
+  examTitle: string;
+  totalPoints: number;
+  passingScore: number;
+  totalStudents: number;
+  submittedCount: number;
+  avgScore: number;
+  medianScore: number;
+  highestScore: number;
+  lowestScore: number;
+  passRate: number;
+  gradeDistribution: GradeDistribution;
+  perQuestionStats: PerQuestionStat[];
+  studentResults: StudentExamResult[];
 }

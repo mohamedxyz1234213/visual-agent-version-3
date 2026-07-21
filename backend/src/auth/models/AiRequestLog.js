@@ -10,7 +10,7 @@ const aiRequestLogSchema = new Schema(
     userEmail: { type: String, lowercase: true, trim: true, index: true },
     username: { type: String, trim: true },
 
-    type: { type: String, enum: ['upload', 'explain'], required: true, index: true },
+    type: { type: String, enum: ['upload', 'explain', 'generate-lesson', 'generate-exercise'], required: true, index: true },
     lessonId: { type: Schema.Types.ObjectId, ref: 'Lesson', index: true },
     seriesId: { type: Schema.Types.ObjectId, ref: 'LessonSeries' },
 

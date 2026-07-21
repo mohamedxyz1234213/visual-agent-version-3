@@ -51,7 +51,6 @@ export interface StudentPreferences {
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   avatarVoice: boolean;
   avatarDialect: 'msa' | 'egyptian';
-  theme: 'light' | 'dark' | 'system';
 }
 
 export interface StudentDashboard {
@@ -207,4 +206,85 @@ export interface ConceptMastery {
   concept: string;
   proficiency: number;
   lastPracticed: string;
+}
+
+// ── Exam Types ─────────────────────────────────────────────────────────────────
+export interface StudentExam {
+  _id: string;
+  title: string;
+  type: string;
+  subjectId?: { _id: string; name: string; color: string } | null;
+  duration: number;
+  totalPoints: number;
+  questionCount: number;
+  instructions?: string;
+  attemptsAllowed?: number;
+  status: 'pending' | 'attempted' | 'passed';
+  submission?: {
+    score: number;
+    maxScore: number;
+    status: string;
+  } | null;
+}
+
+export interface ExamQuestion {
+  id: string;
+  type: 'mcq' | 'code' | 'fill-blank' | 'bug-fix' | 'predict-output' | 'drag-drop';
+  question: string;
+  code?: string;
+  codeLanguage?: string;
+  options?: string[];
+  points: number;
+  difficulty?: string;
+  tags?: string[];
+  correctAnswer?: string;
+  explanation?: string;
+}
+
+export interface ExamDetail {
+  _id: string;
+  title: string;
+  type: string;
+  subjectId?: { _id: string; name: string; color: string } | null;
+  instructions?: string;
+  duration: number;
+  totalPoints: number;
+  questions: ExamQuestion[];
+}
+
+export interface ExamAnswer {
+  questionId: string;
+  answer: string;
+}
+
+export interface ExamResultItem {
+  questionId: string;
+  questionType: string;
+  question: string;
+  studentAnswer: string;
+  correctAnswer?: string;
+  correct: boolean;
+  points: number;
+  maxPoints: number;
+  explanation?: string;
+}
+
+export interface ExamSubmission {
+  id: string;
+  score: number;
+  maxScore: number;
+  percentage: number;
+  status: string;
+  passed: boolean;
+  results?: ExamResultItem[];
+  timeSpent?: number;
+  submittedAt?: string;
+}
+
+export interface ExamStartResponse {
+  ok: boolean;
+  submissionId: string;
+  duration: number;
+  startedAt: string;
+  attemptNumber: number;
 }

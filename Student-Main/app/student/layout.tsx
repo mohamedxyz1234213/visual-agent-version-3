@@ -12,6 +12,7 @@ const studentNavItems = [
   { label: "Learn", href: "/student/learn", icon: "book" },
   { label: "Avatar Teacher", href: "/student/avatar-teacher", icon: "robot" },
   { label: "Exercises", href: "/student/exercises", icon: "code" },
+  { label: "Exams", href: "/student/exams", icon: "clipboard" },
   { label: "Challenges", href: "/student/challenges", icon: "trophy" },
   { label: "Leaderboard", href: "/student/leaderboard", icon: "award" },
   { label: "Achievements", href: "/student/achievements", icon: "star" },

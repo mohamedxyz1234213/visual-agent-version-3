@@ -3,10 +3,10 @@ import { apiRequest } from "../shared/config";
 // Alias for backward compat within this file
 const request = apiRequest;
 
-import type { TeacherDashboard, TeacherLesson, TeacherExercise, TeacherExam, TeacherSubmission, ClassData } from "./types";
+import type { TeacherDashboard, TeacherLesson, TeacherExercise, TeacherExam, TeacherSubmission, ClassData, ExamAnalytics } from "./types";
 
 // Re-export types so hooks can import them from this module
-export type { TeacherDashboard, TeacherLesson, TeacherExercise, TeacherExam, TeacherSubmission, ClassData } from "./types";
+export type { TeacherDashboard, TeacherLesson, TeacherExercise, TeacherExam, TeacherSubmission, ClassData, ExamAnalytics } from "./types";
 
 export async function getTeacherDashboard(): Promise<TeacherDashboard> {
   return request("/teacher/dashboard");
@@ -50,6 +50,14 @@ export async function getExams(): Promise<{ exams: TeacherExam[] }> {
 
 export async function createExam(data: any): Promise<{ ok: boolean; exam: TeacherExam }> {
   return request("/teacher/exams", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function updateExam(id: string, data: any): Promise<{ ok: boolean; exam: TeacherExam }> {
+  return request(`/teacher/exams/${id}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+export async function deleteExam(id: string): Promise<{ ok: boolean }> {
+  return request(`/teacher/exams/${id}`, { method: "DELETE" });
 }
 
 export async function getSubmissions(params?: { exerciseId?: string; studentId?: string; status?: string }): Promise<{ submissions: TeacherSubmission[] }> {
@@ -113,12 +121,20 @@ export async function getAnalytics(classId: string): Promise<any> {
   return request(`/teacher/analytics/${classId}`);
 }
 
+export async function getExamAnalytics(examId: string): Promise<ExamAnalytics> {
+  return request(`/teacher/exams/${examId}/analytics`);
+}
+
 export async function generateAILesson(topic: string, subjectId?: string, difficulty?: string, duration?: number, style?: string): Promise<{ lesson: any }> {
   return request("/ai/generate-lesson", { method: "POST", body: JSON.stringify({ topic, subjectId, difficulty, duration, style }) });
 }
 
-export async function generateAIExercise(topic: string, difficulty?: string, type?: string): Promise<{ exercise: any }> {
-  return request("/ai/generate-exercise", { method: "POST", body: JSON.stringify({ topic, difficulty, type }) });
+export async function generateAIExercise(topic: string, difficulty?: string, type?: string, subjectId?: string): Promise<{ exercise: any }> {
+  return request("/ai/generate-exercise", { method: "POST", body: JSON.stringify({ topic, difficulty, type, subjectId }) });
+}
+
+export async function generateAIExam(title: string, subjectId?: string, difficulty?: string, questionCount?: number, duration?: number): Promise<{ exam: any }> {
+  return request("/ai/generate-exam", { method: "POST", body: JSON.stringify({ title, subjectId, difficulty, questionCount, duration }) });
 }
 
 // ── Teacher Notifications ─────────────────────────────────────────────────────

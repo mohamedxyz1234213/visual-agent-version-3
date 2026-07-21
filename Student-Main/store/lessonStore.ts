@@ -1,12 +1,16 @@
 import { create } from "zustand";
-import type { Lesson, LessonPart, Quiz, QuizAttemptResult } from "@/lib/types";
+import type { Lesson, LessonPart, LessonExerciseBlock, Quiz, QuizAttemptResult } from "@/lib/types";
 
-export type PlayerStatus = "idle" | "playing" | "paused" | "quiz" | "finished";
+export type PlayerStatus = "idle" | "playing" | "paused" | "quiz" | "exercise" | "finished";
 
 interface LessonStore {
   // ─── Lesson data ───────────────────────────────────────────────────────────
   lesson: Lesson | null;
   setLesson: (lesson: Lesson) => void;
+
+  // ─── Exercise blocks (embedded in lesson) ──────────────────────────────────
+  exerciseBlocks: LessonExerciseBlock[];
+  setExerciseBlocks: (blocks: LessonExerciseBlock[]) => void;
 
   // ─── Playback ──────────────────────────────────────────────────────────────
   currentPartIndex: number;
@@ -33,6 +37,18 @@ interface LessonStore {
   setActiveQuiz: (q: Quiz | null) => void;
   setQuizResult: (r: QuizAttemptResult | null) => void;
 
+  // ─── Active Exercise ──────────────────────────────────────────────────────
+  activeExercise: LessonExerciseBlock | null;
+  exerciseSubmitted: boolean;
+  exercisePassed: boolean;
+  setActiveExercise: (e: LessonExerciseBlock | null) => void;
+  setExerciseSubmitted: (passed: boolean) => void;
+  clearExercise: () => void;
+
+  // ─── Student Code ─────────────────────────────────────────────────────────
+  studentCode: string | null;
+  setStudentCode: (code: string | null) => void;
+
   // ─── Helpers ───────────────────────────────────────────────────────────────
   currentPart: () => LessonPart | null;
 }
@@ -40,6 +56,9 @@ interface LessonStore {
 export const useLessonStore = create<LessonStore>((set, get) => ({
   lesson: null,
   setLesson: (lesson) => set({ lesson, currentPartIndex: 0, status: "idle", elapsed: 0 }),
+
+  exerciseBlocks: [],
+  setExerciseBlocks: (blocks) => set({ exerciseBlocks: blocks }),
 
   currentPartIndex: 0,
   status: "idle",
@@ -62,7 +81,7 @@ export const useLessonStore = create<LessonStore>((set, get) => ({
     if (!lesson) return;
     const next = currentPartIndex + 1;
     if (next < lesson.parts.length) {
-      set({ currentPartIndex: next, elapsed: 0, status: "idle", activeQuiz: null, quizResult: null });
+      set({ currentPartIndex: next, elapsed: 0, status: "idle", activeQuiz: null, quizResult: null, activeExercise: null, exerciseSubmitted: false, exercisePassed: false });
     } else {
       set({ status: "finished" });
     }
@@ -71,7 +90,7 @@ export const useLessonStore = create<LessonStore>((set, get) => ({
   prevPart: () => {
     const { currentPartIndex } = get();
     if (currentPartIndex > 0) {
-      set({ currentPartIndex: currentPartIndex - 1, elapsed: 0, status: "idle", activeQuiz: null, quizResult: null });
+      set({ currentPartIndex: currentPartIndex - 1, elapsed: 0, status: "idle", activeQuiz: null, quizResult: null, activeExercise: null, exerciseSubmitted: false, exercisePassed: false });
     }
   },
 
@@ -79,6 +98,16 @@ export const useLessonStore = create<LessonStore>((set, get) => ({
   quizResult: null,
   setActiveQuiz: (q) => set({ activeQuiz: q }),
   setQuizResult: (r) => set({ quizResult: r }),
+
+  activeExercise: null,
+  exerciseSubmitted: false,
+  exercisePassed: false,
+  setActiveExercise: (e) => set({ activeExercise: e, exerciseSubmitted: false, exercisePassed: false }),
+  setExerciseSubmitted: (passed) => set({ exerciseSubmitted: true, exercisePassed: passed }),
+  clearExercise: () => set({ activeExercise: null, exerciseSubmitted: false, exercisePassed: false }),
+
+  studentCode: null,
+  setStudentCode: (code) => set({ studentCode: code }),
 
   currentPart: () => {
     const { lesson, currentPartIndex } = get();

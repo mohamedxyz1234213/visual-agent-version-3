@@ -1,19 +1,14 @@
-export const BLAZE_DEFAULT_MODEL = 'qwen3.6-plus';
-export const BLAZE_DEFAULT_DEEP_MODEL = 'qwen3.6-plus-thinking';
+export const BLAZE_DEFAULT_MODEL = 'deepseek-v4-flash';
+export const BLAZE_DEFAULT_DEEP_MODEL = 'deepseek-v4-pro';
 
 export const BLAZE_MODELS = [
-  { id: BLAZE_DEFAULT_DEEP_MODEL, label: 'Premium', desc: 'Deepest analysis', badge: 'Recommended' },
-  { id: BLAZE_DEFAULT_MODEL, label: 'Standard', desc: 'Fast & accurate', badge: null },
-  { id: 'grok-4.20-fast', label: 'Grok 4.20 Fast', desc: 'Low-latency reasoning', badge: null },
-  { id: 'qwen3.6-max-preview-thinking', label: 'Qwen 3.6 Max Preview', desc: 'Extended thinking preview', badge: null },
-  { id: 'moonshotai/kimi-k2.6', label: 'Kimi K2.6', desc: 'Long-context generalist', badge: null },
+  { id: BLAZE_DEFAULT_MODEL, label: 'DeepSeek V4 Flash', desc: 'Fast & accurate', badge: 'Recommended' },
+  { id: BLAZE_DEFAULT_DEEP_MODEL, label: 'DeepSeek V4 Pro', desc: 'Deepest analysis', badge: null },
 ];
 
 function sanitizeConfiguredModel(configured, hardDefault) {
   const model = String(configured || '').trim();
   if (!model) return hardDefault;
-  if (/^(?:z-ai\/)?glm-5\.1$/i.test(model)) return BLAZE_DEFAULT_MODEL;
-  if (/deepseek|claude/i.test(model)) return hardDefault;
   return model;
 }
 
@@ -47,9 +42,6 @@ export function getBlazeConfig() {
 export function resolveBlazeModel(requested, fallbackModel = null) {
   const model = String(requested || '').trim();
   const fallback = sanitizeConfiguredModel(fallbackModel, getConfiguredDefaultDeepModel());
-
   if (!model) return fallback;
-  if (/^(?:z-ai\/)?glm-5\.1$/i.test(model)) return getConfiguredDefaultModel();
-  if (/deepseek|claude/i.test(model)) return fallback;
   return model;
 }

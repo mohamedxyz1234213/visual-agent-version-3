@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getLesson, getQuizForPart, getSeriesLessons } from "@/lib/api";
-import type { Lesson, LessonPart, SeriesLesson } from "@/lib/types";
+import type { Lesson, LessonPart, LessonExerciseBlock, SeriesLesson } from "@/lib/types";
 import { useLessonStore } from "@/store/lessonStore";
 import { Whiteboard, AnimationEngine } from "@/components/Whiteboard";
 import { NavigationControls } from "@/components/Navigation";
 import { QuizPanel } from "@/components/Quiz";
+import { CodeEditor } from "@/components/CodeEditor/CodeEditor";
+import { identifyStudent, getLessonExerciseBlocks, submitLessonExerciseBlock } from "@/features/student/api";
 
 type LessonPageClientProps = {
   lessonId: string;
@@ -38,11 +40,32 @@ export default function LessonPageClient({
     setActiveQuiz,
     activeQuiz,
     setQuizResult,
+    setExerciseBlocks,
+    exerciseBlocks,
+    activeExercise,
+    setActiveExercise,
+    exerciseSubmitted,
+    exercisePassed,
+    setExerciseSubmitted,
+    clearExercise,
+    studentCode,
+    setStudentCode,
   } = useLessonStore();
 
   const [loading, setLoading] = useState(!initialLesson && !initialError);
   const [error, setError] = useState<string | null>(initialError);
   const [seriesLessons, setSeriesLessons] = useState<SeriesLesson[]>([]);
+
+  // Student code input state (for inline identification in lesson)
+  const [codeInput, setCodeInput] = useState("");
+  const [codeInputError, setCodeInputError] = useState<string | null>(null);
+  const [codeIdentifying, setCodeIdentifying] = useState(false);
+
+  // Exercise submission state
+  const [exerciseCode, setExerciseCode] = useState("");
+  const [exerciseLanguage, setExerciseLanguage] = useState("javascript");
+  const [exerciseStatus, setExerciseStatus] = useState<"idle" | "running" | "passed" | "failed">("idle");
+  const [exerciseResult, setExerciseResult] = useState<string | null>(null);
 
   useEffect(() => {
     if (!lessonId) return;
@@ -67,6 +90,14 @@ export default function LessonPageClient({
       });
   }, [initialError, initialLesson, lessonId, setLesson]);
 
+  // Load exercise blocks for this lesson
+  useEffect(() => {
+    if (!lessonId || !lesson) return;
+    getLessonExerciseBlocks(lessonId)
+      .then((res) => setExerciseBlocks(res.blocks || []))
+      .catch(() => {});
+  }, [lessonId, lesson, setExerciseBlocks]);
+
   useEffect(() => {
     if (!seriesId || totalLessons <= 1) return;
     const poll = () =>
@@ -78,9 +109,18 @@ export default function LessonPageClient({
     return () => clearInterval(timer);
   }, [seriesId, totalLessons]);
 
+  // Restore student code from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("studentCode");
+    if (saved && !studentCode) {
+      setStudentCode(saved);
+    }
+  }, [studentCode, setStudentCode]);
+
   const currentPart: LessonPart | null = lesson?.parts[currentPartIndex] ?? null;
   const lessonProgress = lesson?.parts.length ? Math.round(((currentPartIndex + 1) / lesson.parts.length) * 100) : 0;
 
+  // Handle quiz parts
   useEffect(() => {
     if (!currentPart) return;
     if (currentPart.part_type === "quiz" || currentPart.part_type === "final_quiz") {
@@ -95,8 +135,40 @@ export default function LessonPageClient({
     }
   }, [currentPart, skipPart, setActiveQuiz, setStatus]);
 
+  // Handle exercise parts
+  useEffect(() => {
+    if (!currentPart || !exerciseBlocks.length) return;
+    if (currentPart.part_type === "exercise") {
+      const block = currentPart.exercise_block_id
+        ? exerciseBlocks.find((b) => b._id === currentPart.exercise_block_id)
+        : exerciseBlocks[0];
+      if (block) {
+        setActiveExercise(block);
+        setExerciseCode(block.starterCode || "");
+        setExerciseStatus("idle");
+        setExerciseResult(null);
+        setStatus("exercise");
+      } else {
+        skipPart();
+      }
+    }
+  }, [currentPart, exerciseBlocks, skipPart, setActiveExercise, setStatus]);
+
   function handlePartComplete() {
     if (!currentPart) return;
+    // After a content part, check if there's an exercise to show next
+    if (exerciseBlocks.length > 0 && currentPart.part_type === "content") {
+      const nextBlockIndex = currentPartIndex < exerciseBlocks.length ? currentPartIndex : -1;
+      if (nextBlockIndex >= 0 && nextBlockIndex < exerciseBlocks.length) {
+        const block = exerciseBlocks[nextBlockIndex];
+        setActiveExercise(block);
+        setExerciseCode(block.starterCode || "");
+        setExerciseStatus("idle");
+        setExerciseResult(null);
+        setStatus("exercise");
+        return;
+      }
+    }
     skipPart();
   }
 
@@ -112,6 +184,55 @@ export default function LessonPageClient({
     const { prevPart } = useLessonStore.getState();
     prevPart();
     useLessonStore.getState().play();
+  }
+
+  async function handleIdentifyStudent() {
+    if (!codeInput.trim()) return;
+    setCodeIdentifying(true);
+    setCodeInputError(null);
+    try {
+      const res = await identifyStudent(codeInput.trim().toUpperCase());
+      setStudentCode(res.student.code);
+      localStorage.setItem("studentCode", codeInput.trim().toUpperCase());
+    } catch (err: any) {
+      setCodeInputError(err.message || "Student not found with that code");
+    } finally {
+      setCodeIdentifying(false);
+    }
+  }
+
+  async function handleSubmitExercise() {
+    if (!activeExercise) return { passed: false, output: "No active exercise" };
+    if (!studentCode) {
+      setCodeInputError("Please identify yourself with your student code first");
+      return { passed: false, output: "Please identify yourself first" };
+    }
+    setExerciseStatus("running");
+    setExerciseResult(null);
+    try {
+      const res = await submitLessonExerciseBlock(lessonId, activeExercise._id, {
+        code: exerciseCode,
+        language: exerciseLanguage,
+        studentCode,
+      });
+      const passed = res.submission.status === "passed";
+      const output = `Score: ${res.submission.score}/100 · Status: ${res.submission.status}`;
+      setExerciseStatus(passed ? "passed" : "failed");
+      setExerciseResult(output);
+      setExerciseSubmitted(passed);
+      if (passed) {
+        setTimeout(() => {
+          clearExercise();
+          skipPart();
+        }, 1500);
+      }
+      return { passed, output };
+    } catch (err: any) {
+      const output = `Error: ${err.message}`;
+      setExerciseStatus("failed");
+      setExerciseResult(output);
+      return { passed: false, output };
+    }
   }
 
   if (loading) {
@@ -211,6 +332,133 @@ export default function LessonPageClient({
     );
   }
 
+  // ── Exercise part view (video paused, showing programming question) ──────
+  if (status === "exercise" && activeExercise) {
+    return (
+      <div className="min-h-screen flex flex-col bg-[radial-gradient(circle_at_top_left,_rgba(148,163,184,0.18),_transparent_22%),linear-gradient(180deg,_#f8fafc_0%,_#f1f5f9_100%)]">
+        <header className="border-b border-slate-200/80 bg-white/80 px-4 py-4 backdrop-blur sm:px-6">
+          <div className="mx-auto flex w-full max-w-[1600px] items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button onClick={() => router.push("/")} className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-400 transition hover:text-slate-700" aria-label="Back to dashboard">
+                <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" stroke="currentColor" className="w-5 h-5"><path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+              <div>
+                <h1 className="text-lg font-semibold tracking-[-0.04em] text-slate-900">{lesson.title}</h1>
+                <p className="text-xs text-slate-400">Part {currentPartIndex + 1} of {lesson.parts.length}</p>
+              </div>
+            </div>
+            {studentCode && (
+              <span className="px-3 py-1.5 rounded-lg bg-[#A78BFA]/10 text-xs font-mono font-semibold text-[#A78BFA]">
+                ID: {studentCode}
+              </span>
+            )}
+          </div>
+        </header>
+
+        <div className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-4 px-4 py-4 xl:px-6 xl:py-6">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 text-sm text-amber-700 flex items-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
+            Video paused — complete the coding exercise to continue
+          </div>
+
+          {/* Student code identification (if not already identified) */}
+          {!studentCode && (
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 max-w-lg mx-auto text-center">
+              <h3 className="text-lg font-bold text-[#18181B] mb-2">Identify Yourself</h3>
+              <p className="text-sm text-gray-500 mb-4">Enter your student code to submit your answer</p>
+              <input
+                type="text"
+                value={codeInput}
+                onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+                placeholder="Your student code (e.g. A3X8K2M1)"
+                className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm font-mono text-center tracking-widest uppercase focus:outline-none focus:ring-2 focus:ring-[#A78BFA] mb-3"
+                onKeyDown={(e) => e.key === "Enter" && handleIdentifyStudent()}
+              />
+              {codeInputError && <p className="text-sm text-red-500 mb-3">{codeInputError}</p>}
+              <button
+                onClick={handleIdentifyStudent}
+                disabled={codeIdentifying || !codeInput.trim()}
+                className="px-6 py-2.5 bg-[#18181B] text-white rounded-xl font-semibold text-sm hover:bg-[#2A2A2A] transition-colors disabled:opacity-50"
+              >
+                {codeIdentifying ? "Checking..." : "Identify"}
+              </button>
+            </div>
+          )}
+
+          {/* Exercise card */}
+          <div className="my-6 border-2 border-slate-200 rounded-2xl overflow-hidden bg-white">
+            <div className="flex items-start justify-between gap-4 px-5 py-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2.5 mb-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#A78BFA]">Code Exercise</span>
+                  {activeExercise.isRequired && (
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-600">Required</span>
+                  )}
+                </div>
+                <h3 className="text-base font-bold text-slate-900">{activeExercise.title || "Coding Exercise"}</h3>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${
+                  activeExercise.difficulty === "easy" ? "text-green-600 bg-green-50" :
+                  activeExercise.difficulty === "medium" ? "text-amber-600 bg-amber-50" :
+                  "text-red-600 bg-red-50"
+                }`}>{activeExercise.difficulty}</span>
+                <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-[#D6F63E]/20 text-[#0F0F0F]">+{activeExercise.xpReward} XP</span>
+              </div>
+            </div>
+
+            {activeExercise.instructions && (
+              <div className="px-5 py-3 bg-blue-50/30 border-b border-slate-100">
+                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{activeExercise.instructions}</p>
+              </div>
+            )}
+
+            <CodeEditor
+              initialCode={exerciseCode}
+              language={exerciseLanguage}
+              hints={activeExercise.hints || []}
+              onRun={async (code) => {
+                setExerciseCode(code);
+                return handleSubmitExercise();
+              }}
+              showLanguageSelector={true}
+              onLanguageChange={setExerciseLanguage}
+            />
+
+            {exerciseStatus !== "idle" && (
+              <div className={`px-5 py-3 text-sm font-semibold flex items-center gap-2 ${
+                exerciseStatus === "running" ? "bg-blue-50 text-blue-700" :
+                exerciseStatus === "passed" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+              }`}>
+                {exerciseStatus === "running" && (
+                  <><div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" /> Evaluating...</>
+                )}
+                {exerciseStatus === "passed" && (
+                  <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg> Passed! Continuing...</>
+                )}
+                {exerciseStatus === "failed" && (
+                  <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg> Not quite right. Try again!</>
+                )}
+              </div>
+            )}
+
+            {exerciseStatus === "failed" && !exerciseSubmitted && (
+              <div className="px-5 py-3 border-t border-slate-100 flex justify-end">
+                <button
+                  onClick={() => { clearExercise(); skipPart(); }}
+                  className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700"
+                >
+                  Skip this exercise
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Normal lesson view ──────────────────────────────────────────────────
   return (
     <div className="min-h-screen flex flex-col bg-[radial-gradient(circle_at_top_left,_rgba(148,163,184,0.18),_transparent_22%),linear-gradient(180deg,_#f8fafc_0%,_#f1f5f9_100%)]">
       <header className="border-b border-slate-200/80 bg-white/80 px-4 py-4 backdrop-blur sm:px-6">
@@ -228,6 +476,11 @@ export default function LessonPageClient({
             {totalLessons > 1 && (
               <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
                 Lesson {(lesson.lesson_index ?? 0) + 1} of {totalLessons}
+              </span>
+            )}
+            {studentCode && (
+              <span className="rounded-full bg-[#A78BFA]/10 px-3 py-1 text-xs font-mono font-semibold text-[#A78BFA]">
+                ID: {studentCode}
               </span>
             )}
           </div>
@@ -330,12 +583,14 @@ export default function LessonPageClient({
                       ? <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" stroke="currentColor" className="w-3.5 h-3.5 text-slate-400"><polyline points="20 6 9 17 4 12" /></svg>
                       : (part.part_type === "quiz" || part.part_type === "final_quiz")
                         ? <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.8" stroke="currentColor" className="w-3.5 h-3.5 text-slate-500"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+                        : part.part_type === "exercise"
+                        ? <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.8" stroke="currentColor" className="w-3.5 h-3.5 text-amber-500"><path d="M16 18l6-6-6-6" /><path d="M8 6l-6 6 6 6" /></svg>
                         : <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 text-slate-400"><polygon points="5 3 19 12 5 21 5 3" /></svg>
                     }
                   </span>
                   <span className="truncate">{part.title}</span>
                   <span className="ml-auto text-xs text-slate-400 shrink-0">
-                    {Math.round(part.duration_seconds / 60)}m
+                    {part.part_type === "exercise" ? "exercise" : `${Math.round(part.duration_seconds / 60)}m`}
                   </span>
                 </li>
               ))}

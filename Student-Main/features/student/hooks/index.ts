@@ -169,6 +169,7 @@ export function useProgress() {
 
 // ── useChallenges ────────────────────────────────────────────────────────────
 import { getChallenges, joinChallenge as apiJoinChallenge } from "../api";
+import { getStudentExams, type StudentExam } from "../api";
 import type { WeeklyChallenge } from "../types";
 
 export function useChallenges() {
@@ -185,4 +186,28 @@ export function useChallenges() {
   }, []);
 
   return { challenges, loading, join };
+}
+
+// ── useStudentExams ───────────────────────────────────────────────────────────
+export function useStudentExams() {
+  const [exams, setExams] = useState<StudentExam[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const d = await getStudentExams();
+      setExams(d.exams || []);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  return { exams, loading, error, refresh };
 }

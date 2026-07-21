@@ -18,7 +18,7 @@ const lessonPartSchema = new Schema({
   narration: { type: String },
   durationSeconds: { type: Number, default: 120 },
   audioUrl: { type: String },
-  partType: { type: String, enum: ['content', 'quiz', 'final_quiz'], default: 'content' },
+  partType: { type: String, enum: ['content', 'quiz', 'final_quiz', 'exercise'], default: 'content' },
 });
 
 // ── Lesson ────────────────────────────────────────────────────────────────────

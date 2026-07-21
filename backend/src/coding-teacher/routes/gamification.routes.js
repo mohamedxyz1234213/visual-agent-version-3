@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireAuth } from '../../auth/middleware/auth.js';
 import { requireRole } from '../middleware/roles.js';
 import { Student, Achievement, Badge, StudentBadge, WeeklyChallenge, Submission } from '../models/index.js';
+import { User } from '../../auth/models/index.js';
 
 const router = Router();
 
@@ -10,17 +11,28 @@ router.use(requireAuth);
 // ── GET /api/v1/gamification/leaderboard ──────────────────────────────────────
 router.get('/leaderboard', async (req, res, next) => {
   try {
-    const { type = 'xp', limit = 50 } = req.query;
+    const { type = 'xp', limit = 50, timeframe = 'all-time' } = req.query;
 
     let sortField = 'xp';
+    if (type === 'streak') sortField = 'streak';
+    else if (type === 'weekly') sortField = 'weeklyXP';
 
-    if (type === 'streak') {
-      sortField = 'streak';
-    } else if (type === 'weekly') {
-      sortField = 'weeklyXP';
+    // Only include students (exclude teacher users)
+    const studentUserIds = await User.find({ role: 'student' }).distinct('_id').lean();
+
+    // Build filter: only active students with a real student User account
+    const filter = {
+      userId: { $in: studentUserIds },
+      status: 'active',
+    };
+
+    // For weekly timeframe, add a weeklyXPWeek filter
+    if (timeframe === 'weekly') {
+      const currentWeek = getWeekNumber(new Date());
+      filter.weeklyXPWeek = currentWeek;
     }
 
-    const leaders = await Student.find({ status: 'active' })
+    const leaders = await Student.find(filter)
       .sort({ [sortField]: -1 })
       .limit(Math.min(parseInt(limit) || 50, 100))
       .populate('userId', 'username avatar')
@@ -30,8 +42,8 @@ router.get('/leaderboard', async (req, res, next) => {
     let myRank = null;
     if (currentStudent) {
       myRank = await Student.countDocuments({
+        ...filter,
         [sortField]: { $gt: currentStudent[sortField] || 0 },
-        status: 'active',
       }) + 1;
     }
 
@@ -62,6 +74,15 @@ router.get('/leaderboard', async (req, res, next) => {
     next(err);
   }
 });
+
+// Helper: get ISO week number
+function getWeekNumber(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
 
 // ── GET /api/v1/gamification/badges ───────────────────────────────────────────
 router.get('/badges', async (req, res, next) => {
