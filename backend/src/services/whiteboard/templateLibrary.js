@@ -29,6 +29,7 @@
 
 import { SVG_SHAPES } from './svgShapes.js';
 import { renderShape as renderNewShape, SHAPE_REGISTRY, SHAPE_ALIASES as NEW_SHAPE_ALIASES } from './svgShapeLibrary.js';
+import { registerProgrammingTemplates } from './programmingTemplates.js';
 
 
 const W = 800;
@@ -4254,6 +4255,9 @@ const GEN_RECIPES = [
 
 GEN_RECIPES.forEach(gen);
 
+// Register programming-specific templates (100+ templates)
+registerProgrammingTemplates(define);
+
 const BY_ID = new Map(TEMPLATES.map((t) => [t.id, t]));
 const BY_INTENT = new Map();
 for (const t of TEMPLATES) {
@@ -4272,6 +4276,7 @@ const DOMAIN_LOCK = {
   supply_demand: 'economics', circular_flow: 'economics', market_shift: 'economics', ppf_curve: 'economics',
   code_walkthrough: 'programming', code_architecture: 'programming', algorithm_flowchart: 'programming',
   data_structure_viz: 'programming', api_endpoint_map: 'programming', code_state_machine: 'programming',
+  prog_accessibility: 'programming', prog_agile_vs_waterfall: 'programming', prog_algorithm_pseudo: 'programming', prog_api_routes: 'programming', prog_array_methods: 'programming', prog_async_await: 'programming', prog_binary_tree: 'programming', prog_bit_ops: 'programming', prog_btree: 'programming', prog_bubble_sort: 'programming', prog_caching: 'programming', prog_circuit_breaker: 'programming', prog_client_server: 'programming', prog_cloud_deployment: 'programming', prog_code_annotated: 'programming', prog_code_compare: 'programming', prog_code_coverage: 'programming', prog_code_review: 'programming', prog_code_splitting: 'programming', prog_complexity: 'programming', prog_component_tree: 'programming', prog_concurrency: 'programming', prog_containerization: 'programming', prog_cqrs: 'programming', prog_crud_http: 'programming', prog_data_pipeline: 'programming', prog_db_schema: 'programming', prog_deadlock_conditions: 'programming', prog_debug_flow: 'programming', prog_dependency_injection: 'programming', prog_deploy_pipeline: 'programming', prog_design_patterns: 'programming', prog_dp_table: 'programming', prog_encryption_types: 'programming', prog_error_boundary: 'programming', prog_error_handling: 'programming', prog_event_loop: 'programming', prog_event_propagation: 'programming', prog_event_sourcing: 'programming', prog_fib_recursion: 'programming', prog_functional: 'programming', prog_gc_mark_sweep: 'programming', prog_git_branches: 'programming', prog_graph_traversal: 'programming', prog_graph_viz: 'programming', prog_graphql_vs_rest: 'programming', prog_hash_table: 'programming', prog_http_cycle: 'programming', prog_iac_terraform: 'programming', prog_indexing: 'programming', prog_jwt_auth: 'programming', prog_kubernetes_arch: 'programming', prog_lang_comparison: 'programming', prog_linked_list: 'programming', prog_load_balancing: 'programming', prog_memoization: 'programming', prog_memory: 'programming', prog_micro_frontends: 'programming', prog_micro_vs_mono: 'programming', prog_mvc_arch: 'programming', prog_network_topologies: 'programming', prog_ntier_arch: 'programming', prog_null_handling: 'programming', prog_oop_concepts: 'programming', prog_process_states: 'programming', prog_promise_lifecycle: 'programming', prog_prototype_chain: 'programming', prog_queue: 'programming', prog_quicksort: 'programming', prog_rate_limiting: 'programming', prog_react_data_flow: 'programming', prog_recursion_tree: 'programming', prog_regex: 'programming', prog_rendering: 'programming', prog_rest_api: 'programming', prog_retry_patterns: 'programming', prog_sdlc_waterfall: 'programming', prog_search_algorithms: 'programming', prog_serverless: 'programming', prog_shell_commands: 'programming', prog_sorting_viz: 'programming', prog_sql_joins: 'programming', prog_stack: 'programming', prog_state_management: 'programming', prog_string_encoding: 'programming', prog_tcp_vs_udp: 'programming', prog_tdd_cycle: 'programming', prog_testing_pyramid: 'programming', prog_throttle_debounce: 'programming', prog_time_complexity: 'programming', prog_tree_traversal: 'programming', prog_twelve_factor: 'programming', prog_version_control: 'programming', prog_virtual_dom: 'programming', prog_web_security: 'programming', prog_web_storage: 'programming', prog_web_vitals: 'programming', prog_webhook_vs_polling: 'programming', prog_webpack_bundling: 'programming', prog_websocket_lifecycle: 'programming',
   labeled_science_diagram: 'science', figure_with_facts: 'science',
   anatomy_callouts: 'science',
   math_derivation_steps: 'mathematics', coordinate_graph: 'mathematics', proof_layout: 'mathematics',

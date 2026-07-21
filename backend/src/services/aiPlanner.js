@@ -14,6 +14,7 @@
 
 import dagre from '@dagrejs/dagre';
 import { getBlazeConfig, resolveBlazeModel } from './blazeConfig.js';
+import { getBlazeAPIConfig, resolveBlazeAPIModel } from './blazeapiConfig.js';
 import { buildWhiteboardForPart, assessLessonVisuals, assessPartVisuals } from './whiteboard/index.js';
 import { COMPREHENSION_PROMPT, DECOMPOSITION_PROMPT, REFINEMENT_PROMPT, TEACHING_PROMPT, TOPIC_SCAFFOLD_PROMPT, VISUAL_COMPOSITION_PROMPT, TUTOR_PHILOSOPHY } from './prompts/index.js';
 import { validateBoardScenes, cleanSay } from './whiteboard/validator.js';
@@ -102,6 +103,15 @@ const PROVIDER_LIMITS = {
     analysisTimeout:Number(process.env.AI_TIMEOUT_MS          ?? 600_000),
     contentTimeout: Number(process.env.AI_TIMEOUT_MS          ?? 600_000) + 300_000,
     cooldown:       Number(process.env.AI_COOLDOWN_MS         ?? 120_000),
+  },
+  blazeapi: {
+    contextTokens:  1_000_000,
+    maxInputChars:  200_000,
+    analysisTok:    Number(process.env.BLAZEAPI_ANALYSIS_TOKENS  ?? 32_000),
+    contentTok:     Number(process.env.BLAZEAPI_CONTENT_TOKENS   ?? 64_000),
+    analysisTimeout:Number(process.env.AI_TIMEOUT_MS             ?? 600_000),
+    contentTimeout: Number(process.env.AI_TIMEOUT_MS             ?? 600_000) + 300_000,
+    cooldown:       Number(process.env.AI_COOLDOWN_MS            ?? 120_000),
   },
 };
 
@@ -4450,6 +4460,7 @@ function normalizeProvider(raw) {
   const p = String(raw || '').trim().toLowerCase();
   if (p === 'deepseek') return 'blaze';
   if (p === 'blaze' || p === 'blazeai') return 'blaze';
+  if (p === 'blazeapi' || p === 'blaze-api' || p === 'api-blaze') return 'blazeapi';
   return null;
 }
 
@@ -4530,11 +4541,14 @@ async function callAIRace(prompt, maxTokens, timeoutMs = AI_TIMEOUT_MS, aiProvid
     throw new Error(`AI provider "${activeAI}" cooling down: ${circuit.reason}`);
   }
 
-  // BlazeAI
+  if (activeAI === 'blazeapi') {
+    return callBlazeAPI(prompt, maxTokens, timeoutMs, model, hasExplicitModelSelection, circuit);
+  }
+
+  // Legacy BlazeAI (blazeai.boxu.dev)
   const { baseURL, apiKey, defaultModel, defaultDeepModel } = getBlazeConfig();
   if (!apiKey) throw new Error('BLAZE_API_KEY not set');
 
-  // When user chose a model, use ONLY that model. Otherwise race fallbacks.
   const models = analysisModel
     ? [model]
     : [...new Set([
@@ -4555,19 +4569,15 @@ async function callAIRace(prompt, maxTokens, timeoutMs = AI_TIMEOUT_MS, aiProvid
     aiCircuitReason = '';
     return result;
   } catch (error) {
-    // Check if all errors are gateway sentinels
     const allErrors = error?.errors || [error];
     const gatewayErrors = allErrors.filter(e => {
       const msg = String(e?.message || e || '');
       return /gateway|sentinel|retrying|simplified prompt|upstream/i.test(msg);
     });
-
-    // If all errors are gateway issues, provide a clearer message
     if (gatewayErrors.length === allErrors.length && gatewayErrors.length > 0) {
       console.error('[aiPlanner] All models returned gateway errors - upstream API issues');
       throw new Error('AI service temporarily unavailable. The upstream models are experiencing issues. Please try again in a moment.');
     }
-
     if (!hasExplicitModelSelection && shouldTripCircuit(error)) {
       const limits = PROVIDER_LIMITS.blaze;
       circuit.openUntil = Date.now() + limits.cooldown;
@@ -4576,6 +4586,35 @@ async function callAIRace(prompt, maxTokens, timeoutMs = AI_TIMEOUT_MS, aiProvid
       aiCircuitReason = circuit.reason;
     }
     throw new Error(`All Blaze AI models unavailable: ${describeAIError(error)}`);
+  }
+}
+
+async function callBlazeAPI(prompt, maxTokens, timeoutMs, model, hasExplicitModelSelection, circuit) {
+  const cfg = getBlazeAPIConfig();
+  if (!cfg.apiKey) throw new Error('BLAZEAPI_API_KEY not set');
+
+  const models = [model || cfg.defaultModel];
+  console.log(`[aiPlanner] BlazeAPI → ${models.join(' | ')} (max_tokens=${maxTokens}, timeout=${timeoutMs}ms)`);
+
+  try {
+    const result = await Promise.any(
+      models.map((m) => callOpenAICompatible(cfg.baseURL, cfg.apiKey, m, prompt, maxTokens, timeoutMs))
+    );
+    lastAiVia = 'blazeapi';
+    circuit.openUntil = 0;
+    circuit.reason = '';
+    aiCircuitOpenUntil = 0;
+    aiCircuitReason = '';
+    return result;
+  } catch (error) {
+    if (!hasExplicitModelSelection && shouldTripCircuit(error)) {
+      const limits = PROVIDER_LIMITS.blazeapi;
+      circuit.openUntil = Date.now() + limits.cooldown;
+      circuit.reason = describeAIError(error);
+      aiCircuitOpenUntil = circuit.openUntil;
+      aiCircuitReason = circuit.reason;
+    }
+    throw new Error(`BlazeAPI unavailable: ${describeAIError(error)}`);
   }
 }
 

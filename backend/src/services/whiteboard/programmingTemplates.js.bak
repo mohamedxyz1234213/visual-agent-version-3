@@ -1,0 +1,1548 @@
+// =============================================================================
+// Programming-Specific Whiteboard Templates — 100+ boards for coding topics
+// =============================================================================
+// These templates are registered alongside the main library when the lesson
+// field is programming/coding/CS. Each template owns its geometry (800×500
+// canvas), uses the same helper utilities as templateLibrary.js, and is
+// collision-free by construction.
+// =============================================================================
+
+const W = 800, H = 500;
+
+const PALETTES = [
+  { accent: '#2563eb', soft: '#dbeafe', deep: '#1e3a8a', glow: '#60a5fa', ink: '#0f172a' },
+  { accent: '#0d9488', soft: '#ccfbf1', deep: '#115e59', glow: '#2dd4bf', ink: '#0f172a' },
+  { accent: '#7c3aed', soft: '#ede9fe', deep: '#5b21b6', glow: '#a78bfa', ink: '#0f172a' },
+  { accent: '#ea580c', soft: '#ffedd5', deep: '#9a3412', glow: '#fb923c', ink: '#0f172a' },
+  { accent: '#db2777', soft: '#fce7f3', deep: '#9d174d', glow: '#f472b6', ink: '#0f172a' },
+  { accent: '#16a34a', soft: '#dcfce7', deep: '#166534', glow: '#4ade80', ink: '#0f172a' },
+  { accent: '#0284c7', soft: '#e0f2fe', deep: '#075985', glow: '#38bdf8', ink: '#0f172a' },
+];
+
+function txt(content, x, y, opts = {}) {
+  const style = {
+    fontSize: opts.fontSize ?? 16,
+    color: opts.color ?? '#1e293b',
+    fontWeight: opts.fontWeight ?? '600',
+    textAnchor: opts.textAnchor ?? 'start',
+    fontStyle: opts.fontStyle,
+  };
+  if (opts.maxWidth != null) style.maxWidth = opts.maxWidth;
+  if (opts.maxLines != null) style.maxLines = opts.maxLines;
+  return { type: 'draw_text', content: displayText(content), position: [x, y], style };
+}
+
+function rect(x, y, w, h, opts = {}) {
+  return {
+    type: 'draw_rect', x, y, width: w, height: h,
+    label: opts.label,
+    style: {
+      fill: opts.fill ?? '#ffffff', stroke: opts.stroke ?? '#cbd5e1',
+      strokeWidth: opts.strokeWidth ?? 1.5, rx: opts.rx ?? 14, flat: opts.flat,
+    },
+  };
+}
+
+function arrow(from, to, opts = {}) {
+  return { type: 'draw_arrow', from, to, label: opts.label, style: { color: opts.color ?? '#475569', strokeWidth: opts.strokeWidth ?? 2, dashed: opts.dashed } };
+}
+
+function line(from, to, opts = {}) {
+  return { type: 'draw_line', from, to, style: { color: opts.color ?? '#cbd5e1', strokeWidth: opts.strokeWidth ?? 1.5, dashed: opts.dashed } };
+}
+
+function circle(cx, cy, r, opts = {}) {
+  return { type: 'draw_circle', center: [cx, cy], radius: r, label: opts.label, style: { fill: opts.fill ?? '#ffffff', stroke: opts.stroke ?? '#cbd5e1', strokeWidth: opts.strokeWidth ?? 2 } };
+}
+
+function badge(content, x, y, opts = {}) {
+  return { type: 'draw_badge', content: displayText(content), position: [x, y], style: { bg: opts.bg ?? '#1e293b', color: opts.color ?? '#ffffff', fontSize: opts.fontSize ?? 13 } };
+}
+
+function callout(content, x, y, w, opts = {}) {
+  return { type: 'draw_callout', content: displayText(content), position: [x, y], width: w, style: { bg: opts.bg ?? '#fffbeb', stroke: opts.stroke ?? '#f59e0b', color: opts.color ?? '#92400e' } };
+}
+
+function obj(object_type, x, y, w, h, opts = {}) {
+  return { type: 'draw_object', object_type, position: [x, y], size: [w, h], label: opts.label, annotations: opts.annotations, accent: opts.accent };
+}
+
+function path(d, opts = {}) {
+  return { type: 'draw_path', d, markerEnd: opts.markerEnd, style: { stroke: opts.stroke ?? '#94a3b8', strokeWidth: opts.strokeWidth ?? 2, fill: opts.fill ?? 'none', dashed: opts.dashed } };
+}
+
+function displayText(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) return value.map(displayText).filter(Boolean).join(', ');
+  if (typeof value === 'object') {
+    if (value.from || value.to) return [value.from, value.to].map(displayText).filter(Boolean).join(' to ');
+    return value.title || value.text || value.label || value.name || value.term
+      || value.symbol || value.meaning || value.detail || value.value || value.number
+      || value.answer || value.question || value.range || value.content || '';
+  }
+  return '';
+}
+
+function anchor(text, maxWords = 7) {
+  const words = displayText(text).replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  if (words.length <= maxWords) return words.join(' ');
+  return words.slice(0, maxWords).join(' ');
+}
+
+function itemText(it) { return displayText(it); }
+
+function asArr(v) { return Array.isArray(v) ? v : v == null ? [] : [v]; }
+
+function bodyTxt(content, x, y, opts = {}) {
+  const text = displayText(content).replace(/\s+/g, ' ').trim();
+  if (!text) return null;
+  const fontSize = opts.fontSize ?? 11;
+  const maxWidth = opts.maxWidth ?? 180;
+  const maxLines = opts.maxLines ?? 2;
+  const cpl = Math.max(8, Math.floor(maxWidth / (fontSize * 0.55)));
+  let display = text;
+  const needLines = wrapLineCount(text, maxWidth, fontSize);
+  if (needLines > maxLines) display = clampChars(text, maxLines * cpl);
+  const frag = txt(display, x, y, {
+    fontSize, color: opts.color ?? '#64748b', fontWeight: opts.fontWeight ?? '500',
+    textAnchor: opts.textAnchor ?? 'middle', fontStyle: opts.fontStyle, maxWidth, maxLines,
+  });
+  if (frag && display !== text) frag._fullText = text;
+  return frag;
+}
+
+function wrapLineCount(text, maxWidth, fs) {
+  const charsPerLine = Math.max(8, Math.floor(maxWidth / (fs * 0.55)));
+  const words = String(text).split(/\s+/).filter(Boolean);
+  let lines = 1, cur = 0;
+  for (const w of words) {
+    const add = (cur ? 1 : 0) + w.length;
+    if (cur + add > charsPerLine && cur) { lines++; cur = w.length; } else cur += add;
+  }
+  return lines;
+}
+
+function clampChars(text, maxChars) {
+  const s = String(text);
+  if (s.length <= maxChars) return s;
+  const cut = s.slice(0, Math.max(1, maxChars - 1));
+  const sp = cut.lastIndexOf(' ');
+  return (sp > maxChars * 0.5 ? cut.slice(0, sp) : cut).trimEnd() + '\u2026';
+}
+
+function tagRole(frag, role) { if (frag) frag._role = role; return frag; }
+
+function header(ctx, accent) {
+  const out = [];
+  if (ctx.title) {
+    out.push(txt(ctx.title, W / 2, 44, { fontSize: 25, fontWeight: '800', color: '#0f172a', textAnchor: 'middle' }));
+    out.push(line([W / 2 - 70, 58], [W / 2 + 70, 58], { color: accent, strokeWidth: 3.5 }));
+    out.push(line([W / 2 - 150, 58], [W / 2 - 74, 58], { color: accent, strokeWidth: 1.5 }));
+    out.push(line([W / 2 + 74, 58], [W / 2 + 150, 58], { color: accent, strokeWidth: 1.5 }));
+    out.push(circle(W / 2 - 150, 58, 3, { fill: accent, stroke: accent }));
+    out.push(circle(W / 2 + 150, 58, 3, { fill: accent, stroke: accent }));
+  }
+  if (ctx.subtitle) {
+    out.push(tagRole(txt(ctx.subtitle, W / 2, 82, { fontSize: 14, fontWeight: '500', color: '#64748b', textAnchor: 'middle', fontStyle: 'italic' }), 'subtitle'));
+  }
+  return out;
+}
+
+function fitText(content, cx, boxTopY, boxW, boxH, opts = {}) {
+  const text = displayText(content).replace(/\s+/g, ' ').trim();
+  if (!text) return null;
+  const padX = opts.padX ?? 12;
+  const maxW = Math.max(36, boxW - padX * 2);
+  const maxH = Math.max(12, boxH - (opts.padY ?? 3) * 2);
+  const maxFont = opts.maxFont ?? 15;
+  const minFont = opts.minFont ?? 9;
+  const lineRatio = 1.28;
+  let fs = minFont, lines = 1, clamped = text;
+  for (let f = maxFont; f >= minFont; f--) {
+    const n = wrapLineCount(text, maxW, f);
+    if (n * f * lineRatio <= maxH) { fs = f; lines = n; break; }
+    if (f === minFont) {
+      fs = minFont;
+      lines = Math.max(1, Math.floor(maxH / (minFont * lineRatio)));
+      const cpl = Math.max(8, Math.floor(maxW / (minFont * 0.55)));
+      clamped = clampChars(text, lines * cpl);
+      lines = wrapLineCount(clamped, maxW, minFont);
+    }
+  }
+  const blockH = lines * fs * lineRatio;
+  const baseline = boxTopY + (boxH - blockH) / 2 + fs;
+  const frag = txt(clamped, cx, baseline, {
+    fontSize: fs, fontWeight: opts.fontWeight ?? '600', color: opts.color ?? '#0f172a',
+    textAnchor: opts.textAnchor ?? 'middle', maxWidth: maxW, maxLines: lines,
+  });
+  if (frag && clamped !== text) frag._fullText = text;
+  return frag;
+}
+
+// ── Code block renderer ──────────────────────────────────────────────────────
+function codeBlock(lines, x, y, w, h, lang, opts = {}) {
+  const out = [];
+  const list = (lines || []).slice(0, 10).map(itemText);
+  const panelH = Math.max(60, 30 + list.length * 26 + 16);
+  const actualH = Math.min(panelH, h || panelH);
+  out.push(rect(x, y, w, actualH, { fill: '#0f172a', stroke: '#0f172a', rx: 10 }));
+  out.push(circle(x + 18, y + 18, 5, { fill: '#ef4444', stroke: '#ef4444' }));
+  out.push(circle(x + 36, y + 18, 5, { fill: '#f59e0b', stroke: '#f59e0b' }));
+  out.push(circle(x + 54, y + 18, 5, { fill: '#22c55e', stroke: '#22c55e' }));
+  if (lang) out.push(txt(lang, x + w - 16, y + 18, { fontSize: 10, color: '#475569', fontWeight: '600', textAnchor: 'end' }));
+  list.forEach((ln, i) => {
+    const ly = y + 46 + i * 26;
+    out.push(txt(String(i + 1), x + 16, ly, { fontSize: 11, color: '#475569', fontWeight: '600', textAnchor: 'end' }));
+    const color = opts.highlightLine === i ? '#fef08a' : '#e2e8f0';
+    out.push(txt(anchor(ln, 12), x + 28, ly, { fontSize: 12, color, fontWeight: '500' }));
+  });
+  return out;
+}
+
+// ── Method badge colors ──────────────────────────────────────────────────────
+const METHOD_COLORS = { GET: '#16a34a', POST: '#2563eb', PUT: '#f59e0b', DELETE: '#dc2626', PATCH: '#7c3aed' };
+
+// =============================================================================
+// TEMPLATE DEFINITIONS
+// =============================================================================
+
+export function registerProgrammingTemplates(define) {
+
+// ── P1. CODE SNIPPET WITH ANNOTATIONS ────────────────────────────────────────
+define({
+  id: 'prog_code_annotated', intent: 'example', label: 'Annotated code snippet',
+  capacity: { lines: 8, annotations: 3 },
+  fill(d, ctx) {
+    const p = PALETTES[0];
+    const s = [...header(ctx, p.accent)];
+    const lines = (d.lines || d.code || []).slice(0, 8);
+    const codeX = 50, codeY = 120, codeW = 420;
+    s.push(...codeBlock(lines, codeX, codeY, codeW, 290, d.lang || 'code', { highlightLine: d.highlight_line }));
+    const anns = (d.annotations || d.notes || []).slice(0, 3);
+    anns.forEach((an, i) => {
+      const y = 140 + i * 92;
+      s.push(line([codeX + codeW, y + 20], [codeX + codeW + 20, y + 20], { color: p.accent, strokeWidth: 1.4 }));
+      s.push(rect(490, y, 260, 76, { stroke: p.accent, strokeWidth: 1.6, fill: p.soft }));
+      s.push(badge(String(i + 1), 502, y - 12, { bg: p.accent }));
+      s.push(txt(anchor(itemText(an), 9), 506, y + 36, { fontSize: 12, color: '#1e293b', fontWeight: '500' }));
+    });
+    return s;
+  },
+});
+
+// ── P2. COMPARISON OF TWO CODE PATTERNS ──────────────────────────────────────
+define({
+  id: 'prog_code_compare', intent: 'compare', label: 'Code pattern comparison',
+  capacity: { left_lines: 6, right_lines: 6 },
+  fill(d, ctx) {
+    const p = PALETTES[2];
+    const s = [...header(ctx, p.accent)];
+    const left = (d.left_lines || d.left || []).slice(0, 6);
+    const right = (d.right_lines || d.right || []).slice(0, 6);
+    const boxW = 340, gap = 20, y = 120;
+    s.push(badge(d.left_title || 'Before', 56, 106, { bg: '#dc2626' }));
+    s.push(...codeBlock(left, 50, y, boxW, 310, d.lang, { highlightLine: d.left_highlight }));
+    s.push(badge(d.right_title || 'After', 404, 106, { bg: '#16a34a' }));
+    s.push(...codeBlock(right, 410, y, boxW, 310, d.lang, { highlightLine: d.right_highlight }));
+    return s;
+  },
+});
+
+// ── P3. ALGORITHM PSEUDOCODE ─────────────────────────────────────────────────
+define({
+  id: 'prog_algorithm_pseudo', intent: 'process', label: 'Algorithm pseudocode',
+  capacity: { steps: 6 },
+  fill(d, ctx) {
+    const p = PALETTES[0];
+    const s = [...header(ctx, p.accent)];
+    const steps = (d.steps || d.lines || []).slice(0, 6);
+    s.push(badge(d.algorithm_name || 'Algorithm', 56, 104, { bg: p.accent }));
+    const y0 = 130;
+    steps.forEach((st, i) => {
+      const y = y0 + i * 48;
+      const bg = i % 2 === 0 ? '#f8fafc' : p.soft;
+      s.push(rect(60, y, 680, 40, { stroke: p.accent, strokeWidth: 1, fill: bg, rx: 6 }));
+      s.push(circle(84, y + 20, 14, { fill: p.accent, stroke: p.accent }));
+      s.push(txt(String(i + 1), 84, y + 26, { fontSize: 12, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
+      const indent = (st.indent || 0) * 20;
+      s.push(txt(anchor(itemText(st), 16), 110 + indent, y + 26, { fontSize: 13, fontWeight: '600', color: '#1e293b' }));
+      if (i < steps.length - 1) s.push(arrow([W / 2, y + 40], [W / 2, y + 48], { color: p.accent, strokeWidth: 1.5 }));
+    });
+    return s;
+  },
+});
+
+// ── P4. DATA STRUCTURE — BINARY TREE ─────────────────────────────────────────
+define({
+  id: 'prog_binary_tree', intent: 'hierarchy', label: 'Binary tree',
+  capacity: { nodes: 7 },
+  fill(d, ctx) {
+    const p = PALETTES[1];
+    const s = [...header(ctx, p.accent)];
+    const nodes = (d.nodes || d.items || d.children || d.values || []).slice(0, 7).map(itemText);
+    const cx = W / 2, rootY = 120;
+    s.push(circle(cx, rootY, 28, { fill: p.accent, stroke: p.accent }));
+    s.push(txt(nodes[0] || 'root', cx, rootY + 5, { fontSize: 14, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
+    if (nodes.length >= 2) {
+      [-1, 1].forEach((side, i) => {
+        const nx = cx + side * 180;
+        const ny = 210;
+        s.push(line([cx, rootY + 28], [nx, ny - 28], { color: p.accent, strokeWidth: 2 }));
+        s.push(circle(nx, ny, 24, { fill: p.soft, stroke: p.accent, strokeWidth: 2 }));
+        s.push(txt(nodes[i + 1] || '', nx, ny + 5, { fontSize: 12, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
+        if (nodes.length >= 4) {
+          [-90, 90].forEach((off, j) => {
+            const idx = 3 + i * 2 + j;
+            if (idx >= nodes.length) return;
+            const gx = nx + off;
+            const gy = 310;
+            s.push(line([nx, ny + 24], [gx, gy - 24], { color: p.accent, strokeWidth: 1.5 }));
+            s.push(circle(gx, gy, 20, { fill: '#ffffff', stroke: p.accent, strokeWidth: 1.5 }));
+            s.push(txt(nodes[idx] || '', gx, gy + 5, { fontSize: 10, fontWeight: '600', color: '#1e293b', textAnchor: 'middle' }));
+          });
+        }
+      });
+    }
+    return s;
+  },
+});
+
+// ── P5. LINKED LIST ──────────────────────────────────────────────────────────
+define({
+  id: 'prog_linked_list', intent: 'process', label: 'Linked list visualization',
+  capacity: { nodes: 6 },
+  fill(d, ctx) {
+    const p = PALETTES[3];
+    const s = [...header(ctx, p.accent)];
+    const nodes = (d.nodes || d.items || d.values || []).slice(0, 6).map(itemText);
+    const n = Math.max(nodes.length, 1);
+    const boxW = 80, boxH = 50, gap = 50;
+    const total = boxW * n + gap * (n - 1);
+    const x0 = (W - total) / 2, y = 240;
+    nodes.forEach((nd, i) => {
+      const x = x0 + i * (boxW + gap);
+      s.push(rect(x, y, boxW, boxH, { stroke: p.accent, strokeWidth: 2, fill: i % 2 === 0 ? p.soft : '#ffffff', rx: 6 }));
+      s.push(txt(nd, x + boxW / 2, y + boxH / 2 + 5, { fontSize: 13, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
+      // Arrow pointer segment
+      const ptrX = x + boxW - 10;
+      s.push(line([ptrX, y + 6], [ptrX, y + boxH - 6], { color: '#94a3b8', strokeWidth: 1 }));
+      if (i < n - 1) {
+        const nx = x0 + (i + 1) * (boxW + gap);
+        s.push(arrow([x + boxW + 2, y + boxH / 2], [nx - 2, y + boxH / 2], { color: p.accent, strokeWidth: 2 }));
+      }
+      s.push(txt(String(i), x + boxW / 2, y + boxH + 18, { fontSize: 9, fontWeight: '600', color: '#94a3b8', textAnchor: 'middle' }));
+    });
+    if (d.head_label) s.push(txt(d.head_label, x0 - 20, y + boxH / 2 + 5, { fontSize: 11, fontWeight: '700', color: p.accent, textAnchor: 'end' }));
+    if (n > 0) {
+      const lastX = x0 + (n - 1) * (boxW + gap);
+      s.push(txt('null', lastX + boxW + 20, y + boxH / 2 + 5, { fontSize: 11, fontWeight: '600', color: '#94a3b8', fontStyle: 'italic' }));
+    }
+    return s;
+  },
+});
+
+// ── P6. STACK DATA STRUCTURE ─────────────────────────────────────────────────
+define({
+  id: 'prog_stack', intent: 'hierarchy', label: 'Stack visualization',
+  capacity: { items: 5 },
+  fill(d, ctx) {
+    const p = PALETTES[4];
+    const s = [...header(ctx, p.accent)];
+    const items = (d.items || d.values || []).slice(0, 5).map(itemText);
+    const n = Math.max(items.length, 1);
+    s.push(obj('stack', 80, 160, 150, 200, { label: d.label || 'Stack', accent: p.accent }));
+    const boxW = 400, x = 280;
+    const topLabel = anchor(d.top_label || 'Top', 1);
+    items.forEach((it, i) => {
+      const y = 400 - i * 50 - 50;
+      s.push(rect(x, y, boxW, 44, { stroke: i === 0 ? p.accent : '#cbd5e1', strokeWidth: i === 0 ? 2.5 : 1.5, fill: i === 0 ? p.soft : '#ffffff', rx: 6 }));
+      s.push(txt(it, x + boxW / 2, y + 28, { fontSize: 13, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
+      if (i === 0 && items.length > 0) s.push(txt(topLabel, x + boxW + 26, y + 28, { fontSize: 11, fontWeight: '700', color: p.accent }));
+    });
+    if (d.bottom_label) s.push(txt(anchor(d.bottom_label, 2), x + boxW / 2, 440, { fontSize: 11, color: '#94a3b8', textAnchor: 'middle', fontStyle: 'italic' }));
+    return s;
+  },
+});
+
+// ── P7. QUEUE DATA STRUCTURE ─────────────────────────────────────────────────
+define({
+  id: 'prog_queue', intent: 'process', label: 'Queue visualization',
+  capacity: { items: 5 },
+  fill(d, ctx) {
+    const p = PALETTES[1];
+    const s = [...header(ctx, p.accent)];
+    const items = (d.items || d.values || []).slice(0, 5).map(itemText);
+    const n = Math.max(items.length, 1);
+    const boxW = 100, boxH = 56, gap = 12;
+    const total = boxW * n + gap * (n - 1);
+    const x0 = (W - total) / 2, y = 250;
+    s.push(txt(d.front_label || 'Front \u2192', x0 - 80, y + boxH / 2 + 5, { fontSize: 12, fontWeight: '700', color: p.accent, textAnchor: 'end' }));
+    s.push(txt('\u2190 ' + (d.rear_label || 'Rear'), x0 + total + 20, y + boxH / 2 + 5, { fontSize: 12, fontWeight: '700', color: '#dc2626', textAnchor: 'start' }));
+    items.forEach((it, i) => {
+      const x = x0 + i * (boxW + gap);
+      s.push(rect(x, y, boxW, boxH, { stroke: i === 0 ? p.accent : (i === n - 1 ? '#dc2626' : '#cbd5e1'), strokeWidth: i === 0 || i === n - 1 ? 2.5 : 1.5, fill: i === 0 ? p.soft : '#ffffff', rx: 8 }));
+      s.push(txt(it, x + boxW / 2, y + boxH / 2 + 5, { fontSize: 14, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
+      if (i < n - 1) s.push(arrow([x + boxW + 2, y + boxH / 2], [x + boxW + gap - 2, y + boxH / 2], { color: '#94a3b8', strokeWidth: 1.8 }));
+    });
+    return s;
+  },
+});
+
+// ── P8. HASH TABLE ────────────────────────────────────────────────────────────
+define({
+  id: 'prog_hash_table', intent: 'define', label: 'Hash table visualization',
+  capacity: { items: 6 },
+  fill(d, ctx) {
+    const p = PALETTES[2];
+    const s = [...header(ctx, p.accent)];
+    const items = (d.items || d.entries || d.pairs || []).slice(0, 6);
+    s.push(badge(d.key_label || 'Key', 60, 112, { bg: p.accent }));
+    s.push(badge(d.value_label || 'Value', 220, 112, { bg: p.accent }));
+    s.push(badge(d.hash_label || 'Hash', 380, 112, { bg: '#64748b' }));
+    items.forEach((it, i) => {
+      const y = 144 + i * 48;
+      const key = itemText(it.key || it[0] || it);
+      const val = itemText(it.value || it[1] || it.detail || '');
+      const h = it.hash || Math.abs(key.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % 12;
+      s.push(line([60, y], [W - 60, y], { color: '#e2e8f0', strokeWidth: 1 }));
+      s.push(rect(60, y + 2, 140, 40, { stroke: p.accent, strokeWidth: 1.2, fill: i % 2 === 0 ? p.soft : '#ffffff', rx: 4 }));
+      s.push(txt(anchor(key, 5), 130, y + 26, { fontSize: 12, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
+      s.push(rect(210, y + 2, 150, 40, { stroke: '#cbd5e1', strokeWidth: 1.2, fill: '#ffffff', rx: 4 }));
+      s.push(txt(anchor(val, 7), 285, y + 26, { fontSize: 12, fontWeight: '600', color: '#334155', textAnchor: 'middle' }));
+      s.push(rect(370, y + 2, 180, 40, { stroke: '#e2e8f0', strokeWidth: 1, fill: '#f8fafc', rx: 4 }));
+      s.push(txt(String(h), 460, y + 26, { fontSize: 11, fontWeight: '500', color: '#64748b', fontStyle: 'italic', textAnchor: 'middle' }));
+      s.push(line([200, y + 2], [200, y + 42], { color: '#e2e8f0', strokeWidth: 1 }));
+      s.push(line([360, y + 2], [360, y + 42], { color: '#e2e8f0', strokeWidth: 1 }));
+    });
+    return s;
+  },
+});
+
+// ── P9. SORTING ALGORITHM VISUALIZATION ──────────────────────────────────────
+define({
+  id: 'prog_sorting_viz', intent: 'process', label: 'Sorting algorithm animation',
+  capacity: { items: 8 },
+  fill(d, ctx) {
+    const p = PALETTES[0];
+    const s = [...header(ctx, p.accent)];
+    const items = (d.items || d.values || []).slice(0, 8);
+    const n = Math.max(items.length, 1);
+    s.push(badge(d.algorithm || 'Sorting', 56, 104, { bg: p.accent }));
+    const barW = Math.min(70, (W - 120) / n);
+    const gap = 12;
+    const total = barW * n + gap * (n - 1);
+    const x0 = (W - total) / 2;
+    const baseY = 380;
+    items.forEach((it, i) => {
+      const x = x0 + i * (barW + gap);
+      const val = Number(it.value ?? it) || 50;
+      const height = Math.max(20, (val / 100) * 240);
+      const color = it.highlight ? p.accent : (it.pivot ? '#dc2626' : (it.sorted ? '#16a34a' : p.soft));
+      s.push(rect(x, baseY - height, barW, height, { stroke: p.accent, strokeWidth: 1.8, fill: color, rx: 4 }));
+      s.push(txt(String(val), x + barW / 2, baseY - height - 10, { fontSize: 11, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
+      if (it.label) s.push(txt(anchor(it.label, 2), x + barW / 2, baseY + 18, { fontSize: 10, fontWeight: '600', color: '#64748b', textAnchor: 'middle' }));
+    });
+    if (d.pass_label) s.push(txt(anchor(d.pass_label, 6), W / 2, 420, { fontSize: 13, fontWeight: '700', color: p.accent, textAnchor: 'middle', fontStyle: 'italic' }));
+    return s;
+  },
+});
+
+// ── P10. RECURSION TREE ──────────────────────────────────────────────────────
+define({
+  id: 'prog_recursion_tree', intent: 'hierarchy', label: 'Recursion tree',
+  capacity: { calls: 7 },
+  fill(d, ctx) {
+    const p = PALETTES[2];
+    const s = [...header(ctx, p.accent)];
+    const calls = (d.calls || d.nodes || d.steps || []).slice(0, 7);
+    s.push(badge(d.function_name || 'f(n)', 60, 108, { bg: p.accent }));
+    // Root call
+    const root = calls[0] ? itemText(calls[0]) : 'f(n)';
+    s.push(rect(340, 112, 120, 44, { stroke: p.accent, strokeWidth: 2.5, fill: p.accent, rx: 8 }));
+    s.push(txt(anchor(root, 5), 400, 140, { fontSize: 14, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
+    // Level 2
+    const l2 = calls.slice(1, 3);
+    l2.forEach((c, i) => {
+      const x = i === 0 ? 180 : 540;
+      s.push(line([400, 156], [x + 60, 190], { color: p.accent, strokeWidth: 2 }));
+      s.push(rect(x, 192, 120, 40, { stroke: p.accent, strokeWidth: 1.8, fill: p.soft, rx: 6 }));
+      s.push(txt(anchor(itemText(c), 5), x + 60, 218, { fontSize: 12, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
+      s.push(badge(itemText(c.return_val || ''), x + 90, 184, { bg: '#16a34a', fontSize: 9 }));
+    });
+    // Level 3
+    const l3 = calls.slice(3, 7);
+    l3.forEach((c, i) => {
+      const parentX = i < 2 ? 180 : 540;
+      const x = parentX + (i % 2 === 0 ? -80 : 80);
+      s.push(line([parentX + 60, 232], [x + 50, 270], { color: p.accent, strokeWidth: 1.5 }));
+      s.push(rect(x, 272, 100, 36, { stroke: '#cbd5e1', strokeWidth: 1.5, fill: '#ffffff', rx: 6 }));
+      s.push(txt(anchor(itemText(c), 4), x + 50, 294, { fontSize: 10, fontWeight: '600', color: '#1e293b', textAnchor: 'middle' }));
+    });
+    return s;
+  },
+});
+
+// ── P11. API ROUTE MAP ───────────────────────────────────────────────────────
+define({
+  id: 'prog_api_routes', intent: 'map', label: 'API route map',
+  capacity: { endpoints: 5 },
+  fill(d, ctx) {
+    const p = PALETTES[0];
+    const s = [...header(ctx, p.accent)];
+    const endpoints = (d.endpoints || d.routes || []).slice(0, 5);
+    const methodColors = METHOD_COLORS;
+    s.push(rect(140, 110, 520, 42, { fill: '#1e293b', stroke: '#1e293b', rx: 8 }));
+    s.push(txt('API Routes', 400, 138, { fontSize: 16, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
+    endpoints.forEach((ep, i) => {
+      const y = 168 + i * 52;
+      const method = (ep.method || ep.type || 'GET').toUpperCase();
+      const mColor = methodColors[method] || '#475569';
+      s.push(rect(160, y, 64, 34, { fill: mColor, stroke: mColor, rx: 6 }));
+      s.push(txt(method, 192, y + 24, { fontSize: 11, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
+      s.push(rect(236, y, 340, 34, { stroke: '#e2e8f0', strokeWidth: 1, fill: '#f8fafc', rx: 4 }));
+      s.push(txt(anchor(ep.path || ep.title || ep, 10), 250, y + 24, { fontSize: 12, fontWeight: '700', color: p.accent }));
+      if (ep.detail) s.push(txt(anchor(ep.detail, 8), 590, y + 24, { fontSize: 10, fontWeight: '500', color: '#64748b' }));
+    });
+    return s;
+  },
+});
+
+// ── P12. MVC ARCHITECTURE ─────────────────────────────────────────────────────
+define({
+  id: 'prog_mvc_arch', intent: 'hierarchy', label: 'MVC architecture',
+  capacity: { layers: 4 },
+  fill(d, ctx) {
+    const p = PALETTES[0];
+    const s = [...header(ctx, p.accent)];
+    const layers = (d.layers || []).slice(0, 4);
+    s.push(txt(d.title_label || 'MVC Architecture', W / 2, 110, { fontSize: 16, fontWeight: '800', color: p.accent, textAnchor: 'middle' }));
+    const labels = ['View', 'Controller', 'Model', 'Database'];
+    const colors = ['#2563eb', '#ea580c', '#16a34a', '#7c3aed'];
+    const n = 4;
+    const boxW = 520, boxH = 60, gap = 20;
+    const x = (W - boxW) / 2;
+    labels.forEach((lb, i) => {
+      const y = 140 + i * (boxH + gap);
+      s.push(rect(x, y, boxW, boxH, { fill: colors[i], stroke: colors[i], rx: 10 }));
+      s.push(txt(lb, x + 80, y + boxH / 2 + 5, { fontSize: 15, fontWeight: '800', color: '#ffffff' }));
+      const detail = layers[i] ? itemText(layers[i]) : '';
+      if (detail) s.push(txt(anchor(detail, 8), x + 100, y + boxH / 2 + 5, { fontSize: 11, fontWeight: '500', color: '#e2e8f0', textAnchor: 'start' }));
+      if (i < n - 1) s.push(arrow([W / 2, y + boxH], [W / 2, y + boxH + gap], { color: '#94a3b8', strokeWidth: 2, dashed: true }));
+    });
+    s.push(txt('\u2191 User action flows through controller to model', 140, 445, { fontSize: 11, color: '#64748b', fontStyle: 'italic' }));
+    s.push(txt('\u2193 Data flows back from model to view', 140, 462, { fontSize: 11, color: '#64748b', fontStyle: 'italic' }));
+    return s;
+  },
+});
+
+// ── P13. CLIENT-SERVER ARCHITECTURE ──────────────────────────────────────────
+define({
+  id: 'prog_client_server', intent: 'map', label: 'Client-server architecture',
+  capacity: { clients: 2, servers: 2 },
+  fill(d, ctx) {
+    const p = PALETTES[0];
+    const s = [...header(ctx, p.accent)];
+    // Client side
+    s.push(rect(50, 140, 200, 230, { stroke: p.accent, strokeWidth: 2.5, fill: p.soft, rx: 12 }));
+    s.push(obj('person', 110, 160, 80, 80, { accent: p.accent }));
+    s.push(txt(d.clients_title || 'Client', 150, 270, { fontSize: 16, fontWeight: '800', color: p.accent, textAnchor: 'middle' }));
+    const clients = (d.clients || []).slice(0, 2);
+    clients.forEach((cl, i) => {
+      s.push(txt('\u2022 ' + anchor(itemText(cl), 6), 70, 310 + i * 24, { fontSize: 11, color: '#334155', fontWeight: '500' }));
+    });
+    // Network pipe
+    s.push(rect(270, 220, 260, 50, { fill: '#1e293b', stroke: '#1e293b', rx: 25 }));
+    s.push(txt(d.network_label || 'Network / Internet', 400, 252, { fontSize: 14, fontWeight: '700', color: '#ffffff', textAnchor: 'middle' }));
+    s.push(arrow([250, 245], [270, 245], { color: p.accent, strokeWidth: 2.5 }));
+    s.push(arrow([530, 245], [550, 245], { color: '#94a3b8', strokeWidth: 2.5 }));
+    // Server side
+    s.push(rect(560, 140, 190, 230, { stroke: p.accent, strokeWidth: 2.5, fill: p.soft, rx: 12 }));
+    s.push(obj('server', 615, 160, 80, 80, { accent: p.accent }));
+    s.push(txt(d.servers_title || 'Server', 655, 270, { fontSize: 16, fontWeight: '800', color: p.accent, textAnchor: 'middle' }));
+    const servers = (d.servers || []).slice(0, 2);
+    servers.forEach((sv, i) => {
+      s.push(txt('\u2022 ' + anchor(itemText(sv), 6), 580, 310 + i * 24, { fontSize: 11, color: '#334155', fontWeight: '500' }));
+    });
+    // Request/Response labels
+    s.push(txt(d.request_label || 'HTTP Request \u2192', 400, 200, { fontSize: 11, fontWeight: '700', color: p.accent, textAnchor: 'middle' }));
+    s.push(txt('\u2190 ' + (d.response_label || 'HTTP Response'), 400, 284, { fontSize: 11, fontWeight: '700', color: '#16a34a', textAnchor: 'middle' }));
+    return s;
+  },
+});
+
+// ── P14. GIT BRANCHING DIAGRAM ───────────────────────────────────────────────
+define({
+  id: 'prog_git_branches', intent: 'process', label: 'Git branching diagram',
+  capacity: { branches: 4 },
+  fill(d, ctx) {
+    const p = PALETTES[1];
+    const s = [...header(ctx, p.accent)];
+    s.push(badge('Git History', 56, 104, { bg: p.accent }));
+    const branches = (d.branches || d.items || []).slice(0, 4);
+    const n = Math.max(branches.length, 1);
+    const baseY = 200;
+    const colors = ['#2563eb', '#ea580c', '#7c3aed', '#16a34a'];
+    // Horizontal baseline (main)
+    s.push(line([60, baseY], [740, baseY], { color: '#94a3b8', strokeWidth: 3 }));
+    s.push(circle(100, baseY, 10, { fill: '#ffffff', stroke: '#1e293b', strokeWidth: 2.5 }));
+    s.push(txt('main', 100, baseY + 26, { fontSize: 11, fontWeight: '800', color: '#475569', textAnchor: 'middle' }));
+    branches.forEach((br, i) => {
+      const branchY = baseY - 50 - i * 60;
+      const startX = 200 + i * 60;
+      const col = colors[i % colors.length];
+      const title = itemText(br.title || br);
+      s.push(circle(startX, baseY, 8, { fill: col, stroke: col }));
+      s.push(line([startX, baseY], [startX + 200, branchY], { color: col, strokeWidth: 2.5 }));
+      s.push(circle(startX + 200, branchY, 10, { fill: col, stroke: col }));
+      s.push(txt(anchor(title, 5), startX + 200, branchY - 20, { fontSize: 12, fontWeight: '800', color: col, textAnchor: 'middle' }));
+      if (br.commits) {
+        (br.commits || []).slice(0, 3).forEach((cm, j) => {
+          const cx = startX + 40 + j * 50;
+          s.push(circle(cx, branchY, 6, { fill: '#ffffff', stroke: col, strokeWidth: 1.5 }));
+          s.push(txt(anchor(itemText(cm), 2), cx, branchY + 18, { fontSize: 8, color: '#64748b', textAnchor: 'middle' }));
+        });
+      }
+      // Merge back
+      if (i < n - 1) {
+        s.push(line([startX + 200, branchY], [startX + 300, baseY], { color: col, strokeWidth: 1.5, dashed: true }));
+        s.push(circle(startX + 300, baseY, 8, { fill: col, stroke: col }));
+      }
+    });
+    return s;
+  },
+});
+
+// ── P15. COMPLEXITY ANALYSIS ─────────────────────────────────────────────────
+define({
+  id: 'prog_complexity', intent: 'formula', label: 'Complexity analysis chart',
+  capacity: { notations: 5 },
+  fill(d, ctx) {
+    const p = PALETTES[2];
+    const s = [...header(ctx, p.accent)];
+    const notations = (d.notations || d.items || d.operations || []).slice(0, 5);
+    // Big-O chart
+    s.push(rect(60, 120, 320, 200, { stroke: p.accent, strokeWidth: 2, fill: p.soft, rx: 8 }));
+    s.push(txt(anchor(d.chart_title || 'Big O Complexity', 4), 220, 150, { fontSize: 15, fontWeight: '800', color: p.accent, textAnchor: 'middle' }));
+    const items = [
+      'O(1) \u2014 Constant', 'O(log n) \u2014 Logarithmic', 'O(n) \u2014 Linear',
+      'O(n log n) \u2014 Linearithmic', 'O(n\u00b2) \u2014 Quadratic', 'O(2\u207f) \u2014 Exponential',
+    ];
+    items.forEach((it, i) => {
+      const y = 188 + i * 28;
+      s.push(circle(88, y, 4, { fill: i < 3 ? '#16a34a' : (i < 4 ? '#f59e0b' : '#dc2626'), stroke: i < 3 ? '#16a34a' : (i < 4 ? '#f59e0b' : '#dc2626') }));
+      s.push(txt(it, 104, y + 4, { fontSize: 11, fontWeight: i < 3 ? '700' : '500', color: i < 3 ? '#166534' : (i < 4 ? '#92400e' : '#991b1b') }));
+    });
+    // Right side: specific notations
+    s.push(badge('Your Analysis', 420, 116, { bg: p.accent }));
+    notations.forEach((nt, i) => {
+      const y = 152 + i * 54;
+      s.push(rect(420, y, 340, 44, { stroke: p.accent, strokeWidth: 1.4, fill: i % 2 === 0 ? '#ffffff' : p.soft, rx: 6 }));
+      const symbol = nt.symbol || nt.title || '';
+      const desc = nt.detail || nt.description || nt;
+      s.push(txt(anchor(symbol, 6), 436, y + 28, { fontSize: 15, fontWeight: '800', color: p.accent }));
+      s.push(txt(anchor(itemText(desc), 10), 530, y + 28, { fontSize: 12, fontWeight: '600', color: '#334155' }));
+    });
+    return s;
+  },
+});
+
+// ── P16. DEBUGGING WORKFLOW ──────────────────────────────────────────────────
+define({
+  id: 'prog_debug_flow', intent: 'process', label: 'Debugging workflow',
+  capacity: { steps: 5 },
+  fill(d, ctx) {
+    const p = PALETTES[3];
+    const s = [...header(ctx, p.accent)];
+    const steps = (d.steps || d.items || []).slice(0, 5);
+    const defs = ['Reproduce Bug', 'Isolate Cause', 'Fix Code', 'Test Fix', 'Deploy'];
+    const list = steps.length ? steps : defs.map((t) => ({ title: t }));
+    const n = Math.max(list.length, 1);
+    const boxW = 160, boxH = 80, gap = 20;
+    const total = boxW * n + gap * (n - 1);
+    const x0 = (W - total) / 2, y = 230;
+    s.push(obj('bug', 40, 140, 80, 80, { accent: '#dc2626' }));
+    s.push(txt(anchor(d.headline || 'Debugging', 4), 80, 230, { fontSize: 13, fontWeight: '700', color: '#dc2626', textAnchor: 'middle' }));
+    list.forEach((st, i) => {
+      const x = x0 + i * (boxW + gap);
+      s.push(rect(x, y, boxW, boxH, { stroke: p.accent, strokeWidth: 2, fill: i % 2 === 0 ? p.soft : '#ffffff', rx: 10 }));
+      s.push(circle(x + boxW / 2, y - 18, 18, { fill: p.accent, stroke: p.accent }));
+      s.push(txt(String(i + 1), x + boxW / 2, y - 12, { fontSize: 14, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
+      s.push(txt(anchor(itemText(st), 6), x + boxW / 2, y + 40, { fontSize: 13, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
+      if (i < n - 1) {
+        s.push(arrow([x + boxW + 4, y + boxH / 2], [x + boxW + gap - 4, y + boxH / 2], { color: p.accent, strokeWidth: 2.5 }));
+      }
+    });
+    if (d.takeaway) s.push(callout(anchor(d.takeaway, 14), 120, 420, 560));
+    return s;
+  },
+});
+
+// ── P17. TESTING PYRAMID ─────────────────────────────────────────────────────
+define({
+  id: 'prog_testing_pyramid', intent: 'hierarchy', label: 'Testing pyramid',
+  capacity: { tiers: 3 },
+  fill(d, ctx) {
+    const p = PALETTES[0];
+    const s = [...header(ctx, p.accent)];
+    const tiers = (d.tiers || d.items || []).slice(0, 3);
+    const defs = [
+      { title: 'E2E Tests', detail: 'UI, API, browser' },
+      { title: 'Integration Tests', detail: 'Services, DB, API' },
+      { title: 'Unit Tests', detail: 'Functions, components' },
+    ];
+    const list = tiers.length ? tiers : defs;
+    const n = 3;
+    const baseW = 540, topY = 120, th = 90;
+    list.forEach((ti, i) => {
+      const wRatio = (n - i) / n;
+      const w = Math.round(baseW * wRatio);
+      const x = (W - w) / 2;
+      const y = topY + i * th;
+      const isTop = i === 0;
+      s.push(rect(x, y, w, th - 8, { stroke: isTop ? p.accent : '#cbd5e1', strokeWidth: 2, fill: isTop ? p.accent : p.soft, rx: 8 }));
+      s.push(txt(anchor(itemText(ti.title || ti), 6), W / 2, y + th / 2 - 6, { fontSize: 15, fontWeight: '800', color: isTop ? '#ffffff' : '#1e293b', textAnchor: 'middle' }));
+      const detail = ti.detail || (typeof ti === 'string' ? '' : '');
+      if (detail) s.push(txt(anchor(detail, 8), W / 2, y + th / 2 + 18, { fontSize: 11, fontWeight: '500', color: isTop ? '#e2e8f0' : '#475569', textAnchor: 'middle' }));
+    });
+    s.push(txt(d.speed_label || 'Speed \u2192', 100, 380, { fontSize: 12, fontWeight: '700', color: p.accent }));
+    s.push(txt(d.confidence_label || 'Confidence \u2192', 600, 380, { fontSize: 12, fontWeight: '700', color: '#16a34a', textAnchor: 'end' }));
+    return s;
+  },
+});
+
+// ── P18. TDD CYCLE ───────────────────────────────────────────────────────────
+define({
+  id: 'prog_tdd_cycle', intent: 'cycle', label: 'TDD cycle',
+  capacity: { stages: 4 },
+  fill(d, ctx) {
+    const p = PALETTES[1];
+    const s = [...header(ctx, p.accent)];
+    const stages = (d.stages || d.steps || []).slice(0, 4);
+    const defs = ['Write Test', 'Run (fails)', 'Write Code', 'Run (passes)'];
+    const list = stages.length ? stages : defs.map((t) => ({ title: t }));
+    const cx = W / 2, cy = 300, R = 130;
+    list.slice(0, 4).forEach((stg, i) => {
+      const ang = (-90 + (360 / 4) * i) * (Math.PI / 180);
+      const sx = cx + Math.cos(ang) * R;
+      const sy = cy + Math.sin(ang) * R;
+      const fill = i === 2 ? p.accent : (i === 0 ? '#16a34a' : p.soft);
+      const textColor = i === 0 || i === 2 ? '#ffffff' : '#1e293b';
+      s.push(circle(sx, sy, 44, { fill, stroke: p.accent, strokeWidth: 2.5 }));
+      s.push(txt(anchor(itemText(stg), 6), sx, sy + 5, { fontSize: 13, fontWeight: '800', color: textColor, textAnchor: 'middle' }));
+      const nextAng = (-90 + (360 / 4) * (i + 1)) * (Math.PI / 180);
+      const ax = cx + Math.cos(ang) * (R - 44);
+      const ay = cy + Math.sin(ang) * (R - 44);
+      const bx = cx + Math.cos(nextAng) * (R - 44);
+      const by = cy + Math.sin(nextAng) * (R - 44);
+      s.push(path(`M ${ax} ${ay} Q ${cx + Math.cos((ang + nextAng) / 2) * (R + 30)} ${cy + Math.sin((ang + nextAng) / 2) * (R + 30)} ${bx} ${by}`, { stroke: p.accent, strokeWidth: 2, markerEnd: 'arrow' }));
+    });
+    s.push(circle(cx, cy, 32, { fill: '#ffffff', stroke: p.accent, strokeWidth: 2.5 }));
+    s.push(txt('TDD', cx, cy + 5, { fontSize: 15, fontWeight: '800', color: p.accent, textAnchor: 'middle' }));
+    return s;
+  },
+});
+
+// ── P19. DEPLOYMENT PIPELINE ─────────────────────────────────────────────────
+define({
+  id: 'prog_deploy_pipeline', intent: 'process', label: 'CI/CD deployment pipeline',
+  capacity: { stages: 5 },
+  fill(d, ctx) {
+    const p = PALETTES[4];
+    const s = [...header(ctx, p.accent)];
+    const stages = (d.stages || d.steps || []).slice(0, 5);
+    const defs = ['Commit', 'Build', 'Test', 'Deploy', 'Monitor'];
+    const list = stages.length ? stages : defs.map((t) => ({ title: t }));
+    const n = Math.max(list.length, 1);
+    const cy = 270;
+    const step = (W - 140) / Math.max(n - 1, 1);
+    list.forEach((st, i) => {
+      const x = 70 + i * step;
+      const yOff = i % 2 === 0 ? 0 : 60;
+      const icon = ['git', 'build', 'test', 'deploy', 'monitor'][i % 5];
+      s.push(circle(x, cy + yOff, 30, { fill: i % 2 === 0 ? p.accent : p.soft, stroke: p.accent, strokeWidth: 2.5 }));
+      s.push(obj(icon, x - 16, cy + yOff - 16, 32, 32, { accent: i % 2 === 0 ? '#ffffff' : p.accent }));
+      s.push(txt(anchor(itemText(st), 4), x, cy + yOff + 48, { fontSize: 12, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
+      if (i < n - 1) {
+        const nx = 70 + (i + 1) * step;
+        const nyOff = (i + 1) % 2 === 0 ? 0 : 60;
+        s.push(path(`M ${x + 30} ${cy + yOff} Q ${(x + nx) / 2} ${cy + Math.max(yOff, nyOff) + 40} ${nx - 30} ${cy + nyOff}`, { stroke: p.accent, strokeWidth: 2, markerEnd: 'arrow' }));
+      }
+    });
+    return s;
+  },
+});
+
+// ── P20. DATABASE SCHEMA ──────────────────────────────────────────────────────
+define({
+  id: 'prog_db_schema', intent: 'define', label: 'Database schema diagram',
+  capacity: { tables: 4 },
+  fill(d, ctx) {
+    const p = PALETTES[6];
+    const s = [...header(ctx, p.accent)];
+    s.push(badge(d.title_label || 'Schema', 56, 104, { bg: p.accent }));
+    const tables = (d.tables || d.entities || []).slice(0, 4);
+    const n = Math.max(tables.length, 1);
+    const boxW = 170, gap = (W - 80 - boxW * n) / Math.max(n - 1, 1);
+    tables.forEach((tbl, i) => {
+      const x = 40 + i * (boxW + gap);
+      s.push(rect(x, 130, boxW, 240, { stroke: p.accent, strokeWidth: 2, fill: '#ffffff', rx: 8 }));
+      const name = itemText(tbl.name || tbl.title || tbl);
+      s.push(rect(x, 130, boxW, 40, { fill: p.accent, stroke: p.accent, rx: 8 }));
+      s.push(txt(anchor(name, 4), x + boxW / 2, 156, { fontSize: 14, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
+      const fields = (tbl.fields || tbl.columns || tbl.items || []).slice(0, 5);
+      fields.forEach((fld, j) => {
+        const y = 186 + j * 38;
+        const isPK = fld.pk || fld.primary_key || j === 0;
+        s.push(line([x + 8, y], [x + boxW - 8, y], { color: '#e2e8f0', strokeWidth: 1 }));
+        const label = isPK ? '\uD83D\uDD11 ' + itemText(fld) : '\u2022 ' + itemText(fld);
+        const fw = isPK ? '700' : '500';
+        s.push(txt(anchor(label, 5), x + 10, y + 16, { fontSize: 11, fontWeight: fw, color: '#1e293b' }));
+        if (fld.type) s.push(txt(fld.type, x + boxW - 10, y + 16, { fontSize: 9, fontWeight: '500', color: '#94a3b8', textAnchor: 'end' }));
+      });
+      // Foreign key arrows
+      if (i > 0) {
+        const prevX = 40 + (i - 1) * (boxW + gap);
+        s.push(arrow([prevX + boxW, 260], [x, 260], { color: '#94a3b8', strokeWidth: 1.5, dashed: true }));
+      }
+    });
+    return s;
+  },
+});
+
+// ── P21. SERVERLESS ARCHITECTURE ─────────────────────────────────────────────
+define({
+  id: 'prog_serverless', intent: 'map', label: 'Serverless architecture',
+  capacity: { services: 4 },
+  fill(d, ctx) {
+    const p = PALETTES[0];
+    const s = [...header(ctx, p.accent)];
+    const services = (d.services || d.items || []).slice(0, 4);
+    const defs = ['Auth', 'API Gateway', 'Functions', 'Database'];
+    const list = services.length ? services : defs.map((t) => ({ title: t }));
+    // Top row: client
+    s.push(rect(300, 112, 200, 52, { stroke: p.accent, strokeWidth: 2, fill: p.accent, rx: 10 }));
+    s.push(txt(d.client_label || 'Client / App', 400, 146, { fontSize: 14, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
+    s.push(arrow([400, 164], [400, 188], { color: p.accent, strokeWidth: 2 }));
+    // Middle row: services
+    const n = Math.min(list.length, 4);
+    const boxW = 170, gap = (W - 80 - boxW * n) / Math.max(n - 1, 1);
+    list.slice(0, n).forEach((svc, i) => {
+      const x = 40 + i * (boxW + gap);
+      s.push(rect(x, 190, boxW, 110, { stroke: p.accent, strokeWidth: 1.8, fill: p.soft, rx: 8 }));
+      const icon = ['users', 'cloud', 'cog_icon', 'database'][i % 4];
+      s.push(obj(icon, x + 10, y + 8, 36, 36, { accent: p.accent }));
+      s.push(txt(anchor(itemText(svc), 4), x + boxW / 2, 244, { fontSize: 13, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
+      if (svc.detail) s.push(txt(anchor(svc.detail, 6), x + boxW / 2, 268, { fontSize: 10, fontWeight: '500', color: '#475569', textAnchor: 'middle' }));
+    });
+    // API Gateway label
+    s.push(txt(d.gateway_label || 'API Gateway manages all requests', W / 2, 350, { fontSize: 12, fontWeight: '600', color: '#64748b', textAnchor: 'middle', fontStyle: 'italic' }));
+    return s;
+  },
+});
+
+// ── P22. OBJECT-ORIENTED PROGRAMMING ─────────────────────────────────────────
+define({
+  id: 'prog_oop_concepts', intent: 'define', label: 'OOP concepts',
+  capacity: { concepts: 4 },
+  fill(d, ctx) {
+    const p = PALETTES[2];
+    const s = [...header(ctx, p.accent)];
+    s.push(badge(d.title_label || 'OOP Principles', 56, 104, { bg: p.accent }));
+    const concepts = (d.concepts || d.items || []).slice(0, 4);
+    const defs = [
+      { title: 'Encapsulation', detail: 'Data hiding via private fields' },
+      { title: 'Inheritance', detail: 'Parent-child class hierarchy' },
+      { title: 'Polymorphism', detail: 'Many forms, one interface' },
+      { title: 'Abstraction', detail: 'Hide complexity, show intent' },
+    ];
+    const list = concepts.length ? concepts : defs;
+    const boxW = 170, boxH = 140, gap = 20;
+    const x0 = (W - boxW * 4 - gap * 3) / 2;
+    list.slice(0, 4).forEach((c, i) => {
+      const x = x0 + i * (boxW + gap);
+      s.push(rect(x, 130, boxW, boxH, { stroke: p.accent, strokeWidth: 2, fill: '#ffffff', rx: 8 }));
+      s.push(rect(x, 130, boxW, 8, { fill: p.accent, stroke: p.accent, rx: 0 }));
+      const icons = ['shield', 'folder', 'star', 'cog_icon'];
+      s.push(obj(icons[i], x + boxW / 2 - 18, 152, 36, 36, { accent: p.accent }));
+      s.push(txt(anchor(itemText(c.title || c), 4), x + boxW / 2, 214, { fontSize: 14, fontWeight: '800', color: p.accent, textAnchor: 'middle' }));
+      if (c.detail) s.push(txt(anchor(c.detail, 8), x + boxW / 2, 244, { fontSize: 11, fontWeight: '500', color: '#475569', textAnchor: 'middle' }));
+    });
+    return s;
+  },
+});
+
+// ── P23. DESIGN PATTERNS OVERVIEW ────────────────────────────────────────────
+define({
+  id: 'prog_design_patterns', intent: 'cluster', label: 'Design patterns overview',
+  capacity: { patterns: 6 },
+  fill(d, ctx) {
+    const p = PALETTES[5];
+    const s = [...header(ctx, p.accent)];
+    const patterns = (d.patterns || d.items || []).slice(0, 6);
+    const defs = ['Singleton', 'Factory', 'Observer', 'Strategy', 'Decorator', 'Adapter'];
+    const list = patterns.length ? patterns : defs.map((t) => ({ title: t }));
+    const boxW = 220, boxH = 80, gap = 20;
+    const x0 = (W - boxW * 3 - gap * 2) / 2;
+    list.slice(0, 6).forEach((pt, i) => {
+      const c = i % 3, r = Math.floor(i / 3);
+      const x = x0 + c * (boxW + gap);
+      const y = 130 + r * (boxH + gap);
+      s.push(rect(x, y, boxW, boxH, { stroke: p.accent, strokeWidth: 1.8, fill: i % 2 === 0 ? '#ffffff' : p.soft, rx: 8 }));
+      s.push(badge(String(i + 1), x + 10, y - 12, { bg: p.accent }));
+      const icon = ['cog_icon', 'building', 'globe', 'chart_up', 'star', 'key'][i % 6];
+      s.push(obj(icon, x + 14, y + 24, 32, 32, { accent: p.accent }));
+      s.push(txt(anchor(itemText(pt), 5), x + 58, y + 42, { fontSize: 14, fontWeight: '700', color: '#1e293b' }));
+      if (pt.detail) { const bt = bodyTxt(pt.detail, x + boxW / 2, y + 66, { maxWidth: boxW - 20, maxLines: 1 }); if (bt) s.push(bt); }
+    });
+    return s;
+  },
+});
+
+// ── P24. HTTP REQUEST-RESPONSE CYCLE ─────────────────────────────────────────
+define({
+  id: 'prog_http_cycle', intent: 'process', label: 'HTTP request-response cycle',
+  capacity: { steps: 5 },
+  fill(d, ctx) {
+    const p = PALETTES[0];
+    const s = [...header(ctx, p.accent)];
+    const steps = (d.steps || d.stages || []).slice(0, 5);
+    const defs = ['DNS Lookup', 'TCP Handshake', 'Send Request', 'Server Process', 'Response'];
+    const list = steps.length ? steps : defs.map((t) => ({ title: t }));
+    const n = Math.max(list.length, 1);
+    const cy = 270;
+    const stepW = (W - 120) / n;
+    list.forEach((st, i) => {
+      const x = 60 + i * stepW;
+      s.push(circle(x + stepW / 2, cy, 36, { fill: i === n - 1 ? '#16a34a' : (i === 2 ? p.accent : p.soft), stroke: p.accent, strokeWidth: 2.5 }));
+      s.push(txt(String(i + 1), x + stepW / 2, cy + 5, { fontSize: 14, fontWeight: '800', color: i === n - 1 || i === 2 ? '#ffffff' : '#1e293b', textAnchor: 'middle' }));
+      s.push(badge(anchor(itemText(st), 3), x + stepW / 2, cy + 58, { bg: i === n - 1 ? '#16a34a' : p.accent, fontSize: 10 }));
+      if (i < n - 1) s.push(arrow([x + stepW - 6, cy], [x + stepW + 6, cy], { color: p.accent, strokeWidth: 2.5 }));
+    });
+    return s;
+  },
+});
+
+// ── P25. DATABASE INDEXING ────────────────────────────────────────────────────
+define({
+  id: 'prog_indexing', intent: 'data', label: 'Database indexing concept',
+  capacity: { items: 5 },
+  fill(d, ctx) {
+    const p = PALETTES[1];
+    const s = [...header(ctx, p.accent)];
+    const items = (d.items || d.entries || []).slice(0, 5);
+    s.push(badge('Without Index', 60, 112, { bg: '#dc2626' }));
+    s.push(badge('With Index', 420, 112, { bg: '#16a34a' }));
+    // Left: full scan
+    s.push(rect(60, 140, 300, 200, { stroke: '#dc2626', strokeWidth: 1.8, fill: '#fee2e2', rx: 8 }));
+    s.push(txt('Full Table Scan', 210, 172, { fontSize: 14, fontWeight: '800', color: '#991b1b', textAnchor: 'middle' }));
+    (items.length ? items : ['Row 1', 'Row 2', 'Row 3', 'Row 4', 'Row 5']).forEach((it, i) => {
+      const y = 192 + i * 26;
+      s.push(rect(76, y, 268, 22, { stroke: '#fecaca', strokeWidth: 1, fill: '#ffffff', rx: 4 }));
+      s.push(txt('\u2716 ' + anchor(itemText(it), 6), 84, y + 16, { fontSize: 11, fontWeight: '500', color: '#991b1b' }));
+    });
+    s.push(txt('O(n) \u2014 checks every row', 210, 362, { fontSize: 12, fontWeight: '700', color: '#991b1b', textAnchor: 'middle' }));
+    // Right: indexed
+    s.push(rect(410, 140, 340, 200, { stroke: '#16a34a', strokeWidth: 1.8, fill: '#f0fdf4', rx: 8 }));
+    s.push(txt('B-Tree Index', 580, 172, { fontSize: 14, fontWeight: '800', color: '#166534', textAnchor: 'middle' }));
+    const tree = ['[1,10,20]', '5', '15', '25', '35'];
+    tree.forEach((it, i) => {
+      const y = 192 + i * 26;
+      s.push(rect(426, y, 308, 22, { stroke: '#bbf7d0', strokeWidth: 1, fill: '#ffffff', rx: 4 }));
+      const icon = i === 0 ? '\uD83C\uDF32' : (i % 2 === 0 ? '\u2192' : '\u2714');
+      s.push(txt(icon + ' ' + it, 434, y + 16, { fontSize: 11, fontWeight: '600', color: '#166534' }));
+    });
+    s.push(txt('O(log n) \u2014 index lookup', 580, 362, { fontSize: 12, fontWeight: '700', color: '#166534', textAnchor: 'middle' }));
+    return s;
+  },
+});
+
+// ── P26. ASYNC / EVENT LOOP ──────────────────────────────────────────────────
+define({
+  id: 'prog_event_loop', intent: 'process', label: 'Event loop visualization',
+  capacity: { phases: 5 },
+  fill(d, ctx) {
+    const p = PALETTES[6];
+    const s = [...header(ctx, p.accent)];
+    const phases = (d.phases || d.steps || []).slice(0, 5);
+    const defs = ['Call Stack', 'Web APIs', 'Callback Queue', 'Microtask Q', 'Event Loop'];
+    const list = phases.length ? phases : defs.map((t) => ({ title: t }));
+    const boxW = 140, gap = 14, y = 180, boxH = 130;
+    const x0 = (W - boxW * 5 - gap * 4) / 2;
+    const colors = ['#2563eb', '#ea580c', '#16a34a', '#7c3aed', '#f59e0b'];
+    list.slice(0, 5).forEach((ph, i) => {
+      const x = x0 + i * (boxW + gap);
+      s.push(rect(x, y, boxW, boxH, { stroke: colors[i], strokeWidth: 2, fill: i % 2 === 0 ? '#ffffff' : p.soft, rx: 8 }));
+      s.push(rect(x, y, boxW, 6, { fill: colors[i], stroke: colors[i], rx: 0 }));
+      s.push(txt(anchor(itemText(ph), 4), x + boxW / 2, y + 36, { fontSize: 12, fontWeight: '800', color: colors[i], textAnchor: 'middle' }));
+      if (ph.detail) s.push(txt(anchor(ph.detail, 6), x + boxW / 2, y + 68, { fontSize: 10, fontWeight: '500', color: '#475569', textAnchor: 'middle' }));
+      if (i < 4) s.push(arrow([x + boxW, y + boxH / 2], [x + boxW + gap, y + boxH / 2], { color: '#94a3b8', strokeWidth: 2 }));
+    });
+    return s;
+  },
+});
+
+// ── P27. MICROSERVICES VS MONOLITH ────────────────────────────────────────────
+define({
+  id: 'prog_micro_vs_mono', intent: 'compare', label: 'Microservices vs monolith',
+  capacity: { comparisons: 3 },
+  fill(d, ctx) {
+    const p = PALETTES[2];
+    const s = [...header(ctx, p.accent)];
+    const comparisons = (d.comparisons || d.items || []).slice(0, 3);
+    const boxW = 330, gap = 40;
+    const x0 = (W - boxW * 2 - gap) / 2;
+    // Monolith
+    s.push(rect(x0, 120, boxW, 280, { stroke: '#64748b', strokeWidth: 2, fill: '#f8fafc', rx: 10 }));
+    s.push(rect(x0, 120, boxW, 44, { fill: '#64748b', stroke: '#64748b', rx: 10 }));
+    s.push(txt(d.mono_title || 'Monolith', x0 + boxW / 2, 150, { fontSize: 16, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
+    const mono = ['UI', 'Business Logic', 'Data Access', 'Database'];
+    mono.forEach((m, i) => {
+      const y = 186 + i * 46;
+      s.push(rect(x0 + 20, y, boxW - 40, 36, { stroke: '#cbd5e1', strokeWidth: 1.5, fill: '#ffffff', rx: 6 }));
+      s.push(txt(m, x0 + boxW / 2, y + 24, { fontSize: 12, fontWeight: '600', color: '#334155', textAnchor: 'middle' }));
+      if (i < mono.length - 1) s.push(arrow([x0 + boxW / 2, y + 36], [x0 + boxW / 2, y + 46], { color: '#94a3b8', strokeWidth: 1.5 }));
+    });
+    // Microservices
+    s.push(rect(x0 + boxW + gap, 120, boxW, 280, { stroke: p.accent, strokeWidth: 2, fill: p.soft, rx: 10 }));
+    s.push(rect(x0 + boxW + gap, 120, boxW, 44, { fill: p.accent, stroke: p.accent, rx: 10 }));
+    s.push(txt(d.micro_title || 'Microservices', x0 + boxW + gap + boxW / 2, 150, { fontSize: 16, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
+    const micro = ['Auth Service', 'API Gateway', 'Order Service', 'User Service'];
+    micro.forEach((m, i) => {
+      const y = 186 + i * 46;
+      const colors = ['#2563eb', '#ea580c', '#16a34a', '#7c3aed'];
+      s.push(rect(x0 + boxW + gap + 14, y, boxW - 28, 36, { stroke: colors[i], strokeWidth: 1.8, fill: '#ffffff', rx: 6 }));
+      s.push(txt(m, x0 + boxW + gap + boxW / 2, y + 24, { fontSize: 12, fontWeight: '600', color: colors[i], textAnchor: 'middle' }));
+    });
+    comparisons.forEach((cmp, i) => {
+      const y = 430 + i * 22;
+      s.push(txt('\u2022 ' + anchor(itemText(cmp), 10), W / 2, y, { fontSize: 11, color: '#475569', textAnchor: 'middle' }));
+    });
+    return s;
+  },
+});
+
+// ── P28. JWT AUTH FLOW ────────────────────────────────────────────────────────
+define({
+  id: 'prog_jwt_auth', intent: 'process', label: 'JWT authentication flow',
+  capacity: { steps: 5 },
+  fill(d, ctx) {
+    const p = PALETTES[0];
+    const s = [...header(ctx, p.accent)];
+    const steps = (d.steps || d.stages || []).slice(0, 5);
+    const defs = ['Login', 'Server Validates', 'Issues JWT', 'Client Stores', 'Sends with Requests'];
+    const list = steps.length ? steps : defs.map((t) => ({ title: t }));
+    const n = Math.max(list.length, 1);
+    const cy = 240;
+    const stepW = (W - 100) / Math.max(n - 1, 1);
+    // Top: client + server
+    s.push(obj('person', 60, 120, 60, 60, { accent: p.accent }));
+    s.push(txt('Client', 90, 190, { fontSize: 12, fontWeight: '700', color: p.accent, textAnchor: 'middle' }));
+    s.push(obj('server', 680, 120, 60, 60, { accent: p.accent }));
+    s.push(txt('Server', 710, 190, { fontSize: 12, fontWeight: '700', color: p.accent, textAnchor: 'middle' }));
+    // Steps in a row
+    list.forEach((st, i) => {
+      const x = 60 + i * stepW;
+      const isCentered = n === 1;
+      const finalX = isCentered ? W / 2 : x;
+      s.push(circle(finalX, cy, 26, { fill: i === n - 1 ? '#16a34a' : p.accent, stroke: p.accent, strokeWidth: 2 }));
+      s.push(txt(String(i + 1), finalX, cy + 5, { fontSize: 13, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
+      s.push(txt(anchor(itemText(st), 4), finalX, cy + 50, { fontSize: 11, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
+      if (i < n - 1 && !isCentered) {
+        const nx = 60 + (i + 1) * stepW;
+        s.push(arrow([finalX + 26, cy], [nx - 26, cy], { color: p.accent, strokeWidth: 2 }));
+      }
+    });
+    return s;
+  },
+});
+
+// ── P29. MEMORY MANAGEMENT ────────────────────────────────────────────────────
+define({
+  id: 'prog_memory', intent: 'define', label: 'Memory layout diagram',
+  capacity: { regions: 5 },
+  fill(d, ctx) {
+    const p = PALETTES[1];
+    const s = [...header(ctx, p.accent)];
+    const regions = (d.regions || d.items || []).slice(0, 5);
+    const defs = ['Stack', 'Heap', 'Data (static)', 'Text (code)', 'OS Kernel'];
+    const list = regions.length ? regions : defs.map((t) => ({ title: t }));
+    const n = Math.max(list.length, 1);
+    const boxW = 380, x = (W - boxW) / 2 - 40;
+    const baseY = 440;
+    const perH = Math.min(60, (320) / n);
+    const colors = ['#dc2626', '#f59e0b', '#2563eb', '#16a34a', '#64748b'];
+    list.slice(0, 5).forEach((r, i) => {
+      const y = baseY - (i + 1) * perH;
+      const h = perH - 4;
+      s.push(rect(x, y, boxW, h, { fill: colors[i % 5], stroke: colors[i % 5], rx: 4 }));
+      s.push(txt(anchor(itemText(r.title || r), 5), x + boxW / 2, y + h / 2 + 4, { fontSize: 13, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
+      if (r.detail) s.push(txt(anchor(r.detail, 12), x + boxW + 20, y + h / 2 + 4, { fontSize: 11, fontWeight: '500', color: '#475569' }));
+    });
+    s.push(txt('\u2191 Higher addresses (0xFFFF...)', x + boxW / 2, 120, { fontSize: 11, color: '#94a3b8', textAnchor: 'middle', fontStyle: 'italic' }));
+    s.push(txt('\u2193 Lower addresses (0x0000...)', x + boxW / 2, 460, { fontSize: 11, color: '#94a3b8', textAnchor: 'middle', fontStyle: 'italic' }));
+    return s;
+  },
+});
+
+// ── P30. SQL JOIN VISUALIZATION ────────────────────────────────────────────────
+define({
+  id: 'prog_sql_joins', intent: 'compare', label: 'SQL JOIN visualization',
+  capacity: { joins: 4 },
+  fill(d, ctx) {
+    const p = PALETTES[6];
+    const s = [...header(ctx, p.accent)];
+    const joins = (d.joins || d.items || []).slice(0, 4);
+    const defs = [
+      { title: 'INNER JOIN', detail: 'Only matching rows from both' },
+      { title: 'LEFT JOIN', detail: 'All from left, matching from right' },
+      { title: 'RIGHT JOIN', detail: 'All from right, matching from left' },
+      { title: 'FULL JOIN', detail: 'All rows from both sides' },
+    ];
+    const list = joins.length ? joins : defs;
+    const boxW = 180, boxH = 170, gap = 12;
+    const x0 = (W - boxW * 4 - gap * 3) / 2;
+    list.slice(0, 4).forEach((jn, i) => {
+      const x = x0 + i * (boxW + gap);
+      s.push(rect(x, 130, boxW, boxH, { stroke: p.accent, strokeWidth: 1.8, fill: '#ffffff', rx: 8 }));
+      s.push(rect(x, 130, boxW, 36, { fill: p.accent, stroke: p.accent, rx: 8 }));
+      s.push(txt(anchor(itemText(jn.title || jn), 4), x + boxW / 2, 154, { fontSize: 13, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
+      // Venn circles
+      const cx = x + boxW / 2;
+      const cy = 240;
+      const off = 18;
+      if (i === 0) {
+        s.push(circle(cx, cy, 32, { fill: p.accent, stroke: p.accent }));
+      } else if (i === 1) {
+        s.push(circle(cx - off, cy, 30, { fill: p.accent, stroke: p.accent }));
+        s.push(circle(cx + off, cy, 30, { fill: '#e2e8f0', stroke: '#94a3b8' }));
+      } else if (i === 2) {
+        s.push(circle(cx - off, cy, 30, { fill: '#e2e8f0', stroke: '#94a3b8' }));
+        s.push(circle(cx + off, cy, 30, { fill: p.accent, stroke: p.accent }));
+      } else {
+        s.push(circle(cx - off, cy, 30, { fill: p.accent, stroke: p.accent }));
+        s.push(circle(cx + off, cy, 30, { fill: p.accent, stroke: p.accent }));
+      }
+      if (jn.detail) s.push(txt(anchor(jn.detail, 8), x + boxW / 2, 306, { fontSize: 10, fontWeight: '500', color: '#475569', textAnchor: 'middle' }));
+    });
+    return s;
+  },
+});
+
+// ── P31. GRAPH (NETWORK) VISUALIZATION ────────────────────────────────────────
+define({
+  id: 'prog_graph_viz', intent: 'cluster', label: 'Graph data structure',
+  capacity: { nodes: 5 },
+  fill(d, ctx) {
+    const p = PALETTES[2];
+    const s = [...header(ctx, p.accent)];
+    const nodes = (d.nodes || d.items || d.vertices || []).slice(0, 5);
+    const positions = [
+      { x: 280, y: 150 }, { x: 520, y: 150 }, { x: 400, y: 280 },
+      { x: 150, y: 320 }, { x: 650, y: 320 },
+    ];
+    const colors = ['#2563eb', '#ea580c', '#16a34a', '#7c3aed', '#f59e0b'];
+    // Edges
+    if (d.edges || nodes.length >= 3) {
+      const edges = (d.edges || []).slice(0, 6);
+      if (edges.length) {
+        edges.forEach((e) => {
+          const from = positions[e.from] || positions[0];
+          const to = positions[e.to] || positions[1];
+          s.push(arrow([from.x, from.y], [to.x, to.y], { color: '#94a3b8', strokeWidth: 1.5, dashed: e.directed === false }));
+          if (e.weight) s.push(txt(String(e.weight), (from.x + to.x) / 2, (from.y + to.y) / 2 - 6, { fontSize: 10, fontWeight: '700', color: '#64748b', textAnchor: 'middle' }));
+        });
+      } else {
+        // Connect fully
+        for (let i = 0; i < Math.min(nodes.length, 5); i++) {
+          for (let j = i + 1; j < Math.min(nodes.length, 5); j++) {
+            s.push(line([positions[i].x, positions[i].y], [positions[j].x, positions[j].y], { color: '#e2e8f0', strokeWidth: 1.5 }));
+          }
+        }
+      }
+    }
+    // Nodes
+    nodes.slice(0, 5).forEach((nd, i) => {
+      const pos = positions[i];
+      s.push(circle(pos.x, pos.y, 36, { fill: colors[i], stroke: colors[i] }));
+      s.push(txt(anchor(itemText(nd), 3), pos.x, pos.y + 5, { fontSize: 12, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
+    });
+    return s;
+  },
+});
+
+// ── P32. REST API DESIGN ──────────────────────────────────────────────────────
+define({
+  id: 'prog_rest_api', intent: 'define', label: 'REST API design principles',
+  capacity: { principles: 5 },
+  fill(d, ctx) {
+    const p = PALETTES[6];
+    const s = [...header(ctx, p.accent)];
+    const principles = (d.principles || d.items || []).slice(0, 5);
+    const defs = [
+      { title: 'Stateless', detail: 'Each request contains all info' },
+      { title: 'Resource-Based', detail: 'URLs identify resources (/users/1)' },
+      { title: 'HTTP Methods', detail: 'GET, POST, PUT, DELETE, PATCH' },
+      { title: 'Representation', detail: 'JSON / XML as resource format' },
+      { title: 'HATEOAS', detail: 'Links drive API navigation' },
+    ];
+    const list = principles.length ? principles : defs;
+    const boxW = 700, boxH = 56, gap = 12;
+    const x = (W - boxW) / 2;
+    list.slice(0, 5).forEach((pr, i) => {
+      const y = 122 + i * (boxH + gap);
+      s.push(rect(x, y, boxW, boxH, { stroke: p.accent, strokeWidth: 1.8, fill: i % 2 === 0 ? p.soft : '#ffffff', rx: 8 }));
+      s.push(badge(String(i + 1), x - 18, y + 12, { bg: p.accent }));
+      s.push(txt(anchor(itemText(pr.title || pr), 5), x + 30, y + 24, { fontSize: 14, fontWeight: '800', color: p.accent }));
+      const st = '    \u2014  ' + anchor(pr.detail || pr.text || '', 10);
+      if (pr.detail) s.push(txt(st, x + 30, y + 44, { fontSize: 11, fontWeight: '500', color: '#475569' }));
+    });
+    return s;
+  },
+});
+
+// ── P33. CONCURRENCY MODELS ───────────────────────────────────────────────────
+define({
+  id: 'prog_concurrency', intent: 'compare', label: 'Concurrency models',
+  capacity: { models: 3 },
+  fill(d, ctx) {
+    const p = PALETTES[3];
+    const s = [...header(ctx, p.accent)];
+    const models = (d.models || d.items || []).slice(0, 3);
+    const defs = [
+      { title: 'Threading', detail: 'Multiple threads share memory', pros: '+ Shared state, - Race conditions' },
+      { title: 'Async / Event-driven', detail: 'Single thread, non-blocking I/O', pros: '+ Scalable, - Callback complexity' },
+      { title: 'Actor Model', detail: 'Isolated actors pass messages', pros: '+ No shared state, - Message overhead' },
+    ];
+    const list = models.length ? models : defs;
+    const boxW = 230, gap = 16;
+    const x0 = (W - boxW * 3 - gap * 2) / 2;
+    const colors = ['#2563eb', '#ea580c', '#7c3aed'];
+    list.slice(0, 3).forEach((m, i) => {
+      const x = x0 + i * (boxW + gap);
+      s.push(rect(x, 130, boxW, 240, { stroke: colors[i], strokeWidth: 2, fill: '#ffffff', rx: 10 }));
+      s.push(rect(x, 130, boxW, 44, { fill: colors[i], stroke: colors[i], rx: 10 }));
+      s.push(txt(anchor(itemText(m.title || m), 4), x + boxW / 2, 160, { fontSize: 14, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
+      const icon = ['cog_icon', 'globe', 'users'][i];
+      s.push(obj(icon, x + boxW / 2 - 16, 194, 32, 32, { accent: colors[i] }));
+      if (m.detail) s.push(txt(anchor(m.detail, 9), x + boxW / 2, 260, { fontSize: 11, fontWeight: '500', color: '#475569', textAnchor: 'middle' }));
+      if (m.pros) s.push(txt(anchor(m.pros, 12), x + boxW / 2, 300, { fontSize: 10, fontWeight: '600', color: '#64748b', textAnchor: 'middle' }));
+    });
+    return s;
+  },
+});
+
+// ── P34. DYNAMIC PROGRAMMING ──────────────────────────────────────────────────
+define({
+  id: 'prog_dp_table', intent: 'formula', label: 'Dynamic programming table',
+  capacity: { rows: 4, cols: 5 },
+  fill(d, ctx) {
+    const p = PALETTES[0];
+    const s = [...header(ctx, p.accent)];
+    const rows = (d.rows || []).slice(0, 4);
+    const cols = (d.cols || []).slice(0, 5);
+    s.push(badge(d.algorithm || 'DP Table', 56, 104, { bg: p.accent }));
+    if (d.problem) {
+      s.push(rect(60, 115, 680, 36, { stroke: p.accent, strokeWidth: 1.6, fill: p.soft, rx: 6 }));
+      s.push(txt(anchor(d.problem, 16), 80, 140, { fontSize: 13, fontWeight: '600', color: '#1e293b' }));
+    }
+    const rows_list = rows.length ? rows : [
+      ['', '0', '1', '2', '3'],
+      ['item 1', '0', '1', '1', '1'],
+      ['item 2', '0', '1', '1', '2'],
+      ['item 3', '0', '1', '2', '3'],
+    ];
+    const startY = d.problem ? 168 : 120;
+    const cellW = Math.min(100, (680) / Math.max(rows_list[0]?.length || 1, 1));
+    const cellH = 36;
+    const tableW = cellW * (rows_list[0]?.length || 1);
+    const x0 = (W - tableW) / 2;
+    rows_list.forEach((row, r) => {
+      row.forEach((cell, c) => {
+        const x = x0 + c * cellW;
+        const y = startY + r * cellH;
+        const isHeader = r === 0 || c === 0;
+        s.push(rect(x, y, cellW, cellH - 2, { stroke: isHeader ? p.accent : '#e2e8f0', strokeWidth: isHeader ? 1.8 : 1, fill: isHeader ? p.soft : '#ffffff', rx: 0 }));
+        s.push(txt(anchor(cell, 4), x + cellW / 2, y + cellH / 2, { fontSize: 11, fontWeight: isHeader ? '700' : '500', color: isHeader ? p.accent : '#1e293b', textAnchor: 'middle' }));
+      });
+    });
+    if (d.optimal) {
+      s.push(rect(x0, startY + rows_list.length * cellH + 8, tableW, 36, { stroke: '#16a34a', strokeWidth: 2, fill: '#dcfce7', rx: 6 }));
+      s.push(txt('Optimal: ' + anchor(d.optimal, 14), x0 + 16, startY + rows_list.length * cellH + 30, { fontSize: 13, fontWeight: '800', color: '#15803d' }));
+    }
+    return s;
+  },
+});
+
+// ── P35. WEB SECURITY ─────────────────────────────────────────────────────────
+define({
+  id: 'prog_web_security', intent: 'define', label: 'Web security threats',
+  capacity: { threats: 4 },
+  fill(d, ctx) {
+    const p = PALETTES[4];
+    const s = [...header(ctx, p.accent)];
+    const threats = (d.threats || d.items || []).slice(0, 4);
+    const defs = [
+      { title: 'XSS', detail: 'Cross-Site Scripting injection' },
+      { title: 'CSRF', detail: 'Cross-Site Request Forgery' },
+      { title: 'SQL Injection', detail: 'Malicious DB query injection' },
+      { title: 'Sensitive Data', detail: 'Insecure data exposure' },
+    ];
+    const list = threats.length ? threats : defs;
+    const icons = ['warning', 'lock', 'database', 'search'];
+    const colors = ['#dc2626', '#ea580c', '#7c3aed', '#2563eb'];
+    const boxW = 170, gap = (W - 80 - 170 * 4) / 3;
+    list.slice(0, 4).forEach((th, i) => {
+      const x = 40 + i * (boxW + gap);
+      s.push(rect(x, 130, boxW, 180, { stroke: colors[i], strokeWidth: 2, fill: '#ffffff', rx: 8 }));
+      s.push(obj(icons[i], x + boxW / 2 - 20, 150, 40, 40, { accent: colors[i] }));
+      s.push(txt(anchor(itemText(th.title || th), 4), x + boxW / 2, 224, { fontSize: 15, fontWeight: '800', color: colors[i], textAnchor: 'middle' }));
+      if (th.detail) s.push(txt(anchor(th.detail, 6), x + boxW / 2, 254, { fontSize: 11, fontWeight: '500', color: '#475569', textAnchor: 'middle' }));
+      // Mitigation
+      if (th.mitigation) {
+        s.push(rect(x + 8, 278, boxW - 16, 22, { fill: '#f0fdf4', stroke: '#16a34a', strokeWidth: 1, rx: 4 }));
+        s.push(txt('\u2713 ' + anchor(th.mitigation, 6), x + boxW / 2, 295, { fontSize: 9, fontWeight: '600', color: '#166534', textAnchor: 'middle' }));
+      }
+    });
+    return s;
+  },
+});
+
+// ── P36. FUNCTIONAL PROGRAMMING ───────────────────────────────────────────────
+define({
+  id: 'prog_functional', intent: 'define', label: 'Functional programming concepts',
+  capacity: { concepts: 4 },
+  fill(d, ctx) {
+    const p = PALETTES[5];
+    const s = [...header(ctx, p.accent)];
+    const concepts = (d.concepts || d.items || []).slice(0, 4);
+    const defs = [
+      { title: 'Pure Functions', detail: 'No side effects, same input = same output' },
+      { title: 'Immutability', detail: 'Data never changes in place' },
+      { title: 'Higher-Order', detail: 'Functions that take/return functions' },
+      { title: 'Lazy Evaluation', detail: 'Compute only when needed' },
+    ];
+    const list = concepts.length ? concepts : defs;
+    const boxW = 350, boxH = 100, gap = 16;
+    const x0 = (W - boxW * 2 - gap) / 2;
+    const colors = ['#16a34a', '#2563eb', '#7c3aed', '#ea580c'];
+    list.slice(0, 4).forEach((c, i) => {
+      const col = i % 2, row = Math.floor(i / 2);
+      const x = x0 + col * (boxW + gap);
+      const y = 130 + row * (boxH + gap);
+      s.push(rect(x, y, boxW, boxH, { stroke: colors[i], strokeWidth: 2, fill: '#ffffff', rx: 8 }));
+      s.push(rect(x, y, boxW, 6, { fill: colors[i], stroke: colors[i], rx: 0 }));
+      s.push(txt(anchor(itemText(c.title || c), 5), x + 16, y + 36, { fontSize: 15, fontWeight: '800', color: colors[i] }));
+      if (c.detail) s.push(txt(anchor(c.detail, 11), x + 16, y + 66, { fontSize: 11, fontWeight: '500', color: '#475569' }));
+    });
+    return s;
+  },
+});
+
+// ── P37. REGULAR EXPRESSIONS ──────────────────────────────────────────────────
+define({
+  id: 'prog_regex', intent: 'define', label: 'Regular expression breakdown',
+  capacity: { parts: 5 },
+  fill(d, ctx) {
+    const p = PALETTES[6];
+    const s = [...header(ctx, p.accent)];
+    const parts = (d.parts || d.items || []).slice(0, 5);
+    s.push(badge('Pattern', 56, 104, { bg: p.accent }));
+    // Pattern display
+    const pattern = d.pattern || '/[A-Z]+\\d+/g';
+    s.push(rect(60, 120, 680, 48, { fill: '#0f172a', stroke: '#0f172a', rx: 8 }));
+    s.push(txt(pattern, 400, 152, { fontSize: 18, fontWeight: '700', color: '#22c55e', textAnchor: 'middle', fontFamily: 'monospace' }));
+    // Breakdown
+    const defs = [
+      { symbol: '/', meaning: 'Delimiter (start)' },
+      { symbol: '[A-Z]+', meaning: 'One or more uppercase letters' },
+      { symbol: '\\d+', meaning: 'One or more digits' },
+      { symbol: '/', meaning: 'Delimiter (end)' },
+      { symbol: 'g', meaning: 'Global flag (all matches)' },
+    ];
+    const list = parts.length ? parts : defs;
+    const boxW = 130, gap = 14;
+    const x0 = (W - boxW * list.length - gap * (list.length - 1)) / 2;
+    list.forEach((pt, i) => {
+      const x = x0 + i * (boxW + gap);
+      s.push(rect(x, 190, boxW, 100, { stroke: p.accent, strokeWidth: 1.8, fill: p.soft, rx: 8 }));
+      const sym = itemText(pt.symbol || pt.title || pt);
+      s.push(rect(x + 10, 200, boxW - 20, 30, { fill: '#0f172a', stroke: '#0f172a', rx: 4 }));
+      s.push(txt(sym, x + boxW / 2, 220, { fontSize: 13, fontWeight: '700', color: '#22c55e', textAnchor: 'middle', fontFamily: 'monospace' }));
+      if (pt.meaning || pt.detail) {
+        s.push(txt(anchor(pt.meaning || pt.detail, 6), x + boxW / 2, 264, { fontSize: 10, fontWeight: '500', color: '#475569', textAnchor: 'middle' }));
+      }
+    });
+    // Example match
+    if (d.example) {
+      s.push(rect(60, 320, 680, 44, { stroke: '#16a34a', strokeWidth: 1.8, fill: '#dcfce7', rx: 8 }));
+      s.push(txt('Match: ' + anchor(d.example, 14), 80, 350, { fontSize: 13, fontWeight: '700', color: '#15803d' }));
+    }
+    return s;
+  },
+});
+
+// ── P38. GRAPHQL VS REST ──────────────────────────────────────────────────────
+define({
+  id: 'prog_graphql_vs_rest', intent: 'compare', label: 'GraphQL vs REST comparison',
+  capacity: { points: 4 },
+  fill(d, ctx) {
+    const p = PALETTES[2];
+    const s = [...header(ctx, p.accent)];
+    const points = (d.points || d.items || []).slice(0, 4);
+    const boxW = 330, gap = 40, boxH = 300;
+    const x0 = (W - boxW * 2 - gap) / 2;
+    // REST
+    s.push(rect(x0, 120, boxW, boxH, { stroke: '#2563eb', strokeWidth: 2, fill: '#ffffff', rx: 10 }));
+    s.push(rect(x0, 120, boxW, 44, { fill: '#2563eb', stroke: '#2563eb', rx: 10 }));
+    s.push(txt(d.rest_title || 'REST', x0 + boxW / 2, 150, { fontSize: 16, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
+    const restFeatures = [
+      'Multiple endpoints', 'Fixed data shape', 'HTTP caching', 'Over/under-fetching',
+    ];
+    restFeatures.forEach((rf, i) => {
+      const y = 186 + i * 44;
+      s.push(circle(x0 + 20, y + 8, 6, { fill: '#2563eb', stroke: '#2563eb' }));
+      s.push(txt(rf, x0 + 36, y + 14, { fontSize: 12, fontWeight: '500', color: '#334155' }));
+    });
+    // GraphQL
+    const gx = x0 + boxW + gap;
+    s.push(rect(gx, 120, boxW, boxH, { stroke: '#e535ab', strokeWidth: 2, fill: '#ffffff', rx: 10 }));
+    s.push(rect(gx, 120, boxW, 44, { fill: '#e535ab', stroke: '#e535ab', rx: 10 }));
+    s.push(txt(d.graphql_title || 'GraphQL', gx + boxW / 2, 150, { fontSize: 16, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
+    const gqlFeatures = [
+      'Single endpoint', 'Client-defined shape', 'No HTTP caching', 'No over-fetching',
+    ];
+    gqlFeatures.forEach((gf, i) => {
+      const y = 186 + i * 44;
+      s.push(circle(gx + 20, y + 8, 6, { fill: '#e535ab', stroke: '#e535ab' }));
+      s.push(txt(gf, gx + 36, y + 14, { fontSize: 12, fontWeight: '500', color: '#334155' }));
+    });
+    // Comparison points
+    points.forEach((pt, i) => {
+      const y = 440 + i * 18;
+      s.push(txt('\u2022 ' + anchor(itemText(pt), 12), W / 2, y, { fontSize: 11, color: '#475569', textAnchor: 'middle' }));
+    });
+    return s;
+  },
+});
+
+// ── P39. CACHING STRATEGIES ───────────────────────────────────────────────────
+define({
+  id: 'prog_caching', intent: 'process', label: 'Caching strategies',
+  capacity: { strategies: 4 },
+  fill(d, ctx) {
+    const p = PALETTES[1];
+    const s = [...header(ctx, p.accent)];
+    const strategies = (d.strategies || d.items || []).slice(0, 4);
+    const defs = ['Cache Aside', 'Read Through', 'Write Through', 'Write Behind'];
+    const list = strategies.length ? strategies : defs.map((t) => ({ title: t }));
+    const boxW = 180, gap = 14;
+    const x0 = (W - boxW * 4 - gap * 3) / 2;
+    // Application & database as context
+    s.push(obj('server', 40, 120, 60, 60, { accent: p.accent }));
+    s.push(txt('App', 70, 190, { fontSize: 11, fontWeight: '700', color: '#475569', textAnchor: 'middle' }));
+    s.push(obj('database', 700, 120, 60, 60, { accent: p.accent }));
+    s.push(txt('DB', 730, 190, { fontSize: 11, fontWeight: '700', color: '#475569', textAnchor: 'middle' }));
+    list.slice(0, 4).forEach((st, i) => {
+      const x = x0 + i * (boxW + gap);
+      s.push(rect(x, 210, boxW, 150, { stroke: p.accent, strokeWidth: 1.8, fill: i % 2 === 0 ? p.soft : '#ffffff', rx: 8 }));
+      s.push(badge(st.title || st, x + 10, 198, { bg: p.accent, fontSize: 10 }));
+      const icon = ['star', 'clock', 'lock', 'rocket'][i];
+      s.push(obj(icon, x + boxW / 2 - 16, 240, 32, 32, { accent: p.accent }));
+      if (st.detail) s.push(txt(anchor(st.detail, 7), x + boxW / 2, 310, { fontSize: 10, fontWeight: '500', color: '#475569', textAnchor: 'middle' }));
+      // Arrow to/from
+      s.push(arrow([100, 240], [x, 240], { color: '#94a3b8', strokeWidth: 1.2, dashed: true }));
+      s.push(arrow([x + boxW, 280], [700, 280], { color: '#94a3b8', strokeWidth: 1.2, dashed: true }));
+    });
+    return s;
+  },
+});
+
+// ── P40. WEB RENDERING PATTERNS ───────────────────────────────────────────────
+define({
+  id: 'prog_rendering', intent: 'compare', label: 'Web rendering patterns',
+  capacity: { patterns: 3 },
+  fill(d, ctx) {
+    const p = PALETTES[0];
+    const s = [...header(ctx, p.accent)];
+    const patterns = (d.patterns || d.items || []).slice(0, 3);
+    const defs = [
+      { title: 'SSR', detail: 'Server renders HTML', icons: 'server' },
+      { title: 'CSR', detail: 'Browser renders JS', icons: 'person' },
+      { title: 'SSG', detail: 'Pre-built static HTML', icons: 'building' },
+    ];
+    const list = patterns.length ? patterns : defs;
+    const boxW = 230, gap = 16;
+    const x0 = (W - boxW * 3 - gap * 2) / 2;
+    const colors = ['#2563eb', '#ea580c', '#16a34a'];
+    list.slice(0, 3).forEach((pt, i) => {
+      const x = x0 + i * (boxW + gap);
+      s.push(rect(x, 130, boxW, 250, { stroke: colors[i], strokeWidth: 2, fill: '#ffffff', rx: 10 }));
+      s.push(rect(x, 130, boxW, 8, { fill: colors[i], stroke: colors[i], rx: 0 }));
+      s.push(obj(defs[i].icons, x + boxW / 2 - 20, 160, 40, 40, { accent: colors[i] }));
+      s.push(txt(anchor(itemText(pt.title || pt), 4), x + boxW / 2, 230, { fontSize: 18, fontWeight: '800', color: colors[i], textAnchor: 'middle' }));
+      if (pt.detail) s.push(txt(anchor(pt.detail, 10), x + boxW / 2, 268, { fontSize: 11, fontWeight: '500', color: '#475569', textAnchor: 'middle' }));
+      const pros = (pt.pros || (i === 0 ? 'SEO-friendly' : i === 1 ? 'Rich interactivity' : 'Fastest TTFB'));
+      s.push(rect(x + 14, 300, boxW - 28, 26, { fill: '#f0fdf4', stroke: '#16a34a', strokeWidth: 1, rx: 4 }));
+      s.push(txt('\u2713 ' + anchor(pros, 6), x + boxW / 2, 320, { fontSize: 10, fontWeight: '600', color: '#166534', textAnchor: 'middle' }));
+      const cons = (pt.cons || (i === 0 ? 'Server load' : i === 1 ? 'Slower TTFB' : 'Less dynamic'));
+      s.push(rect(x + 14, 332, boxW - 28, 26, { fill: '#fee2e2', stroke: '#dc2626', strokeWidth: 1, rx: 4 }));
+      s.push(txt('\u2717 ' + anchor(cons, 6), x + boxW / 2, 352, { fontSize: 10, fontWeight: '600', color: '#991b1b', textAnchor: 'middle' }));
+    });
+    return s;
+  },
+});
+
+// ── P41. ERROR HANDLING PATTERNS ──────────────────────────────────────────────
+define({
+  id: 'prog_error_handling', intent: 'process', label: 'Error handling patterns',
+  capacity: { strategies: 4 },
+  fill(d, ctx) {
+    const p = PALETTES[4];
+    const s = [...header(ctx, p.accent)];
+    const strategies = (d.strategies || d.items || []).slice(0, 4);
+    const defs = ['Try/Catch', 'Result Type', 'Error Middleware', 'Fallback Value'];
+    const list = strategies.length ? strategies : defs.map((t) => ({ title: t }));
+    const boxW = 170, gap = 14;
+    const x0 = (W - boxW * 4 - gap * 3) / 2;
+    list.slice(0, 4).forEach((st, i) => {
+      const x = x0 + i * (boxW + gap);
+      s.push(rect(x, 160, boxW, 180, { stroke: p.accent, strokeWidth: 2, fill: '#ffffff', rx: 8 }));
+      s.push(rect(x, 160, boxW, 44, { fill: p.accent, stroke: p.accent, rx: 8 }));
+      s.push(obj(['shield', 'key', 'building', 'star'][i], x + boxW / 2 - 14, 168, 28, 28, { accent: '#ffffff' }));
+      s.push(txt(anchor(itemText(st.title || st), 4), x + boxW / 2, 224, { fontSize: 14, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
+      if (st.detail) {
+        s.push(txt(anchor(st.detail, 7), x + boxW / 2, 264, { fontSize: 11, fontWeight: '500', color: '#475569', textAnchor: 'middle' }));
+      }
+      if (st.code) {
+        s.push(rect(x + 8, 280, boxW - 16, 40, { fill: '#0f172a', stroke: '#0f172a', rx: 4 }));
+        s.push(txt(anchor(st.code, 4), x + boxW / 2, 304, { fontSize: 9, fontWeight: '600', color: '#22c55e', textAnchor: 'middle', fontFamily: 'monospace' }));
+      }
+    });
+    return s;
+  },
+});
+
+// ── P42. VERSION CONTROL CONCEPTS ─────────────────────────────────────────────
+define({
+  id: 'prog_version_control', intent: 'define', label: 'Version control concepts',
+  capacity: { concepts: 5 },
+  fill(d, ctx) {
+    const p = PALETTES[5];
+    const s = [...header(ctx, p.accent)];
+    const concepts = (d.concepts || d.items || []).slice(0, 5);
+    const defs = ['Repository', 'Commit', 'Branch', 'Merge', 'Remote'];
+    const list = concepts.length ? concepts : defs.map((t) => ({ title: t }));
+    const boxW = 700, boxH = 50, gap = 12;
+    const x = (W - boxW) / 2;
+    list.slice(0, 5).forEach((c, i) => {
+      const y = 120 + i * (boxH + gap);
+      s.push(rect(x, y, boxW, boxH, { stroke: p.accent, strokeWidth: 1.8, fill: i % 2 === 0 ? p.soft : '#ffffff', rx: 8 }));
+      const icons = ['folder', 'pencil_edit', 'flag', 'handshake', 'globe'];
+      s.push(obj(icons[i], x + 14, y + 10, 28, 28, { accent: p.accent }));
+      s.push(txt(anchor(itemText(c.title || c), 5), x + 56, y + 30, { fontSize: 15, fontWeight: '800', color: p.accent }));
+      if (c.detail) s.push(txt('\u2014 ' + anchor(c.detail, 10), x + 56, y + 30, { fontSize: 12, fontWeight: '500', color: '#475569' }));
+    });
+    return s;
+  },
+});

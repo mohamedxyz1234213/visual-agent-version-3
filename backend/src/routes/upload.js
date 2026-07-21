@@ -9,6 +9,7 @@ import { saveLessonPlan } from '../services/storyboardGenerator.js';
 import { synthesize } from '../services/ttsService.js';
 import { uploadFile, uploadAudio } from '../services/storageService.js';
 import { BLAZE_MODELS, getBlazeConfig, resolveBlazeModel } from '../services/blazeConfig.js';
+import { BLAZEAPI_MODELS, getBlazeAPIConfig } from '../services/blazeapiConfig.js';
 import { toUserFacingError } from '../utils/errors.js';
 import { reserveAiRequest, markAiRequestFinished, releaseAiRequest } from '../auth/services/aiQuota.js';
 import { requireAuth } from '../auth/middleware/auth.js';
@@ -41,16 +42,30 @@ const AI_PROVIDERS = [
     badge: null,
     models: BLAZE_MODELS,
   },
+  {
+    id: 'blazeapi',
+    label: 'BlazeAPI',
+    icon: '⚡',
+    name: 'BlazeAPI Gateway',
+    desc: 'OpenAI-compatible gateway to frontier models',
+    badge: 'New',
+    models: BLAZEAPI_MODELS,
+  },
 ];
 
 function normalizeProvider(raw) {
   const p = String(raw || '').trim().toLowerCase();
   if (p === 'deepseek') return 'blaze';
   if (p === 'blaze' || p === 'blazeai') return 'blaze';
+  if (p === 'blazeapi' || p === 'blaze-api') return 'blazeapi';
   return null;
 }
 
 function resolveAnalysisModel(aiProvider, fromBody) {
+  if (aiProvider === 'blazeapi') {
+    const { defaultModel } = getBlazeAPIConfig();
+    return String(fromBody || '').trim() || defaultModel;
+  }
   const { defaultDeepModel } = getBlazeConfig();
   return resolveBlazeModel(fromBody, defaultDeepModel);
 }

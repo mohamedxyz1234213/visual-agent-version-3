@@ -2,7 +2,19 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { requireAuth } from '../../auth/middleware/auth.js';
 import { requireRole } from '../middleware/roles.js';
-import { Student, AIConversation, Submission } from '../models/index.js';
+import { Student, AIConversation, Submission, Progress } from '../models/index.js';
+import { Lesson, LessonPart } from '../../models/Lesson.js';
+import { LessonSeries } from '../../models/LessonSeries.js';
+import { planLessonSeries } from '../../services/aiPlanner.js';
+import { saveLessonPlan } from '../../services/storyboardGenerator.js';
+import { synthesize } from '../../services/ttsService.js';
+import { uploadAudio } from '../../services/storageService.js';
+import { reserveAiRequest } from '../../auth/services/aiQuota.js';
+import { AiRequestLog } from '../../auth/models/index.js';
+import { toUserFacingError } from '../../utils/errors.js';
+import { getBlazeConfig, resolveBlazeModel } from '../../services/blazeConfig.js';
+import { resolveBlazeAPIModel } from '../../services/blazeapiConfig.js';
+import { processVoice, submitCode, startSession } from '../../services/fastapiClient.js';
 
 const router = Router();
 
@@ -140,81 +152,130 @@ router.post('/feedback', requireRole('student'), async (req, res, next) => {
   }
 });
 
+// ── Helpers for provider resolution ───────────────────────────────────────────
+function normalizeProvider(raw) {
+  const p = String(raw || '').trim().toLowerCase();
+  if (p === 'deepseek') return 'blaze';
+  if (p === 'blaze' || p === 'blazeai') return 'blaze';
+  if (p === 'blazeapi' || p === 'blaze-api' || p === 'api-blaze') return 'blazeapi';
+  return null;
+}
+
+function resolveModel(provider, fromBody) {
+  if (provider === 'blazeapi') {
+    return resolveBlazeAPIModel(fromBody);
+  }
+  const { defaultDeepModel } = getBlazeConfig();
+  return resolveBlazeModel(fromBody, defaultDeepModel);
+}
+
+function scheduleBackgroundTask(label, task) {
+  setImmediate(() => {
+    Promise.resolve()
+      .then(task)
+      .catch((err) => {
+        console.error(`[ai.routes] Background task failed: ${label}`, err);
+      });
+  });
+}
+
 // ── POST /api/v1/ai/generate-lesson ───────────────────────────────────────────
 router.post('/generate-lesson', requireRole('teacher', 'admin'), async (req, res, next) => {
   try {
-    const { topic, subjectId, difficulty, duration, style } = req.body;
+    const { topic, subjectId, studentId } = req.body;
     if (!topic) return res.status(400).json({ error: 'Topic is required' });
 
-    const diff = difficulty || 'beginner';
-    const mins = duration || 30;
-    const teachStyle = style || 'explain';
+    let adaptationCtx = '';
+    if (studentId) {
+      try {
+        const student = await Student.findById(studentId).lean();
+        if (student) {
+          const profile = student.learningProfile || {};
+          const parts = [];
+          if (profile.experienceLevel) parts.push(`Student experience level: ${profile.experienceLevel}`);
+          if (profile.learningStyle) parts.push(`Learning style: ${profile.learningStyle}`);
+          if (profile.pacing) parts.push(`Pacing preference: ${profile.pacing}`);
+          if (student.weaknesses?.length) parts.push(`Areas needing improvement: ${student.weaknesses.join(', ')}`);
+          if (student.strengths?.length) parts.push(`Known strengths: ${student.strengths.join(', ')}`);
+          if (student.level) parts.push(`Student level (XP-based): ${student.level}`);
+          const progress = await Progress.findOne({ studentId: student._id, subjectId }).lean();
+          if (progress?.conceptMastery?.length) {
+            const weak = progress.conceptMastery.filter(c => c.proficiency < 50).map(c => c.concept);
+            if (weak.length) parts.push(`Concepts needing review: ${weak.join(', ')}`);
+            const strong = progress.conceptMastery.filter(c => c.proficiency >= 80).map(c => c.concept);
+            if (strong.length) parts.push(`Mastered concepts: ${strong.join(', ')}`);
+          }
+          if (parts.length) adaptationCtx = '[STUDENT ADAPTATION] ' + parts.join(' | ');
+        }
+      } catch (adaptErr) {
+        console.warn(`Failed to load adaptation data for student ${studentId}:`, adaptErr.message);
+      }
+    }
 
-    const dummyExercises = [
-      {
-        title: `Basic ${topic} Exercise`,
-        description: `Write a simple program that demonstrates ${topic}`,
-        starterCode: '// Write your code here\n',
-        difficulty: 'easy',
-        type: 'free-code',
-        xpReward: 20,
-      },
-      {
-        title: `Intermediate ${topic} Practice`,
-        description: `Apply ${topic} concepts to solve a practical problem`,
-        starterCode: '// Starter code\n',
-        difficulty: 'medium',
-        type: 'fill-code',
-        xpReward: 35,
-      },
-    ];
+    const diff = req.body.difficulty || 'beginner';
+    const mins = req.body.duration || 30;
+    const style = req.body.style || 'explain';
+    const baseInstructions = `Topic: ${topic} | Difficulty: ${diff} | Duration: ${mins}min | Style: ${style}`;
+    const userInstructions = adaptationCtx ? `${baseInstructions} | ${adaptationCtx}` : baseInstructions;
 
-    const lesson = {
-      _id: 'lesson_' + Date.now(),
+    const aiProvider = normalizeProvider(req.body.ai_provider)
+      || normalizeProvider(process.env.ACTIVE_LLM)
+      || 'blaze';
+    const analysisModel = resolveModel(aiProvider, req.body.analysis_model);
+
+    const { log: aiLog } = await reserveAiRequest({
+      user: req.user,
+      type: 'generate-lesson',
+      provider: aiProvider,
+      model: analysisModel,
+      sourceFilename: 'ai-generate',
+      req,
+    });
+
+    const series = await LessonSeries.create({
+      userInstructions,
+      analysisModel,
+      sourceFilename: `topic-${topic.replace(/[^a-zA-Z0-9 ]/g, '').trim().slice(0, 40)}`,
+      totalLessons: 1,
+      completedLessons: 0,
+    });
+
+    const lesson = await Lesson.create({
       title: topic,
-      subjectId: subjectId || null,
-      difficulty: diff,
-      duration: mins,
-      style: teachStyle,
-      status: 'draft',
-      isPublished: false,
-      createdAt: new Date().toISOString(),
-      content: `# ${topic}\n\n## Overview\nThis lesson covers the fundamentals of ${topic} at a ${diff} level. ` +
-        `You will learn core concepts, best practices, and real-world applications.\n\n` +
-        `## Prerequisites\n- Basic programming knowledge\n- Familiarity with variables and functions\n` +
-        `## Key Concepts\n1. Introduction to ${topic}\n2. Core principles and theory\n3. Practical implementation\n4. Common patterns and best practices\n5. Advanced techniques\n\n` +
-        `## Detailed Content\nIn this lesson, we'll explore ${topic} in depth. ` +
-        `You'll understand how it works, why it's important, and how to use it effectively in your projects.\n\n` +
-        `### Section 1: Getting Started\nLet's begin with the basics of ${topic}. We'll cover the fundamental concepts ` +
-        `that form the foundation of this topic.\n\n` +
-        `### Section 2: Core Concepts\nDive deeper into the key ideas behind ${topic}. ` +
-        `Understanding these concepts is crucial for mastering this subject.\n\n` +
-        `### Section 3: Practical Application\nNow let's apply what we've learned with real-world examples and hands-on exercises.`,
-      objectives: [
-        `Understand the fundamentals of ${topic}`,
-        `Apply ${topic} concepts in practical scenarios`,
-        `Build projects using ${topic}`,
-        `Debug and troubleshoot common ${topic} issues`,
-      ],
-      codeSnippets: [
-        {
-          language: 'javascript',
-          code: `// Example: Getting started with ${topic}\nfunction demonstrate() {\n  console.log("Learning " + "${topic}");\n}\n\ndemonstrate();`,
-          explanation: `A simple example to demonstrate ${topic} concepts`,
-        },
-        {
-          language: 'javascript',
-          code: `// Advanced ${topic} example\nclass TopicHandler {\n  constructor() {\n    this.data = [];\n  }\n  \n  process(input) {\n    return input.map(item => item.toUpperCase());\n  }\n}`,
-          explanation: `An advanced example showing ${topic} patterns in practice`,
-        },
-      ],
-      exercises: dummyExercises,
-      tags: [topic.toLowerCase(), diff, 'ai-generated'],
-      estimatedTime: mins,
-      totalExercises: dummyExercises.length,
-    };
+      sourceFilename: 'ai-generate',
+      subject: subjectId || null,
+      aiProvider,
+      analysisModel,
+      seriesId: series._id,
+      lessonIndex: 0,
+      totalLessons: 1,
+      status: 'processing',
+      ownerId: req.user._id,
+    });
 
-    res.json({ lesson });
+    if (aiLog) {
+      await AiRequestLog.updateOne({ _id: aiLog._id }, { $set: { lessonId: lesson._id, seriesId: series._id } });
+    }
+
+    scheduleBackgroundTask(`generate lesson ${lesson._id}`, () =>
+      processGeneratedLesson(
+        lesson._id.toString(),
+        series._id.toString(),
+        topic,
+        req.body,
+        analysisModel,
+        aiProvider,
+        aiLog?._id?.toString(),
+      )
+    );
+
+    res.status(202).json({
+      id: lesson._id.toString(),
+      series_id: series._id.toString(),
+      topic,
+      status: 'processing',
+      parts_count: 0,
+    });
   } catch (err) {
     next(err);
   }
@@ -245,13 +306,48 @@ router.post('/generate-exercise', requireRole('teacher', 'admin'), async (req, r
 // ── POST /api/v1/ai/voice ─────────────────────────────────────────────────────
 router.post('/voice', requireRole('student'), async (req, res, next) => {
   try {
-    const { text, dialect } = req.body;
-    if (!text) return res.status(400).json({ error: 'Text is required' });
+    const { text, dialect, audio } = req.body;
+    if (!text && !audio) return res.status(400).json({ error: 'Text or audio data is required' });
+
+    if (audio) {
+      const result = await processVoice({ audio, dialect: dialect || 'msa' });
+      return res.json({ transcript: result.text || result.transcript, audioUrl: result.audio_url || null, emotion: result.emotion || 'neutral' });
+    }
 
     res.json({
       audioUrl: null,
+      text,
       duration: Math.ceil(text.length / 15),
-      message: 'Voice generation requires ElevenLabs API key',
+      message: 'Voice generation requires FastAPI endpoint with TTS configured; text received.',
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── POST /api/v1/ai/code ──────────────────────────────────────────────────────
+router.post('/code', requireRole('student'), async (req, res, next) => {
+  try {
+    const { code, exerciseId, language } = req.body;
+    if (!code) return res.status(400).json({ error: 'Code is required' });
+
+    const result = await submitCode(code, exerciseId || null).catch(() => null);
+    if (result) {
+      return res.json({
+        passed: result.passed ?? result.status === 'passed',
+        output: result.output || result.stdout || '',
+        errors: result.errors || result.stderr || '',
+        testResults: result.test_results || result.tests || [],
+        executionTime: result.execution_time || null,
+      });
+    }
+
+    res.json({
+      passed: false,
+      output: '',
+      errors: 'Code execution service not available. Ensure FastAPI is running.',
+      testResults: [],
+      executionTime: null,
     });
   } catch (err) {
     next(err);
@@ -367,6 +463,83 @@ function generateFeedback(submission) {
       encouragement: 'كل خطوة تقربك من الهدف!',
     },
   };
+}
+
+// ── Background lesson generation ──────────────────────────────────────────────
+async function processGeneratedLesson(lessonId, seriesId, topic, body, analysisModel, aiProvider, aiLogId = null) {
+  try {
+    const lesson = await Lesson.findById(lessonId);
+    if (!lesson) return;
+
+    const diff = body.difficulty || 'beginner';
+    const mins = body.duration || 30;
+    const teachStyle = body.style || 'explain';
+
+    const series = await LessonSeries.findById(seriesId);
+    const userInstructions = series?.userInstructions
+      || `Topic: ${topic} | Difficulty: ${diff} | Duration: ${mins}min | Style: ${teachStyle}`;
+
+    await Lesson.findByIdAndUpdate(lessonId, { processingStep: 'planning_outline' });
+
+    const hasAdaptation = userInstructions.includes('[STUDENT ADAPTATION]');
+    const seedText = hasAdaptation
+      ? userInstructions
+      : `Create a detailed lesson plan about "${topic}" at ${diff} level lasting ${mins} minutes. Teaching style: ${teachStyle}. Include: 1) Learning objectives, 2) Prerequisites, 3) Core concepts with explanations, 4) Worked examples, 5) Practice exercises, 6) Summary and key takeaways. The lesson should be engaging and pedagogically sound.`;
+
+    const { firstLesson, remainingSpecs, totalLessons } = await planLessonSeries(
+      seedText,
+      userInstructions,
+      analysisModel,
+      async (step) => {
+        await Lesson.findByIdAndUpdate(lessonId, { processingStep: step });
+      },
+      aiProvider,
+      'full_lesson',
+      'topic',
+      'teach',
+    );
+
+    lesson.seriesId = seriesId;
+    lesson.lessonIndex = 0;
+    lesson.totalLessons = totalLessons;
+    await lesson.save();
+
+    await LessonSeries.findByIdAndUpdate(seriesId, { totalLessons, remainingSpecs, completedLessons: 0 });
+
+    await Lesson.findByIdAndUpdate(lessonId, { processingStep: 'saving' });
+    await saveLessonPlan(lesson, firstLesson);
+
+    await Lesson.findByIdAndUpdate(lessonId, { processingStep: 'finalizing' });
+    const parts = await LessonPart.find({ lessonId: lesson._id });
+    for (const part of parts) {
+      if (part.narration && part.partType === 'content') {
+        try {
+          const audio = await synthesize(part.narration, part._id.toString());
+          if (audio) {
+            const url = await uploadAudio(audio, part._id.toString());
+            if (url) { part.audioUrl = url; await part.save(); }
+          }
+        } catch (ttsErr) {
+          console.warn(`TTS failed for part ${part._id}:`, ttsErr.message);
+        }
+      }
+    }
+
+    lesson.status = 'ready';
+    lesson.processingStep = 'done';
+    await lesson.save();
+    await LessonSeries.findByIdAndUpdate(seriesId, { $inc: { completedLessons: 1 } });
+
+    if (aiLogId) {
+      await AiRequestLog.updateOne({ _id: aiLogId }, { $set: { status: 'completed' } });
+    }
+  } catch (err) {
+    console.error(`AI lesson generation failed for ${lessonId}:`, err);
+    await Lesson.findByIdAndUpdate(lessonId, { status: 'error', errorMessage: toUserFacingError(err) });
+    if (aiLogId) {
+      await AiRequestLog.updateOne({ _id: aiLogId }, { $set: { status: 'failed', errorMessage: toUserFacingError(err) } });
+    }
+  }
 }
 
 export default router;

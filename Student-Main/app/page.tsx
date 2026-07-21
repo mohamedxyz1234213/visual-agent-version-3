@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { fetchMe, type SafeUser } from "@/lib/api";
 import { AnimatedLogo } from "@/components/shared/AnimatedLogo";
 
@@ -106,6 +106,24 @@ function IconSearch({ className = "w-5 h-5" }: { className?: string }) {
 export default function HomePage() {
   const [user, setUser] = useState<SafeUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const rolesRef = useRef<HTMLDivElement>(null);
+  const [rolesVisible, setRolesVisible] = useState(false);
+
+  useEffect(() => {
+    const el = rolesRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setRolesVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.15 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     fetchMe()
@@ -131,7 +149,7 @@ export default function HomePage() {
       <nav className="flex items-center justify-between px-8 py-5 bg-white border-b border-[#E5E5E5]">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 flex items-center justify-center">
-            <AnimatedLogo size={22} className="text-[#D6F63E]" />
+            <AnimatedLogo size={55} className="text-[#D6F63E]" />
           </div>
           <span className="text-xl font-bold tracking-tight text-[#0F0F0F]">
             CodeBuddy
@@ -215,7 +233,8 @@ export default function HomePage() {
       </section>
 
       {/* ── Features Grid ───────────────────────────────────────────── */}
-      <section className="max-w-6xl mx-auto px-8 pb-24">
+      <section className="bg-white py-24">
+        <div className="max-w-6xl mx-auto px-8">
         <h2 className="text-3xl font-bold text-center mb-14 text-[#0F0F0F]">
           Everything You Need to Learn
         </h2>
@@ -254,9 +273,9 @@ export default function HomePage() {
           ].map((f) => (
             <div
               key={f.title}
-              className="flux-card hover:shadow-card-hover transition-shadow"
+              className="bg-white rounded-2xl p-5 border border-[#E5E5E5] shadow-sm hover:shadow-lg transition-all"
             >
-              <div className="flux-icon-chip mb-4">{f.icon}</div>
+              <div className="bg-[#F5F5F5] w-9 h-9 rounded-full flex items-center justify-center mb-4">{f.icon}</div>
               <h3 className="text-base font-semibold mb-2 text-[#0F0F0F]">
                 {f.title}
               </h3>
@@ -265,17 +284,26 @@ export default function HomePage() {
               </p>
             </div>
           ))}
+          </div>
         </div>
       </section>
 
       {/* ── Roles Section ───────────────────────────────────────────── */}
-      <section className="bg-gradient-to-br from-[#F8F5FF] to-[#EDEDED] py-24">
+      <section ref={rolesRef} className="bg-gradient-to-br from-[#F8F5FF] to-[#EDEDED] py-24">
         <div className="max-w-6xl mx-auto px-8">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#C4B5F5]/20 rounded-full text-[13px] font-semibold mb-4 mx-auto w-fit text-[#7C3AED]">
+          <div
+            className={`inline-flex items-center gap-2 px-4 py-1.5 bg-[#C4B5F5]/20 rounded-full text-[13px] font-semibold mb-4 mx-auto w-fit text-[#7C3AED] transition-all duration-700 ease-out ${
+              rolesVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+            }`}
+          >
             <IconUsers className="w-3.5 h-3.5" />
             Who We Serve
           </div>
-          <h2 className="text-3xl font-bold text-center mb-14 text-[#0F0F0F]">
+          <h2
+            className={`text-3xl font-bold text-center mb-14 text-[#0F0F0F] transition-all duration-700 ease-out delay-100 ${
+              rolesVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+            }`}
+          >
             Built for Everyone
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -304,10 +332,15 @@ export default function HomePage() {
                 desc: "View your child's progress, grades, and learning activity.",
                 features: ["Progress tracking", "Performance reports", "Activity updates"],
               },
-            ].map((r) => (
+            ].map((r, idx) => (
               <div
                 key={r.role}
-                className="bg-white rounded-2xl p-6 border border-[#E5E5E5] hover:border-[#D6D6D6] hover:shadow-lg transition-all group"
+                className={`bg-white rounded-2xl p-6 border border-[#E5E5E5] hover:border-[#D6D6D6] hover:shadow-lg transition-all duration-700 ease-out group ${
+                  rolesVisible
+                    ? "opacity-100 translate-y-0"
+                    : "opacity-0 translate-y-8"
+                }`}
+                style={{ transitionDelay: `${200 + idx * 150}ms` }}
               >
                 <div className={`w-14 h-14 rounded-2xl ${r.bgLight} flex items-center justify-center mb-5 group-hover:scale-110 transition-transform`}>
                   <span style={{ color: r.accent }}>{r.icon}</span>
