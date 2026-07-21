@@ -4,7 +4,7 @@ import { useChallenges } from "@/features/student/hooks";
 import { IconTrophy, IconUsers, IconCoin } from "@/components/shared/FluxIcons";
 
 export default function ChallengesPage() {
-  const { challenges, loading } = useChallenges();
+  const { challenges, loading, join } = useChallenges();
 
   return (
     <div className="space-y-6">

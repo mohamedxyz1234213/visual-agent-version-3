@@ -109,7 +109,7 @@ function NewUserModal({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"user" | "admin" | "student" | "teacher" | "super-admin">("user");
+  const [role, setRole] = useState<"user" | "admin" | "student" | "teacher">("user");
   const [maxAi, setMaxAi] = useState(3);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -155,7 +155,7 @@ function NewUserModal({ onClose }: { onClose: () => void }) {
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Role">
-            <select value={role} onChange={(e) => setRole(e.target.value as "user" | "admin" | "student" | "teacher" | "super-admin")} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+            <select value={role} onChange={(e) => setRole(e.target.value as "user" | "admin" | "student" | "teacher")} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
               <option value="user">User</option>
               <option value="admin">Admin</option>
               <option value="student">Student</option>
@@ -177,7 +177,7 @@ function EditUserModal({ user, onClose, onSaved }: { user: AdminUser; onClose: (
   const [max, setMax] = useState(user.max_ai_requests);
   const [used, setUsed] = useState(user.ai_requests_used);
   const [status, setStatus] = useState<"active" | "disabled">(user.status);
-  const [role, setRole] = useState<"user" | "admin" | "student" | "teacher" | "super-admin">(user.role);
+  const [role, setRole] = useState<"user" | "admin" | "student" | "teacher">(user.role === "super-admin" ? "admin" : (user.role as "user" | "admin" | "student" | "teacher"));
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -241,7 +241,7 @@ function EditUserModal({ user, onClose, onSaved }: { user: AdminUser; onClose: (
             </select>
           </Field>
           <Field label="Role">
-            <select value={role} onChange={(e) => setRole(e.target.value as "user" | "admin" | "student" | "teacher" | "super-admin")} disabled={isSelf} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm disabled:opacity-50">
+            <select value={role} onChange={(e) => setRole(e.target.value as "user" | "admin" | "student" | "teacher")} disabled={isSelf} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm disabled:opacity-50">
               <option value="user">User</option>
               <option value="admin">Admin</option>
             </select>

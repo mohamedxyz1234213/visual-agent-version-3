@@ -5,6 +5,8 @@ const request = apiRequest;
 
 import type { TeacherDashboard, TeacherLesson, TeacherExercise, TeacherExam, TeacherSubmission, ClassData } from "./types";
 
+export type { TeacherDashboard, TeacherLesson, TeacherExercise, TeacherExam, TeacherSubmission, ClassData } from "./types";
+
 export async function getTeacherDashboard(): Promise<TeacherDashboard> {
   return request("/teacher/dashboard");
 }

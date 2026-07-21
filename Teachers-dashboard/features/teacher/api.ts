@@ -113,8 +113,8 @@ export async function getAnalytics(classId: string): Promise<any> {
   return request(`/teacher/analytics/${classId}`);
 }
 
-export async function generateAILesson(topic: string, subjectId?: string, difficulty?: string): Promise<{ lesson: any }> {
-  return request("/ai/generate-lesson", { method: "POST", body: JSON.stringify({ topic, subjectId, difficulty }) });
+export async function generateAILesson(topic: string, subjectId?: string, difficulty?: string, duration?: number, style?: string): Promise<{ lesson: any }> {
+  return request("/ai/generate-lesson", { method: "POST", body: JSON.stringify({ topic, subjectId, difficulty, duration, style }) });
 }
 
 export async function generateAIExercise(topic: string, difficulty?: string, type?: string): Promise<{ exercise: any }> {

@@ -3,6 +3,17 @@
 import { useProgress } from "@/features/student/hooks";
 import { IconTrending, IconBook } from "@/components/shared/FluxIcons";
 
+interface ConceptMasteryItem { concept: string; proficiency: number }
+interface SubjectProgressItem {
+  subjectId?: { name?: string; color?: string };
+  lessonCompletions?: any[];
+  exerciseStats?: { total?: number; passed?: number };
+  overallCompletion: number;
+  examScores?: any[];
+  timeSpent?: number;
+  conceptMastery?: ConceptMasteryItem[];
+}
+
 export default function ProgressPage() {
   const { progress, loading } = useProgress();
 
@@ -25,7 +36,7 @@ export default function ProgressPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {progress.map((p, i) => (
+          {progress.map((p: SubjectProgressItem, i: number) => (
             <div key={i} className="bg-white rounded-2xl p-6 shadow-sm">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center"
@@ -58,11 +69,11 @@ export default function ProgressPage() {
                   <p className="text-xs text-gray-500">Time</p>
                 </div>
               </div>
-              {p.conceptMastery?.length > 0 && (
+              {p.conceptMastery && p.conceptMastery.length > 0 && (
                 <div className="mt-4 pt-3 border-t border-gray-100">
                   <p className="text-xs font-semibold text-gray-500 mb-2">Concept Mastery</p>
                   <div className="space-y-2">
-                    {p.conceptMastery.slice(0, 4).map((c, j) => (
+                    {(p.conceptMastery || []).slice(0, 4).map((c: ConceptMasteryItem, j: number) => (
                       <div key={j}>
                         <div className="flex items-center justify-between mb-0.5">
                           <span className="text-xs text-gray-600">{c.concept}</span>

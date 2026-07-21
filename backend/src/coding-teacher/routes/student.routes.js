@@ -6,6 +6,158 @@ import { executeCode, calculateScore, determineStatus } from '../services/code-e
 import { User } from '../../auth/models/index.js';
 
 const router = Router();
+const publicRouter = Router();
+
+// ── Public search endpoint (no auth required) ──────────────────────────────────
+// Public search for students/parents by phone, nationalId, or studentCode
+// Returns complete student insights for the dashboard view
+publicRouter.get('/search', async (req, res, next) => {
+  try {
+    const { q, type } = req.query;
+    if (!q || !type) {
+      return res.status(400).json({ error: 'Search query (q) and type (phone|nationalId|code) are required' });
+    }
+
+    let filter = {};
+    const query = String(q).trim();
+
+    if (type === 'phone') {
+      filter = { parentPhone: query, status: 'active' };
+    } else if (type === 'nationalId') {
+      if (!/^\d{14}$/.test(query)) {
+        return res.status(400).json({ error: 'National ID must be exactly 14 digits' });
+      }
+      filter = { nationalId: query, status: 'active' };
+    } else if (type === 'code') {
+      filter = { studentCode: query.toUpperCase(), status: 'active' };
+    } else {
+      return res.status(400).json({ error: 'Invalid search type. Use: phone, nationalId, or code' });
+    }
+
+    const student = await Student.findOne(filter)
+      .populate('userId', 'username email')
+      .populate('schoolYearId', 'name grade')
+      .lean();
+
+    if (!student) {
+      return res.status(404).json({ error: 'No active student found with those details' });
+    }
+
+    // Full insights
+    const [progress, submissions, achievements] = await Promise.all([
+      Progress.find({ studentId: student._id })
+        .populate('subjectId', 'name color')
+        .lean(),
+      Submission.find({ studentId: student._id })
+        .sort({ createdAt: -1 })
+        .limit(20)
+        .populate('exerciseId', 'title difficulty type')
+        .lean(),
+      Achievement.find({ studentId: student._id })
+        .sort({ unlockedAt: -1 })
+        .lean(),
+    ]);
+
+    // Calculate stats
+    const passedSubmissions = submissions.filter((s) => s.status === 'passed');
+    const totalScore = submissions.reduce((sum, s) => sum + (s.score || 0), 0);
+    const avgScore = submissions.length > 0 ? Math.round(totalScore / submissions.length) : 0;
+
+    // Weekly activity
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const weeklyActivity = await Submission.aggregate([
+      { $match: { studentId: student._id, createdAt: { $gte: sevenDaysAgo } } },
+      { $group: { _id: { $dayOfWeek: '$createdAt' }, count: { $sum: 1 } } },
+    ]);
+
+    const countMap = {};
+    weeklyActivity.forEach((d) => { countMap[d._id] = d.count; });
+    const dailyActivity = [];
+    for (let i = 0; i < 7; i++) {
+      const mongoDay = ((i + 1) % 7) + 1;
+      dailyActivity.push({ day: i, count: countMap[mongoDay] || 0 });
+    }
+
+    // Subject progress breakdown
+    const subjectProgress = progress.map((p) => ({
+      subjectId: p.subjectId,
+      completion: p.overallCompletion || 0,
+      timeSpent: p.timeSpent || 0,
+      exercisesCompleted: p.exercisesCompleted || 0,
+    }));
+
+    // Last 7 days scores for mini chart
+    const recentScores = submissions.slice(0, 7).map((s) => ({
+      date: s.createdAt,
+      score: s.score,
+      title: s.exerciseId?.title || 'Exercise',
+      status: s.status,
+    }));
+
+    // Consistency score
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const thirtyDaySubmissions = await Submission.find({
+      studentId: student._id,
+      createdAt: { $gte: thirtyDaysAgo },
+    }).lean();
+    const uniqueDays = new Set(thirtyDaySubmissions.map((s) => new Date(s.createdAt).toDateString()));
+    const consistencyScore = Math.round((uniqueDays.size / 30) * 100);
+
+    // Strengths & weaknesses from submissions
+    const subjectScores = {};
+    submissions.forEach((s) => {
+      const name = s.exerciseId?.title || 'General';
+      if (!subjectScores[name]) subjectScores[name] = { total: 0, count: 0 };
+      subjectScores[name].total += s.score || 0;
+      subjectScores[name].count += 1;
+    });
+
+    const topicStrengths = [];
+    const topicWeaknesses = [];
+    Object.entries(subjectScores).forEach(([name, data]) => {
+      const avg = Math.round(data.total / data.count);
+      if (avg >= 70) topicStrengths.push({ topic: name, score: avg });
+      else topicWeaknesses.push({ topic: name, score: avg });
+    });
+
+    res.json({
+      student: {
+        code: student.studentCode,
+        username: student.userId?.username || 'Unknown',
+        email: student.userId?.email || '',
+        parentPhone: student.parentPhone,
+        schoolYear: student.schoolYearId,
+        section: student.section,
+        dateOfBirth: student.dateOfBirth,
+        createdAt: student.createdAt,
+      },
+      stats: {
+        xp: student.xp,
+        level: student.level,
+        streak: student.streak,
+        longestStreak: student.longestStreak,
+        coins: student.coins,
+        totalLessonsCompleted: student.totalLessonsCompleted,
+        totalExercisesCompleted: student.totalExercisesCompleted,
+        averageScore: avgScore,
+        totalTimeSpent: student.totalTimeSpent,
+        consistencyScore,
+        passedSubmissions: passedSubmissions.length,
+        totalSubmissions: submissions.length,
+        weeklyXP: student.weeklyXP || 0,
+      },
+      progress: subjectProgress,
+      achievements,
+      recentSubmissions: submissions.slice(0, 10),
+      recentScores,
+      weeklyActivity: dailyActivity,
+      strengths: topicStrengths.slice(0, 5),
+      weaknesses: topicWeaknesses.slice(0, 5),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // All student routes require auth + student role
 router.use(requireAuth);
@@ -510,4 +662,245 @@ router.put('/settings', requireRole('student'), async (req, res, next) => {
   }
 });
 
-export default router;
+// ── GET /api/v1/student/adaptive-onboarding-status ────────────────────────────
+// Check if the student has completed their learning style onboarding
+router.get('/adaptive-onboarding-status', requireRole('student'), async (req, res, next) => {
+  try {
+    const student = await Student.findOne({ userId: req.userId }).lean();
+    if (!student) return res.status(404).json({ error: 'Student profile not found' });
+
+    res.json({
+      onboardingCompleted: student.onboardingCompleted || false,
+      learningProfile: student.learningProfile || {},
+      completedAt: student.onboardingCompletedAt || null,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── POST /api/v1/student/adaptive-onboarding ───────────────────────────────────
+// Submit the 5 learning style questions to create the student's adaptive profile
+router.post('/adaptive-onboarding', requireRole('student'), async (req, res, next) => {
+  try {
+    const student = await Student.findOne({ userId: req.userId });
+    if (!student) return res.status(404).json({ error: 'Student profile not found' });
+
+    const { learningStyle, pacing, practiceFrequency, problemSolvingApproach, experienceLevel } = req.body;
+
+    // Validate required fields
+    if (!learningStyle || !pacing || !practiceFrequency || !problemSolvingApproach || !experienceLevel) {
+      return res.status(400).json({ error: 'All 5 learning profile fields are required' });
+    }
+
+    // Save learning profile
+    student.learningProfile = {
+      learningStyle,
+      pacing,
+      practiceFrequency,
+      problemSolvingApproach,
+      experienceLevel,
+    };
+    student.onboardingCompleted = true;
+    student.onboardingCompletedAt = new Date();
+
+    // Set initial preferences based on learning profile
+    student.preferences = {
+      ...student.preferences,
+      difficulty: experienceLevel === 'absolute-beginner' ? 'beginner'
+        : experienceLevel === 'some-experience' ? 'beginner'
+        : experienceLevel === 'intermediate' ? 'intermediate'
+        : 'advanced',
+    };
+
+    await student.save();
+
+    res.json({
+      ok: true,
+      learningProfile: student.learningProfile,
+      message: 'Learning profile saved successfully!',
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── GET /api/v1/student/adaptive-path ──────────────────────────────────────────
+// Get personalized learning recommendations based on the student's learning profile
+router.get('/adaptive-path', requireRole('student'), async (req, res, next) => {
+  try {
+    const student = await Student.findOne({ userId: req.userId }).lean();
+    if (!student) return res.status(404).json({ error: 'Student profile not found' });
+
+    const profile = student.learningProfile || {};
+    const weaknesses = student.weaknesses || [];
+    const strengths = student.strengths || [];
+
+    // Generate recommendations based on learning profile
+    const recommendations = [];
+
+    // Pacing recommendation
+    if (profile.pacing === 'slow') {
+      recommendations.push({
+        type: 'pacing',
+        title: 'Take Your Time',
+        description: 'We recommend shorter lessons with plenty of breaks. Master each concept before moving on.',
+        icon: 'clock',
+        action: 'Set study sessions to 20-30 minutes',
+      });
+    } else if (profile.pacing === 'fast') {
+      recommendations.push({
+        type: 'pacing',
+        title: 'Accelerated Path',
+        description: 'You learn fast! We recommend skipping the basics and jumping into advanced topics.',
+        icon: 'zap',
+        action: 'Start with intermediate difficulty',
+      });
+    } else {
+      recommendations.push({
+        type: 'pacing',
+        title: 'Balanced Approach',
+        description: 'A steady mix of theory and practice at a moderate pace works best for you.',
+        icon: 'trending',
+        action: 'Try 40-minute study sessions',
+      });
+    }
+
+    // Learning style recommendation
+    if (profile.learningStyle === 'visual') {
+      recommendations.push({
+        type: 'style',
+        title: 'Visual Learning',
+        description: 'We will use diagrams, flowcharts, and visual explanations to help you understand concepts.',
+        icon: 'eye',
+        action: 'Enable visual whiteboard mode',
+      });
+    } else if (profile.learningStyle === 'reading') {
+      recommendations.push({
+        type: 'style',
+        title: 'Reading & Text',
+        description: 'We will provide detailed written explanations and documentation-style lessons.',
+        icon: 'book',
+        action: 'Explore text-heavy lessons',
+      });
+    } else if (profile.learningStyle === 'hands-on') {
+      recommendations.push({
+        type: 'style',
+        title: 'Hands-On Learning',
+        description: 'Jump straight into coding! We emphasize exercises, projects, and real code from the start.',
+        icon: 'code',
+        action: 'Start with coding exercises',
+      });
+    } else if (profile.learningStyle === 'video') {
+      recommendations.push({
+        type: 'style',
+        title: 'Video & Narration',
+        description: 'We recommend video explanations and the AI teacher feature for narrated lessons.',
+        icon: 'play',
+        action: 'Try the AI avatar teacher',
+      });
+    }
+
+    // Practice frequency recommendation
+    if (profile.practiceFrequency === 'high') {
+      recommendations.push({
+        type: 'practice',
+        title: 'Practice Heavy',
+        description: 'You need lots of practice. We will generate extra exercises for every concept you learn.',
+        icon: 'target',
+        action: 'Complete 5+ exercises per lesson',
+      });
+    } else if (profile.practiceFrequency === 'low') {
+      recommendations.push({
+        type: 'practice',
+        title: 'Light Practice',
+        description: 'A few key exercises will be enough. Focus more on understanding the concepts.',
+        icon: 'check',
+        action: 'Complete 1-2 key exercises per lesson',
+      });
+    } else {
+      recommendations.push({
+        type: 'practice',
+        title: 'Moderate Practice',
+        description: 'A balanced mix of concept learning and practice exercises.',
+        icon: 'star',
+        action: 'Complete 3 exercises per lesson',
+      });
+    }
+
+    // Problem-solving approach recommendation
+    if (profile.problemSolvingApproach === 'research') {
+      recommendations.push({
+        type: 'approach',
+        title: 'Research & Learn',
+        description: 'You prefer finding answers yourself. We will provide links to documentation and resources.',
+        icon: 'search',
+        action: 'Try self-guided research challenges',
+      });
+    } else if (profile.problemSolvingApproach === 'ask-help') {
+      recommendations.push({
+        type: 'approach',
+        title: 'Collaborative',
+        description: 'You learn by asking questions. The AI teacher avatar is perfect for you!',
+        icon: 'message',
+        action: 'Chat with the AI teacher',
+      });
+    } else if (profile.problemSolvingApproach === 'debug') {
+      recommendations.push({
+        type: 'approach',
+        title: 'Debugger Mindset',
+        description: 'You learn by fixing broken code. We will give you buggy code to debug.',
+        icon: 'terminal',
+        action: 'Try find-bug type exercises',
+      });
+    } else if (profile.problemSolvingApproach === 'break') {
+      recommendations.push({
+        type: 'approach',
+        title: 'Reflective Learner',
+        description: 'You learn best after stepping away. We recommend spaced repetition for your study plan.',
+        icon: 'clock',
+        action: 'Try spaced repetition schedule',
+      });
+    }
+
+    // Weakness-based recommendations
+    weaknesses.slice(0, 3).forEach((w) => {
+      recommendations.push({
+        type: 'weakness',
+        title: `Review: ${w}`,
+        description: `This area needs practice. We recommend reviewing the fundamentals of ${w}.`,
+        icon: 'target',
+        action: 'Start review lesson',
+      });
+    });
+
+    res.json({
+      profile: {
+        learningStyle: profile.learningStyle || 'Not set',
+        pacing: profile.pacing || 'Not set',
+        practiceFrequency: profile.practiceFrequency || 'Not set',
+        problemSolvingApproach: profile.problemSolvingApproach || 'Not set',
+        experienceLevel: profile.experienceLevel || 'Not set',
+        completed: student.onboardingCompleted || false,
+      },
+      recommendations,
+      weaknesses,
+      strengths,
+      stats: {
+        totalLessonsCompleted: student.totalLessonsCompleted,
+        totalExercisesCompleted: student.totalExercisesCompleted,
+        averageScore: student.averageScore,
+        level: student.level,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+export default function studentRoutes(req, res, next) {
+  publicRouter(req, res, (err) => {
+    if (err) return next(err);
+    router(req, res, next);
+  });
+}

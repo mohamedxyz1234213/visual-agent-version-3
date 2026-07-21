@@ -12,6 +12,38 @@ export interface StudentProfile {
   totalTimeSpent: number;
   preferences: StudentPreferences;
   status: 'pending' | 'active' | 'suspended' | 'graduated';
+  onboardingCompleted?: boolean;
+  learningProfile?: LearningProfile;
+}
+
+export interface LearningProfile {
+  learningStyle: string;
+  pacing: string;
+  practiceFrequency: string;
+  problemSolvingApproach: string;
+  experienceLevel: string;
+  completed?: boolean;
+}
+
+export interface AdaptiveRecommendation {
+  type: string;
+  title: string;
+  description: string;
+  icon: string;
+  action: string;
+}
+
+export interface AdaptivePathResponse {
+  profile: LearningProfile;
+  recommendations: AdaptiveRecommendation[];
+  weaknesses: string[];
+  strengths: string[];
+  stats: {
+    totalLessonsCompleted: number;
+    totalExercisesCompleted: number;
+    averageScore: number;
+    level: number;
+  };
 }
 
 export interface StudentPreferences {
@@ -118,12 +150,20 @@ export interface LeaderboardEntry {
   level: number;
   streak: number;
   coins: number;
+  weeklyXP?: number;
+  weeklyXPWeek?: number | null;
 }
 
 export interface LeaderboardResponse {
   leaderboard: LeaderboardEntry[];
   myRank: number | null;
-  myStats: { xp: number; level: number; streak: number } | null;
+  myStats: {
+    xp: number;
+    level: number;
+    streak: number;
+    weeklyXP?: number;
+    longestStreak?: number;
+  } | null;
 }
 
 export interface Notification {

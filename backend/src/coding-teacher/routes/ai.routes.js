@@ -143,16 +143,75 @@ router.post('/feedback', requireRole('student'), async (req, res, next) => {
 // ── POST /api/v1/ai/generate-lesson ───────────────────────────────────────────
 router.post('/generate-lesson', requireRole('teacher', 'admin'), async (req, res, next) => {
   try {
-    const { topic, subjectId, difficulty, duration } = req.body;
+    const { topic, subjectId, difficulty, duration, style } = req.body;
     if (!topic) return res.status(400).json({ error: 'Topic is required' });
 
+    const diff = difficulty || 'beginner';
+    const mins = duration || 30;
+    const teachStyle = style || 'explain';
+
+    const dummyExercises = [
+      {
+        title: `Basic ${topic} Exercise`,
+        description: `Write a simple program that demonstrates ${topic}`,
+        starterCode: '// Write your code here\n',
+        difficulty: 'easy',
+        type: 'free-code',
+        xpReward: 20,
+      },
+      {
+        title: `Intermediate ${topic} Practice`,
+        description: `Apply ${topic} concepts to solve a practical problem`,
+        starterCode: '// Starter code\n',
+        difficulty: 'medium',
+        type: 'fill-code',
+        xpReward: 35,
+      },
+    ];
+
     const lesson = {
+      _id: 'lesson_' + Date.now(),
       title: topic,
-      content: '# ' + topic + '\n\nThis lesson covers the fundamentals of ' + topic + '...',
-      objectives: ['Understand ' + topic + ' basics', 'Apply ' + topic + ' in practice'],
-      codeSnippets: [],
-      difficulty: difficulty || 'beginner',
-      duration: duration || 30,
+      subjectId: subjectId || null,
+      difficulty: diff,
+      duration: mins,
+      style: teachStyle,
+      status: 'draft',
+      isPublished: false,
+      createdAt: new Date().toISOString(),
+      content: `# ${topic}\n\n## Overview\nThis lesson covers the fundamentals of ${topic} at a ${diff} level. ` +
+        `You will learn core concepts, best practices, and real-world applications.\n\n` +
+        `## Prerequisites\n- Basic programming knowledge\n- Familiarity with variables and functions\n` +
+        `## Key Concepts\n1. Introduction to ${topic}\n2. Core principles and theory\n3. Practical implementation\n4. Common patterns and best practices\n5. Advanced techniques\n\n` +
+        `## Detailed Content\nIn this lesson, we'll explore ${topic} in depth. ` +
+        `You'll understand how it works, why it's important, and how to use it effectively in your projects.\n\n` +
+        `### Section 1: Getting Started\nLet's begin with the basics of ${topic}. We'll cover the fundamental concepts ` +
+        `that form the foundation of this topic.\n\n` +
+        `### Section 2: Core Concepts\nDive deeper into the key ideas behind ${topic}. ` +
+        `Understanding these concepts is crucial for mastering this subject.\n\n` +
+        `### Section 3: Practical Application\nNow let's apply what we've learned with real-world examples and hands-on exercises.`,
+      objectives: [
+        `Understand the fundamentals of ${topic}`,
+        `Apply ${topic} concepts in practical scenarios`,
+        `Build projects using ${topic}`,
+        `Debug and troubleshoot common ${topic} issues`,
+      ],
+      codeSnippets: [
+        {
+          language: 'javascript',
+          code: `// Example: Getting started with ${topic}\nfunction demonstrate() {\n  console.log("Learning " + "${topic}");\n}\n\ndemonstrate();`,
+          explanation: `A simple example to demonstrate ${topic} concepts`,
+        },
+        {
+          language: 'javascript',
+          code: `// Advanced ${topic} example\nclass TopicHandler {\n  constructor() {\n    this.data = [];\n  }\n  \n  process(input) {\n    return input.map(item => item.toUpperCase());\n  }\n}`,
+          explanation: `An advanced example showing ${topic} patterns in practice`,
+        },
+      ],
+      exercises: dummyExercises,
+      tags: [topic.toLowerCase(), diff, 'ai-generated'],
+      estimatedTime: mins,
+      totalExercises: dummyExercises.length,
     };
 
     res.json({ lesson });

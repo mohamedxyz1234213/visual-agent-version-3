@@ -12,6 +12,17 @@ import type {
   ConceptMastery,
 } from "./types";
 
+export type {
+  StudentDashboard,
+  Lesson,
+  Exercise,
+  Submission,
+  Achievement,
+  LeaderboardResponse,
+  Notification,
+  WeeklyChallenge,
+}
+
 import { apiRequest } from "../shared/config";
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────

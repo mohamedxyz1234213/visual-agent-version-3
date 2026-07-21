@@ -10,7 +10,19 @@ import type {
   AvatarSession,
   AvatarMessage,
   ConceptMastery,
+  AdaptivePathResponse,
 } from "./types";
+
+export type {
+  StudentDashboard,
+  Lesson,
+  Exercise,
+  Submission,
+  Achievement,
+  LeaderboardResponse,
+  Notification,
+  WeeklyChallenge,
+}
 
 import { apiRequest } from "../shared/config";
 
@@ -95,13 +107,15 @@ export async function getAchievements(): Promise<{ achievements: Achievement[] }
 // ── Leaderboard ───────────────────────────────────────────────────────────────
 export async function getLeaderboard(
   type?: string,
-  limit?: number
+  limit?: number,
+  timeframe?: string
 ): Promise<LeaderboardResponse> {
   const qs = new URLSearchParams();
   if (type) qs.set("type", type);
   if (limit) qs.set("limit", String(limit));
+  if (timeframe) qs.set("timeframe", timeframe);
   const query = qs.toString();
-  return apiRequest(`/student/leaderboard${query ? `?${query}` : ""}`);
+  return apiRequest(`/gamification/leaderboard${query ? `?${query}` : ""}`);
 }
 
 // ── Notifications ─────────────────────────────────────────────────────────────
@@ -195,11 +209,31 @@ export async function getAIFeedback(
   });
 }
 
-// ── Adaptive Learning Path ────────────────────────────────────────────────────
-export async function getAdaptivePath(): Promise<{
-  recommendations: any[];
-  weaknesses: string[];
-  strengths: string[];
+// ── Adaptive Learning Onboarding ─────────────────────────────────────────────
+export async function getOnboardingStatus(): Promise<{
+  onboardingCompleted: boolean;
+  learningProfile: any;
+  completedAt: string | null;
 }> {
-  return apiRequest("/ai/adaptive-path", { method: "POST", body: "{}" });
+  return apiRequest("/student/adaptive-onboarding-status");
 }
+
+export async function submitOnboarding(data: {
+  learningStyle: string;
+  pacing: string;
+  practiceFrequency: string;
+  problemSolvingApproach: string;
+  experienceLevel: string;
+}): Promise<{ ok: boolean; learningProfile: any; message: string }> {
+  return apiRequest("/student/adaptive-onboarding", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+// ── Adaptive Learning Path ────────────────────────────────────────────────────
+export async function getAdaptivePath(): Promise<AdaptivePathResponse> {
+  return apiRequest("/student/adaptive-path");
+}
+
+

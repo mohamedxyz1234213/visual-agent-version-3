@@ -10,8 +10,15 @@ router.use(requireAuth);
 // ── GET /api/v1/gamification/leaderboard ──────────────────────────────────────
 router.get('/leaderboard', async (req, res, next) => {
   try {
-    const { type = 'xp', timeframe = 'all-time', limit = 50 } = req.query;
-    const sortField = type === 'streak' ? 'streak' : 'xp';
+    const { type = 'xp', limit = 50 } = req.query;
+
+    let sortField = 'xp';
+
+    if (type === 'streak') {
+      sortField = 'streak';
+    } else if (type === 'weekly') {
+      sortField = 'weeklyXP';
+    }
 
     const leaders = await Student.find({ status: 'active' })
       .sort({ [sortField]: -1 })
@@ -23,7 +30,7 @@ router.get('/leaderboard', async (req, res, next) => {
     let myRank = null;
     if (currentStudent) {
       myRank = await Student.countDocuments({
-        [sortField]: { $gt: currentStudent[sortField] },
+        [sortField]: { $gt: currentStudent[sortField] || 0 },
         status: 'active',
       }) + 1;
     }
@@ -37,10 +44,18 @@ router.get('/leaderboard', async (req, res, next) => {
         level: s.level,
         streak: s.streak,
         coins: s.coins,
+        weeklyXP: s.weeklyXP || 0,
+        weeklyXPWeek: s.weeklyXPWeek || null,
       })),
       myRank,
       myStats: currentStudent
-        ? { xp: currentStudent.xp, level: currentStudent.level, streak: currentStudent.streak }
+        ? {
+            xp: currentStudent.xp,
+            level: currentStudent.level,
+            streak: currentStudent.streak,
+            weeklyXP: currentStudent.weeklyXP || 0,
+            longestStreak: currentStudent.longestStreak || 0,
+          }
         : null,
     });
   } catch (err) {

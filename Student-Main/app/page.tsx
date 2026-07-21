@@ -65,15 +65,6 @@ function IconUsers({ className = "w-5 h-5" }: { className?: string }) {
   );
 }
 
-function IconShield({ className = "w-5 h-5" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor" className={className}>
-      <path d="M12 3l8 4v5c0 5.25-3.5 9.74-8 11-4.5-1.26-8-5.75-8-11V7l8-4z" />
-      <polyline points="9 12 11 14 15 10" />
-    </svg>
-  );
-}
-
 function IconSettings({ className = "w-5 h-5" }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor" className={className}>
@@ -100,6 +91,17 @@ function IconUser({ className = "w-5 h-5" }: { className?: string }) {
     </svg>
   );
 }
+
+function IconSearch({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor" className={className}>
+      <circle cx="10.5" cy="10.5" r="7" />
+      <line x1="16" y1="16" x2="21" y2="21" />
+    </svg>
+  );
+}
+
+
 
 export default function HomePage() {
   const [user, setUser] = useState<SafeUser | null>(null);
@@ -136,6 +138,10 @@ export default function HomePage() {
           </span>
         </div>
         <div className="flex items-center gap-4">
+          <Link href="/search" className="text-sm font-medium text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors hidden sm:inline-flex items-center gap-1.5">
+            <IconSearch className="w-4 h-4" />
+            Search
+          </Link>
           <Link href="/contact" className="text-sm font-medium text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors hidden sm:inline-block">
             Contact
           </Link>
@@ -263,52 +269,65 @@ export default function HomePage() {
       </section>
 
       {/* ── Roles Section ───────────────────────────────────────────── */}
-      <section className="bg-[#171717] py-24">
+      <section className="bg-gradient-to-br from-[#F8F5FF] to-[#EDEDED] py-24">
         <div className="max-w-6xl mx-auto px-8">
-          <h2 className="text-3xl font-bold text-center mb-14 text-white">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#C4B5F5]/20 rounded-full text-[13px] font-semibold mb-4 mx-auto w-fit text-[#7C3AED]">
+            <IconUsers className="w-3.5 h-3.5" />
+            Who We Serve
+          </div>
+          <h2 className="text-3xl font-bold text-center mb-14 text-[#0F0F0F]">
             Built for Everyone
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
               {
                 role: "Students",
                 icon: <IconUser className="w-8 h-8" />,
-                color: "#D6F63E",
+                accent: "#D6F63E",
+                bgLight: "bg-[#D6F63E]/10",
                 desc: "Learn coding with AI tutors, complete exercises, earn achievements.",
+                features: ["Personalized AI tutor", "Gamified learning", "Real-time feedback"],
               },
               {
                 role: "Teachers",
                 icon: <IconSettings className="w-8 h-8" />,
-                color: "#C4B5F5",
+                accent: "#C4B5F5",
+                bgLight: "bg-[#C4B5F5]/10",
                 desc: "Create lessons, manage classes, grade submissions, track analytics.",
-              },
-              {
-                role: "Admins",
-                icon: <IconShield className="w-8 h-8" />,
-                color: "#FFFFFF",
-                desc: "Manage users, monitor AI costs, configure the platform.",
+                features: ["Lesson management", "Student insights", "Class analytics"],
               },
               {
                 role: "Parents",
                 icon: <IconUsers className="w-8 h-8" />,
-                color: "#D6F63E",
+                accent: "#F59E0B",
+                bgLight: "bg-[#F59E0B]/10",
                 desc: "View your child's progress, grades, and learning activity.",
+                features: ["Progress tracking", "Performance reports", "Activity updates"],
               },
             ].map((r) => (
               <div
                 key={r.role}
-                className="flux-card-dark text-center"
+                className="bg-white rounded-2xl p-6 border border-[#E5E5E5] hover:border-[#D6D6D6] hover:shadow-lg transition-all group"
               >
-                <div className="flux-icon-chip-dark mx-auto mb-4 w-14 h-14 flex items-center justify-center">
-                  <span style={{ color: r.color }}>{r.icon}</span>
+                <div className={`w-14 h-14 rounded-2xl ${r.bgLight} flex items-center justify-center mb-5 group-hover:scale-110 transition-transform`}>
+                  <span style={{ color: r.accent }}>{r.icon}</span>
                 </div>
-                <h3
-                  className="text-lg font-semibold mb-2"
-                  style={{ color: r.color }}
-                >
+                <h3 className="text-xl font-bold text-[#0F0F0F] mb-2">
                   {r.role}
                 </h3>
-                <p className="text-[13px] text-[#A0A0A0]">{r.desc}</p>
+                <p className="text-[13px] text-[#6B6B6B] leading-relaxed mb-4">
+                  {r.desc}
+                </p>
+                <ul className="space-y-1.5">
+                  {r.features.map((f, i) => (
+                    <li key={i} className="flex items-center gap-2 text-xs text-[#A0A0A0]">
+                      <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke={r.accent} className="w-3.5 h-3.5 shrink-0">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
               </div>
             ))}
           </div>
