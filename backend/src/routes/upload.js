@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
+import path from 'path';
 import { Lesson, LessonPart } from '../models/Lesson.js';
 import { LessonSeries } from '../models/LessonSeries.js';
 import { extractText } from '../services/documentExtractor.js';
@@ -8,9 +9,26 @@ import { saveLessonPlan } from '../services/storyboardGenerator.js';
 import { synthesize } from '../services/ttsService.js';
 import { uploadFile, uploadAudio } from '../services/storageService.js';
 import { BLAZE_MODELS, getBlazeConfig, resolveBlazeModel } from '../services/blazeConfig.js';
+import { toUserFacingError } from '../utils/errors.js';
+import { reserveAiRequest, markAiRequestFinished, releaseAiRequest } from '../auth/services/aiQuota.js';
+import { requireAuth } from '../auth/middleware/auth.js';
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+const ALLOWED_EXTENSIONS = new Set(['.pdf', '.docx', '.doc', '.txt', '.md', '.png', '.jpg', '.jpeg', '.webp', '.bmp', '.tiff']);
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    if (!ALLOWED_EXTENSIONS.has(ext)) {
+      return cb(new Error('Unsupported file type.'));
+    }
+    return cb(null, true);
+  },
+});
+
+// All upload routes require an authenticated user
+router.use(requireAuth);
 
 // ── Available AI providers + models (must match frontend PROVIDER_MODELS) ───
 const AI_PROVIDERS = [
@@ -78,8 +96,21 @@ router.post('/', upload.single('file'), async (req, res, next) => {
     const analysisModel = resolveAnalysisModel(aiProvider, req.body.analysis_model);
     const explanationMode = req.body.explanation_mode || 'full_lesson';
 
-    console.log(`[upload] Received: ai_provider=${aiProvider}, analysis_model=${analysisModel}, file=${originalname}`);
+    console.log(`[upload] Received: ai_provider=${aiProvider}, analysis_model=${analysisModel}, file=${originalname}, user=${req.user?.email}`);
     console.log(`[upload] BlazeAI: key=${process.env.BLAZE_API_KEY ? 'SET' : 'MISSING'}, base=${process.env.BLAZE_BASE_URL || 'https://blazeai.boxu.dev/api'}`);
+
+    // Enforce per-user AI request quota and create the matching log row.
+    const { log: aiLog } = await reserveAiRequest({
+      user: req.user,
+      type: 'upload',
+      provider: aiProvider,
+      model: analysisModel,
+      sourceFilename: originalname,
+      req,
+    }).catch((err) => {
+      // User-facing message stays friendly
+      throw Object.assign(err, { userMessage: err.message });
+    });
 
     // Create series tracking document
     const series = await LessonSeries.create({
@@ -101,7 +132,15 @@ router.post('/', upload.single('file'), async (req, res, next) => {
       lessonIndex: 0,
       totalLessons: 1,
       status: 'processing',
+      ownerId: req.user._id,
     });
+
+    // Link the AI request log to the lesson + series we just created
+    if (aiLog) {
+      await import('../auth/models/AiRequestLog.js').then(({ AiRequestLog }) =>
+        AiRequestLog.updateOne({ _id: aiLog._id }, { $set: { lessonId: lesson._id, seriesId: series._id } })
+      );
+    }
 
     // Fire-and-forget background processing with rejection handling.
     scheduleBackgroundTask(`process lesson ${lesson._id}`, () =>
@@ -115,6 +154,7 @@ router.post('/', upload.single('file'), async (req, res, next) => {
         aiProvider,
         explanationMode,
         lessonIntent,
+        aiLog?._id?.toString(),
       )
     );
 
@@ -151,7 +191,7 @@ router.get('/status/:lessonId', async (req, res, next) => {
   }
 });
 
-async function processLesson(lessonId, seriesId, buffer, filename, userInstructions, analysisModel, aiProvider = 'blaze', explanationMode = 'full_lesson', lessonIntent = 'teach') {
+async function processLesson(lessonId, seriesId, buffer, filename, userInstructions, analysisModel, aiProvider = 'blaze', explanationMode = 'full_lesson', lessonIntent = 'teach', aiLogId = null) {
   try {
     const provider = normalizeProvider(aiProvider) || 'blaze';
     const model = resolveAnalysisModel(provider, analysisModel);
@@ -227,6 +267,12 @@ async function processLesson(lessonId, seriesId, buffer, filename, userInstructi
     // Increment series completed count
     await LessonSeries.findByIdAndUpdate(seriesId, { $inc: { completedLessons: 1 } });
 
+    // Mark the original AI request log as completed
+    if (aiLogId) {
+      const { AiRequestLog } = await import('../auth/models/AiRequestLog.js');
+      await AiRequestLog.updateOne({ _id: aiLogId }, { $set: { status: 'completed' } });
+    }
+
     // 6. Background: generate remaining lessons while user watches lesson 1
     if (remainingSpecs.length > 0) {
       console.log(`[upload] Scheduling ${remainingSpecs.length} background lesson(s)…`);
@@ -236,7 +282,11 @@ async function processLesson(lessonId, seriesId, buffer, filename, userInstructi
     }
   } catch (err) {
     console.error(`Lesson 1 processing failed for ${lessonId}:`, err);
-    await Lesson.findByIdAndUpdate(lessonId, { status: 'error', errorMessage: err.message });
+    await Lesson.findByIdAndUpdate(lessonId, { status: 'error', errorMessage: toUserFacingError(err) });
+    if (aiLogId) {
+      const { AiRequestLog } = await import('../auth/models/AiRequestLog.js');
+      await AiRequestLog.updateOne({ _id: aiLogId }, { $set: { status: 'failed', errorMessage: toUserFacingError(err) } });
+    }
   }
 }
 
@@ -246,6 +296,11 @@ async function processRemainingLessons(seriesId, sourceFilename, totalLessons, a
   if (!series || !series.remainingSpecs?.length) return;
 
   const model = analysisModel || series.analysisModel || null;
+
+  // Inherit ownership from the first lesson in the series (so the same user
+  // can see all lessons in their dashboard, not just lesson 1)
+  const firstLesson = await Lesson.findOne({ seriesId }).select('ownerId').lean();
+  const ownerId = firstLesson?.ownerId || null;
 
   // Process up to 3 lessons at a time for faster generation
   const CONCURRENCY = 3;
@@ -267,6 +322,7 @@ async function processRemainingLessons(seriesId, sourceFilename, totalLessons, a
         totalLessons,
         status: 'processing',
         processingStep: 'planning_outline',
+        ownerId,
       });
 
       try {
@@ -277,7 +333,7 @@ async function processRemainingLessons(seriesId, sourceFilename, totalLessons, a
         console.log(`[upload] Background lesson ${lessonIndex + 1} ready.`);
       } catch (err) {
         console.error(`Background lesson ${lessonIndex + 1} failed:`, err.message);
-        await Lesson.findByIdAndUpdate(lesson._id, { status: 'error', errorMessage: err.message });
+        await Lesson.findByIdAndUpdate(lesson._id, { status: 'error', errorMessage: toUserFacingError(err) });
       }
     });
 

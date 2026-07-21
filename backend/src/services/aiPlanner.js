@@ -14,7 +14,9 @@
 
 import dagre from '@dagrejs/dagre';
 import { getBlazeConfig, resolveBlazeModel } from './blazeConfig.js';
-import { selectTemplate, applyTemplate, buildTemplateData } from '../templates/whiteboardTemplates.js';
+import { buildWhiteboardForPart, assessLessonVisuals, assessPartVisuals } from './whiteboard/index.js';
+import { COMPREHENSION_PROMPT, DECOMPOSITION_PROMPT, REFINEMENT_PROMPT, TEACHING_PROMPT, TOPIC_SCAFFOLD_PROMPT, VISUAL_COMPOSITION_PROMPT, TUTOR_PHILOSOPHY } from './prompts/index.js';
+import { validateBoardScenes, cleanSay } from './whiteboard/validator.js';
 
 const STOPWORDS = new Set([
   'about', 'after', 'again', 'against', 'almost', 'also', 'although', 'always',
@@ -134,252 +136,21 @@ let lastAiVia = null;
 // The AI must read the FULL document and produce a structured understanding
 // =============================================================================
 
-const COMPREHENSION_PROMPT = `You are an expert teacher preparing to teach from a document. Your task is to DEEPLY and THOROUGHLY analyze the ENTIRE document and produce a comprehensive structured understanding.
-
-THINKING PROCESS (you MUST follow this before generating JSON):
-1. First, read through the ENTIRE document from beginning to end. Note every major section.
-2. For EACH section: identify the core concept, any commands/code shown, any procedures described, any tools mentioned.
-3. Map the relationships: which concepts depend on others? What is the learning progression?
-4. Identify what makes this document unique: what specific real-world context does it provide?
-5. Only AFTER completing steps 1-4, generate your JSON output.
-
-TAKE YOUR TIME. Process every paragraph. Understand the full scope. Do NOT rush. The user is NOT in a hurry — they want QUALITY, not speed.
-
-CRITICAL RULES:
-- Read the ENTIRE document from start to finish. Do NOT skip or skim any section.
-- For each section you read, identify: what new knowledge it introduces, what skills it teaches, what relationships it reveals.
-- Identify what this document is actually ABOUT — the real subject matter, not meta-information like author names, version numbers, or formatting instructions.
-- Skip ONLY: title pages, tables of contents, acknowledgments, bibliographies, indices.
-- Everything else is teachable content. Chapters, sections, examples, code snippets, explanations, analogies — ALL of it matters.
-- Extract the actual knowledge: facts, definitions, processes, step-by-step procedures, relationships between concepts, examples, warnings, best practices.
-- Be EXHAUSTIVE in your analysis. A 50-page document should produce 15+ topics with detailed breakdowns.
-- Each topic MUST have 5+ details extracted verbatim or closely paraphrased from the source.
-- Your output length should be PROPORTIONAL to the document length. A long document = long detailed analysis.
-
-Return raw JSON only with this exact shape:
-{
-  "document_subject": "The precise main subject (e.g., 'DevOps Engineering: CI/CD, Docker, Kubernetes, and Production Deployment', 'Human Cardiovascular System: Anatomy and Pathology')",
-  "field": "medical|architecture|mathematics|programming|science|history|business|language|general",
-  "core_thesis": "2-3 sentences summarizing the main teaching purpose and what a student will learn",
-  "key_topics": [
-    {
-      "topic": "Name of this topic/concept (use the actual terminology from the document)",
-      "definition": "Clear 2-3 sentence definition or explanation drawn directly from the document",
-      "importance": "Why this matters — what breaks or fails without this knowledge",
-      "details": ["Specific fact 1 from the document", "Specific fact 2", "Specific fact 3", "Specific fact 4", "Specific fact 5"],
-      "relationships": ["How this connects to topic X", "How this builds on topic Y", "How this enables topic Z"]
-    }
-  ],
-  "logical_flow": "Detailed description of how topics build on each other — the document's teaching progression from foundations to advanced",
-  "difficulty_level": "beginner|intermediate|advanced",
-  "teaching_approach": "Specific visual strategy — e.g., 'flowcharts for deployment pipelines, labeled diagrams for architecture, comparison tables for tool selection, step-by-step process flows for setup procedures'"
-}
-
-Extract 10-20 key_topics depending on document length. A 50-page document MUST have at least 15 topics. Each topic MUST have real specific content extracted from the document — actual definitions, actual procedures, actual examples. NO generic placeholders like "This is important" or "Key concept in the field".`;
 
 // =============================================================================
 // PHASE 2 PROMPT: Lesson decomposition based on comprehension
 // =============================================================================
 
-const DECOMPOSITION_PROMPT = `Based on the document analysis below, create a teaching plan that DYNAMICALLY breaks this material into the appropriate number of lessons.
-
-THINKING PROCESS (follow BEFORE generating output):
-1. Read through ALL the topics identified in the analysis. Group them logically by chapter/section.
-2. Determine how many lessons are needed based on the volume and complexity of material.
-3. For each lesson, identify exactly which paragraphs/sections of the source document it should cover.
-4. Plan the progression: foundations first, then building blocks, then advanced applications.
-5. Only THEN generate the JSON with exhaustive section_text for each lesson.
-
-LESSON COUNT RULES — adapt to document complexity:
-- Short document (1-5 pages, 1-3 topics): 1-2 lessons
-- Medium document (5-20 pages, 3-8 topics): 3-5 lessons  
-- Large document (20-50+ pages, 8+ topics): 5-10 lessons
-- Each lesson should focus on ONE coherent chapter/section of the document
-- NEVER cram multiple unrelated chapters into one lesson
-
-The user is NOT in a rush. Take your time to produce the BEST possible teaching plan. Each lesson must be substantial enough to fill 5-10 minutes of teaching with rich content.
-
-Each lesson must:
-- Cover a coherent chunk of the material that can stand alone as a complete teaching unit
-- Have a specific, measurable learning objective (not vague goals)
-- Build naturally from the previous lesson (if any)
-- Include EXTENSIVE actual content to teach — real definitions, facts, processes, code examples, step-by-step procedures from the document
-- The section_text field is CRITICAL: it must contain 5000-15000 characters of actual document content. This is what the content generator reads to create the lesson. If you provide too little text, the lesson will be empty and useless.
-
-Return raw JSON only:
-{
-  "course_title": "Descriptive course title that captures the full scope",
-  "lessons": [
-    {
-      "lesson_number": 1,
-      "title": "Specific descriptive title (e.g., 'Docker Containers: Building, Running, and Networking' not just 'Docker')",
-      "learning_objective": "By the end of this lesson, the learner will be able to: [specific measurable outcome]",
-      "key_points": ["Specific point 1 with real content", "Specific point 2", "Specific point 3", "Specific point 4", "Specific point 5"],
-      "topics_covered": ["topic name 1", "topic name 2", "topic name 3"],
-      "section_text": "EXTENSIVE verbatim excerpt of ALL source material relevant to this lesson. Include complete paragraphs, full definitions, all explanations, examples, code snippets, procedures, warnings, best practices. 5000-15000 characters MINIMUM. The more text you provide here, the better the final lesson will be. Do NOT summarize — include the actual raw text from the document.",
-      "visual_strategy": "Specific visual plan — e.g., 'Page 1: labeled architecture diagram showing frontend→backend→database flow. Page 2: step-by-step flowchart of the deployment pipeline. Page 3: comparison table of Docker vs VM. Page 4: code structure diagram showing file organization.'"
-    }
-  ]
-}`;
 
 // =============================================================================
 // PHASE 3B PROMPT: Refinement pass — AI reviews its own output and improves it
 // =============================================================================
 
-const REFINEMENT_PROMPT = `You are a strict educational whiteboard critic.
-
-Review the storyboard quality before any whiteboard coordinates are generated.
-
-Your job is to improve TEACHING QUALITY, VISUAL MEANING, COGNITIVE CLARITY, and TEACHER-LIKE PACING.
-
-Reject or rewrite any content part that has:
-- decorative visuals
-- weak teaching logic
-- too much on-screen text
-- random arrows or unclear relationships
-- generic cards or templated wording
-- missing examples
-- slideshow feeling
-- unclear teaching order
-- overlap risk caused by too many simultaneous visual anchors
-
-Critical rules:
-- Do NOT add coordinates.
-- Do NOT add raw visual_sequence drawing commands.
-- Keep every content part focused on one main teaching goal.
-- Keep visible text short and anchor-based.
-- visual_logic entries must stay semantic, purposeful, and compact.
-- Prefer hook -> concept -> relationship -> example -> mini recap -> quiz.
-
-Score every content part from 1-10 on:
-1. teaching_quality
-2. visual_meaning
-3. cognitive_clarity
-4. scene_cleanliness
-5. teacher_realism
-
-If any score is below 9, rewrite that part until it would score at least 9 across all five dimensions.
-
-Return the IMPROVED JSON in the SAME schema format.
-IMPORTANT: Return ONLY valid JSON. No markdown fences. No explanatory text before or after.`;
 
 // PHASE 3 PROMPT: Content + Visual generation for each lesson
 // This is where the actual teaching happens
 // =============================================================================
 
-const TEACHING_PROMPT = `You are not a summarizer, slideshow generator, or generic AI assistant.
-
-You are an elite instructional designer, cognitive learning expert, and professional whiteboard teacher — the kind who makes students say "I finally get it."
-
-Your task is to transform lesson material into a highly structured, pedagogically accurate, visually meaningful, teacher-like whiteboard lesson that feels like being in a REAL classroom with an extraordinary teacher.
-
-PRIMARY OBJECTIVE
-- Teach deeply and visually like an exceptional human teacher standing at a whiteboard.
-- Build understanding GRADUALLY — reveal one idea at a time, just like a real teacher drawing step by step.
-- The whiteboard must feel ALIVE: the teacher writes, draws, circles, connects, erases, and rebuilds.
-- Optimize for deep understanding, not decoration or information density.
-
-TEACHER-LIKE SEQUENCING (this is what makes the difference)
-- Start EVERY part with a hook: a question, a surprising fact, or a relatable scenario.
-- Write the core keyword/term FIRST on the board, then explain around it.
-- Draw connections AFTER establishing individual concepts — never all at once.
-- Use pauses (clear) between major concept shifts — like a teacher erasing the board.
-- Build complexity gradually: simple → nuanced → applied.
-- End each section by circling back to connect with what came before.
-
-ABSOLUTE RULES
-- Use only source-grounded information unless topic mode explicitly allows general instructional knowledge.
-- Teach. Never merely summarize or list bullet points.
-- One content part = one teaching goal. Never cram multiple unrelated ideas.
-- Keep visible whiteboard text short: 3-12 words per element. A teacher writes KEYWORDS, not paragraphs.
-- No decorative visuals — every drawn element must advance understanding.
-- No random arrows. Arrows ONLY represent: cause→effect, sequence, dependency, data flow, or transformation.
-- Never output coordinates, x/y positions, or raw visual_sequence drawing commands.
-- Output semantic roles only. The layout engine decides placement.
-- One core idea per scene with 2-4 supporting visuals maximum. Never overload.
-- NEVER repeat the same visual pattern across parts. Each part must feel unique.
-
-VISUAL PEDAGOGY (match the concept to the right visual form)
-- Cause/effect → arrow with labeled relationship
-- Sequence/process → numbered path or pipeline
-- Timeline → chronological bar with markers
-- Hierarchy → tree with clear parent-child
-- Comparison → side_by_side boxes with differentiators
-- Category/grouping → cluster of related items
-- Data/quantity → graph with labeled axes
-- Definition → keyword in bold + callout explanation
-- Formula/equation → isolated centered equation
-- Example → boxed worked illustration with steps
-
-DYNAMIC VARIETY (prevent templated feel)
-- NEVER use the same visual_logic pattern in consecutive parts.
-- Vary the teaching flow: hook→concept→example, or question→discovery→principle, or story→diagram→rule.
-- Each animation_sequence must be unique — mix different orderings.
-- Use different visual types across parts: if Part 1 uses arrows, Part 2 should use boxes or a table.
-
-QUALITY BAR
-- Every narration sentence must teach a distinct idea — no filler, no repetition.
-- Every visual element must improve understanding of the specific concept being taught.
-- The student should feel progressive "aha" moments, not information overload.
-- Narration should sound like a teacher TALKING, not reading from a textbook.
-
-OUTPUT CONTRACT
-Return ONLY valid JSON with this schema:
-{
-  "title": "",
-  "subject": "",
-  "summary": "",
-  "parts": [
-    {
-      "order_index": 1,
-      "title": "",
-      "part_type": "content",
-      "duration_seconds": 360,
-      "scene_goal": "",
-      "learning_objective": "",
-      "narration": "",
-      "key_concepts": [""],
-      "visual_logic": [
-        {
-          "type": "",
-          "semantic_role": "",
-          "relationship": "",
-          "importance": "",
-          "content": ""
-        }
-      ],
-      "animation_sequence": ["hook", "concept", "relationship", "example", "mini_recap"]
-    },
-    {
-      "order_index": 2,
-      "title": "",
-      "part_type": "quiz",
-      "duration_seconds": 55,
-      "narration": "",
-      "key_concepts": [],
-      "quiz_questions": [
-        {
-          "order_index": 1,
-          "question_type": "mcq",
-          "question_text": "",
-          "difficulty": "medium",
-          "options": { "choices": ["A", "B", "C", "D"], "correct": "A" },
-          "correct_answer": "A",
-          "explanation": ""
-        }
-      ]
-    }
-  ]
-}
-
-Before finalizing, internally verify:
-- Does each part teach ONE clear idea progressively?
-- Would a real teacher draw these visuals in this order?
-- Is there visual VARIETY between parts (not the same pattern repeated)?
-- Is the narration conversational and teacher-like (not textbook-like)?
-- Is the pacing gradual with proper build-up?
-
-If not, improve it before returning the JSON.`; 
 
 // ─── Mode-specific prompt prefix ──────────────────────────────────────────────
 function buildModePrefix(mode) {
@@ -482,29 +253,38 @@ function buildSourceModePrefix(sourceMode) {
   return 'INPUT MODE: TOPIC REQUEST\n- The material below is a user-requested topic or question, not a source document.\n- Use accurate mainstream educational knowledge for this subject.\n- You may use standard definitions, formulas, canonical examples, and common teaching diagrams.\n- Do NOT invent citations, page references, or pretend the topic prompt already contained the full explanation.\n- Keep every claim technically correct and suitable for teaching a student from first principles.\n\n';
 }
 
-const TOPIC_SCAFFOLD_PROMPT = `You are preparing a lesson for a direct topic request. Use accurate mainstream educational knowledge and return raw JSON only.
+// Subject-aware "visual playbook": a light prompt-level bias that nudges the
+// model toward the board_scene intents (and named figures) that teach a given
+// field best. The engine stays intent-driven — this only tilts the choice so a
+// biology lesson reaches for cycles/diagrams and a history lesson for timelines
+// and causal chains, instead of every subject defaulting to bullet lists.
+export function buildVisualPlaybook(field) {
+  const f = String(field || 'general').toLowerCase();
+  const PLAYBOOKS = {
+    biology: 'BIOLOGY VISUAL PLAYBOOK: Prefer "map" (labeled diagrams — use a "diagram" figure such as cell, dna, neuron when relevant + "labels" for parts), "cycle" (photosynthesis, Krebs, water cycle, life cycles), and "process" for sequential mechanisms. Use "compare" for structure/function contrasts. Anchor each board on a drawn structure, not a bullet list.',
+    medical: 'MEDICAL VISUAL PLAYBOOK: Prefer "map" (labeled anatomy diagrams with "labels"), "process" (pathophysiology / clinical pathways), "cause" (etiology → effect), and "cycle" for recurring physiological loops. Show the body/structure, then label it.',
+    science: 'SCIENCE VISUAL PLAYBOOK: Prefer "map" (labeled figures via "diagram": atom, wave, field, magnet, gear, battery), "process" (reactions, experiments), "formula" (laws/equations), and "data" (plotted relationships). Draw the phenomenon, not just words about it.',
+    mathematics: 'MATH VISUAL PLAYBOOK: Prefer "formula" (equation with worked steps), "data" (graphs / plotted functions / number lines / vectors), and "process" (solution procedures). Every abstract step should be anchored to a drawn equation or plot.',
+    economics: 'ECONOMICS VISUAL PLAYBOOK: Prefer "data" for market graphs (supply & demand axes, equilibrium point, curve shifts), "process"/"cause" for circular-flow and cause→effect (e.g. price→quantity), and "compare" for surplus vs shortage. Anchor on axes + curves, label equilibrium.',
+    business: 'BUSINESS VISUAL PLAYBOOK: Prefer "process" (workflows / funnels), "hierarchy" (org / market structure), "compare" (options, pros/cons), and "data" (KPIs, trends). Show the structure or flow, not paragraphs.',
+    history: 'HISTORY VISUAL PLAYBOOK: Prefer "timeline" (eras, dated events in order), "cause" (causal chains: event → consequence → consequence with a highlighted outcome), and "compare" (before vs after, two regimes). Put events on a spine, link causes with arrows.',
+    programming: 'PROGRAMMING/CS VISUAL PLAYBOOK: Prefer "process" (flowcharts with a decision step, request lifecycles, algorithms), "hierarchy"/"map" (system architecture: client → API → service → database as boxes + arrows), and "cycle" (state machines, event loops). Draw the components and the data movement between them.',
+    architecture: 'ARCHITECTURE VISUAL PLAYBOOK: Prefer "map" (labeled structural diagrams), "hierarchy" (load paths / component breakdown), and "process" (construction sequence). Draw the structure and label its parts.',
+    language: 'LANGUAGE VISUAL PLAYBOOK: Prefer "define" (term + meaning + example), "compare" (contrasting forms/rules), and "process" (conjugation / sentence-building steps). Anchor each rule with a concrete worked example.',
+    general: 'GENERAL VISUAL PLAYBOOK: Prefer DIAGRAMS over bullet lists — "cluster"/"cause" for an idea that branches into outcomes (distributed-arrow flow with icon nodes), "map" for a central concept with related parts (hub-and-spoke or concept+notes panel), and "process" for steps/decisions (icon pipeline or yes/no decision flow). Name each node with a concrete noun ("User", "Data", "Goal", "Risk") so a meaningful icon is drawn. Anchor every board on a relationship between labeled nodes, never plain text.',
+  };
+  const playbook = PLAYBOOKS[f] || PLAYBOOKS[
+    /bio|cell|gene|organ|species/.test(f) ? 'biology'
+    : /econ|market|trade|finance/.test(f) ? 'economics'
+    : /hist|war|era|civilization/.test(f) ? 'history'
+    : /program|software|comput|code|cs/.test(f) ? 'programming'
+    : /math|algebra|calculus|geometry/.test(f) ? 'mathematics'
+    : 'science'
+  ];
+  if (!playbook) return '';
+  return `\n\nSUBJECT-AWARE VISUALS (field: ${f}):\n${playbook}\nThis is a bias, not a restriction — still choose the intent that genuinely teaches each beat best, and vary intents across the lesson.`;
+}
 
-If the topic request is just a short seed such as a single concept or short phrase, you must expand it into a complete teachable scope on your own. Infer the foundations, core components, mechanism or sequence, key examples, and practical meaning that a student would need for a high-quality lesson.
-
-Return this exact shape:
-{
-  "document_subject": "Precise topic title",
-  "field": "biology|medical|architecture|mathematics|programming|science|history|business|economics|language|general",
-  "core_thesis": "2-3 sentences describing what a learner should understand by the end",
-  "key_topics": [
-    {
-      "topic": "Core subtopic name",
-      "definition": "Accurate teaching definition",
-      "importance": "Why this matters or what it explains",
-      "details": ["Specific supporting detail", "Specific supporting detail"],
-      "relationships": ["How it connects to another subtopic"]
-    }
-  ],
-  "logical_flow": "A clean teaching sequence from foundation to application",
-  "difficulty_level": "beginner|intermediate|advanced",
-  "teaching_approach": "Visual and instructional approach that suits the topic",
-  "source_brief": "8-14 full sentences that a teacher could teach from directly. Define the topic, explain the mechanism or structure, include one concrete application or worked example when appropriate, and mention the best visual anchors. Do not mention the user or refer to this as a request."
-}`;
 
 function stripTopicRequestLead(text) {
   return normalizeText(text)
@@ -539,8 +319,8 @@ function buildTopicTitle(rawText) {
   return clampText(titleCasePhrase(limited), 72) || makeReadableTitle(candidate, normalized) || 'Requested Topic';
 }
 
-const INSTRUCTIONAL_META_PREFIX_RE = /^(the learner should be able to|the learner will|the learner can|learners? will (?:understand|learn|be able to)|learners should(?: practice)?|the explanation should|a good explanation of|a complete explanation of|the lesson should|by the end of this lesson|specifically[, ]+they should be able to|according to the source material|to make that visible|on the board, this means|this stage matters because|this matters because)/;
-const INSTRUCTIONAL_META_INLINE_RE = /\b(the learner should|the learner will|learners will|the explanation should|according to the source material)\b/;
+const INSTRUCTIONAL_META_PREFIX_RE = /^(the learner should be able to|the learner will|the learner can|learners? will (?:understand|learn|be able to)|learners should(?: practice)?|the explanation should|a good explanation of|a complete explanation of|the lesson should|by the end of this lesson|specifically[, ]+they should be able to|according to the source material|to make that visible|on the board, this means|this stage matters because|this matters because|connect .* so the learner|link .* to .* to show|.* should be (?:explained|taught|shown)|.* should (?:first )?be understood)/;
+const INSTRUCTIONAL_META_INLINE_RE = /\b(the learner should|the learner will|learners will|the explanation should|according to the source material|should be explained|should be taught|should be shown|not in isolation|move from definition to mechanism|one coherent explanation|clear learnable sequence|begins with the core idea|breaks the topic into its main components|finishes with application and review|ends with application or outcome reading|becomes clear by following its concrete parts|show the basic meaning, the mechanism|central concept in this lesson|supports the rest of the topic)\b/;
 const STRUCTURAL_SCENE_TYPES = new Set([
   'draw_object',
   'draw_physics_shape',
@@ -577,18 +357,6 @@ function filterInstructionalMetaEntries(values) {
     .filter((value) => !isInstructionalMetaSentence(value)), 24);
 }
 
-function firstMeaningfulEntry(...collections) {
-  for (const collection of collections) {
-    const values = Array.isArray(collection) ? collection : [collection];
-    for (const value of values) {
-      const normalized = normalizeSentence(value);
-      if (!normalized || isInstructionalMetaSentence(normalized)) continue;
-      return normalized;
-    }
-  }
-
-  return '';
-}
 
 function buildTopicSourceBrief(topicSpec) {
   const comprehension = topicSpec.comprehension || {};
@@ -696,6 +464,11 @@ function dedupePromptConcepts(values, limit = 6) {
 function buildShortTopicExpansionConcepts(rootConcept, field) {
   const root = titleCasePhrase(normalizeText(rootConcept));
   if (!root) return [];
+  const rootLower = root.toLowerCase();
+
+  if (/\b(web|browser|http|https|request[-\s]?response|request|response|server|client)\b/.test(rootLower)) {
+    return ['Browser', 'HTTP Request', 'Server', 'HTTP Response', 'Page Update'];
+  }
 
   switch (field) {
     case 'biology':
@@ -756,9 +529,9 @@ function detectPromptAwareConceptRole(concept, field, rootConcept = '') {
     return isRootConcept ? 'process_cycle' : 'scientific_factor';
   }
 
-  if (field === 'programming' || /\b(api|service|server|database|algorithm|workflow|pipeline|client|cache|network|state|deployment)\b/.test(conceptCorpus) || (isRootConcept && /\b(api|service|server|database|algorithm|workflow|pipeline|client|cache|network|state|deployment)\b/.test(rootCorpus))) {
-    if (/\b(api|service|server|database|client|cache|node|validator)\b/.test(conceptCorpus)) return 'system_component';
-    if (/\b(protocol|workflow|pipeline|deployment|request|state|algorithm)\b/.test(conceptCorpus)) return 'system_process';
+  if (field === 'programming' || /\b(api|service|server|database|algorithm|workflow|pipeline|client|cache|network|state|deployment|browser|http|https|web|request|response)\b/.test(conceptCorpus) || (isRootConcept && /\b(api|service|server|database|algorithm|workflow|pipeline|client|cache|network|state|deployment|browser|http|https|web|request|response)\b/.test(rootCorpus))) {
+    if (/\b(api|service|server|database|client|cache|node|validator|browser)\b/.test(conceptCorpus)) return 'system_component';
+    if (/\b(protocol|workflow|pipeline|deployment|request|response|state|algorithm|http|https|web)\b/.test(conceptCorpus)) return 'system_process';
     return 'system_component';
   }
 
@@ -766,66 +539,206 @@ function detectPromptAwareConceptRole(concept, field, rootConcept = '') {
   return 'general_component';
 }
 
-function buildPromptAwareDefinition(concept, role, rootConcept, concepts) {
-  const isRootConcept = isSamePromptConcept(concept, rootConcept);
-  const related = concepts.filter((entry) => entry !== concept).slice(0, 2);
-  const relatedText = related.length ? related.join(' and ') : rootConcept;
-
-  if (isRootConcept) {
-    return `${concept} is the central idea that connects ${relatedText} into one coherent explanation.`;
-  }
-
-  const roleCategory = role.split('_')[0];
-  switch (roleCategory) {
-    case 'biology':
-      return `${concept} is a biological component or process within ${rootConcept}.`;
-    case 'market':
-      return `${concept} is a market factor that influences the outcome in ${rootConcept}.`;
-    case 'history':
-      return `${concept} is a historical element that shapes the sequence of ${rootConcept}.`;
-    case 'system':
-    case 'distributed':
-    case 'record':
-    case 'coordination':
-      return `${concept} is a system component that enables ${rootConcept} to function.`;
-    case 'cycle':
-    case 'process':
-    case 'scientific':
-      return `${concept} is a stage or factor in the process of ${rootConcept}.`;
-    default:
-      return `${concept} is one of the key elements used to explain ${rootConcept}.`;
-  }
+// Pick a phrasing from a list by index so consecutive concepts never get the
+// identical sentence (the old fallback reused one template per role, so six
+// concepts read as the same line with the name swapped — meaningless scaffolding).
+function pickVariant(list, index) {
+  if (!list.length) return '';
+  return list[((index % list.length) + list.length) % list.length];
 }
 
-function buildPromptAwareImportance(concept, role, rootConcept, concepts) {
-  const isRootConcept = isSamePromptConcept(concept, rootConcept);
-  const related = concepts.filter((entry) => entry !== concept).slice(0, 2);
-  const relatedText = related.length ? related.join(' and ') : rootConcept;
-
-  if (isRootConcept) {
-    return `Understanding ${concept} is essential because it organizes ${relatedText} into a clear, learnable sequence.`;
+// Topic-mode facet concepts are title-prefixed (e.g. "The Water Cycle Structures")
+// so they read as headings, but repeating that full title in every sentence is the
+// "caption reads like scaffolding, super duplicated" defect. For PROSE use the short
+// facet word ("Structures"); fall back to the full concept if stripping leaves nothing.
+function shortConceptLabel(concept, rootConcept) {
+  const full = String(concept || '').trim();
+  const root = String(rootConcept || '').trim();
+  if (!root || full.toLowerCase() === root.toLowerCase()) return full;
+  if (full.toLowerCase().startsWith(root.toLowerCase())) {
+    const tail = full.slice(root.length).replace(/^[\s:–—-]+/, '').trim();
+    if (tail) return tail;
   }
-
-  return `${concept} matters because it reveals how one part of ${rootConcept} connects to or drives another.`;
+  return full;
 }
 
-function buildPromptAwareDetails(concept, role, rootConcept, concepts) {
+// Map the fine-grained role to a coarse family the phrasing banks switch on.
+function promptAwareRoleFamily(role) {
+  if (role.startsWith('system') || role.startsWith('distributed') || role.startsWith('record') || role.startsWith('coordination')) return 'system';
+  if (role.startsWith('biology')) return 'biology';
+  if (role.startsWith('market')) return 'market';
+  if (role.startsWith('history')) return 'history';
+  if (role.startsWith('cycle') || role.startsWith('process') || role.startsWith('scientific')) return 'process';
+  return 'general';
+}
+
+function buildPromptAwareDefinition(concept, role, rootConcept, concepts, conceptIndex = 0, stripPrefix = rootConcept) {
   const isRootConcept = isSamePromptConcept(concept, rootConcept);
-  const related = concepts.filter((entry) => entry !== concept).slice(0, 2);
+  const relatedRaw = concepts.filter((entry) => entry !== concept).slice(0, 2);
+  const related = relatedRaw.map((entry) => shortConceptLabel(entry, stripPrefix));
+  const self = shortConceptLabel(concept, stripPrefix);
+  const relatedText = related.length ? related.join(' and ') : shortConceptLabel(rootConcept, stripPrefix);
+  const family = promptAwareRoleFamily(role);
 
   if (isRootConcept) {
-    return uniqueNormalizedStrings([
-      `${concept} should be taught as a connected system rather than isolated facts.`,
-      related[0] ? `Connect ${related[0]} to the next visible change in the process.` : '',
-      `The learner should be able to describe how the parts work together.`,
-    ], 3);
+    const rootByFamily = {
+      system: `${concept} is a coordinated exchange between connected parts: one side sends a request, another handles it, and a response travels back — together they form ${relatedText}.`,
+      biology: `${concept} is a living system in which structures like ${relatedText} each play a role, interacting in order to produce a visible result.`,
+      market: `${concept} is shaped by forces such as supply, demand, and price, and ${relatedText} are the levers that move it one way or the other.`,
+      history: `${concept} unfolds as a chain in which earlier pressures lead to events and consequences, with ${relatedText} marking the turning points along the way.`,
+      process: `${concept} is a sequence of connected stages, where ${relatedText} each transform what arrives and pass it on so the next stage can act.`,
+      general: `${concept} is the through-line that ties ${relatedText} together into a single, coherent idea rather than a list of separate terms.`,
+    };
+    return rootByFamily[family];
   }
 
-  return uniqueNormalizedStrings([
-    `${concept} should be shown in relation to ${rootConcept}, not in isolation.`,
-    related[0] ? `Link ${concept} to ${related[0]} to show how they interact.` : '',
-    `The learner should understand what ${concept} contributes to the whole.`,
-  ], 3);
+  const nextRelated = related[0];
+  const linkTo = nextRelated ? ` and feeds into ${nextRelated}` : '';
+  const banks = {
+    system: [
+      `${self} takes in the incoming request, does its specific job, then passes the result onward${linkTo}.`,
+      `${self} is one station on the path: it handles what reaches it and forwards a result${linkTo}.`,
+      `${self} acts on the data it receives and returns something the next part can use${linkTo}.`,
+    ],
+    biology: [
+      `${self} carries out its own step in the process before the result moves on${linkTo}.`,
+      `${self} is the structure responsible for one specific change${linkTo}.`,
+      `${self} performs a single function, then the outcome is handed to what follows${linkTo}.`,
+    ],
+    market: [
+      `${self} is a force that pushes price or quantity in a particular direction${linkTo}.`,
+      `${self} shifts the balance of the market, changing what buyers and sellers decide${linkTo}.`,
+      `${self} tilts the outcome whenever the conditions around it change${linkTo}.`,
+    ],
+    history: [
+      `${self} is the pressure that set the events that came after it in motion${linkTo}.`,
+      `${self} is a turning point that redirected what happened next${linkTo}.`,
+      `${self} built on what came before and pushed the story toward its outcome${linkTo}.`,
+    ],
+    process: [
+      `${self} is the stage that prepares the conditions the next stage relies on${linkTo}.`,
+      `${self} is one step whose output becomes the input for what follows${linkTo}.`,
+      `${self} transforms what reaches it and passes the result forward${linkTo}.`,
+    ],
+    general: [
+      `${self} does one specific job that the rest of the idea depends on${linkTo}.`,
+      `${self} is a distinct piece with a clear role inside the whole${linkTo}.`,
+      `${self} contributes one part of the picture${linkTo}.`,
+    ],
+  };
+  return pickVariant(banks[family], conceptIndex);
+}
+
+function buildPromptAwareImportance(concept, role, rootConcept, concepts, conceptIndex = 0, stripPrefix = rootConcept) {
+  const isRootConcept = isSamePromptConcept(concept, rootConcept);
+  const relatedRaw = concepts.filter((entry) => entry !== concept).slice(0, 2);
+  const related = relatedRaw.map((entry) => shortConceptLabel(entry, stripPrefix));
+  const self = shortConceptLabel(concept, stripPrefix);
+  const relatedText = related.length ? related.join(' and ') : shortConceptLabel(rootConcept, stripPrefix);
+  const family = promptAwareRoleFamily(role);
+
+  if (isRootConcept) {
+    const rootByFamily = {
+      system: `Trace it as request → processing → response and ${relatedText} fall into a clear order instead of feeling like scattered parts.`,
+      biology: `Once you see how ${relatedText} interact in sequence, the whole process makes sense as one connected system.`,
+      market: `Watch how ${relatedText} pull against each other and the resulting price or quantity stops looking arbitrary.`,
+      history: `Read it as cause leading to event leading to consequence, and ${relatedText} line up into a single story.`,
+      process: `Follow the stages in order and ${relatedText} explain why the outcome turns out the way it does.`,
+      general: `Once you see how ${relatedText} fit together, the whole idea stops feeling like a pile of disconnected terms.`,
+    };
+    return rootByFamily[family];
+  }
+
+  const nextRelated = related[0];
+  const banks = nextRelated ? [
+    `It matters because what ${self} produces is exactly what ${nextRelated} needs to do its part.`,
+    `Without ${self}, ${nextRelated} would have nothing to work with.`,
+    `${self} is the link that lets ${nextRelated} continue the chain.`,
+  ] : [
+    `It matters because skipping ${self} breaks the chain that follows it.`,
+    `Remove ${self} and the steps after it lose their starting point.`,
+    `${self} is the piece that keeps the rest of the process moving.`,
+  ];
+  return pickVariant(banks, conceptIndex);
+}
+
+function buildPromptAwareDetails(concept, role, rootConcept, concepts, conceptIndex = 0, stripPrefix = rootConcept) {
+  const isRootConcept = isSamePromptConcept(concept, rootConcept);
+  const relatedRaw = concepts.filter((entry) => entry !== concept).slice(0, 2);
+  const related = relatedRaw.map((entry) => shortConceptLabel(entry, stripPrefix));
+  const self = shortConceptLabel(concept, stripPrefix);
+  const family = promptAwareRoleFamily(role);
+
+  if (isRootConcept) {
+    const rootByFamily = {
+      system: [
+        `It starts with a sender and a receiver at the two ends.`,
+        `A request carries what is asked for; a response carries what comes back.`,
+        related[0] ? `${related[0]} is one hop along that path, not a separate topic.` : '',
+      ],
+      biology: [
+        `Each structure does its own job, then the result moves to the next.`,
+        related[0] ? `${related[0]} acts only after the step before it finishes.` : '',
+        `Follow the parts in order and the final outcome explains itself.`,
+      ],
+      market: [
+        `Supply and demand meet at a price where the two balance.`,
+        related[0] ? `When ${related[0]} changes, that balance point shifts.` : '',
+        `Read the direction of each force to predict where the outcome lands.`,
+      ],
+      history: [
+        `Earlier pressures build until they tip into an event.`,
+        related[0] ? `${related[0]} marks one of those turning points.` : '',
+        `Each consequence becomes the setup for what happens next.`,
+      ],
+      process: [
+        `Its stages hand work to one another in a fixed order.`,
+        related[0] ? `What ${related[0]} does depends on what came before it.` : '',
+        `Follow the stages in sequence and the result becomes predictable.`,
+      ],
+      general: [
+        `Its parts hand work to one another in order.`,
+        related[0] ? `What ${related[0]} does next depends on what came before it.` : '',
+        `Follow the parts in sequence and the outcome explains itself.`,
+      ],
+    };
+    return uniqueNormalizedStrings(rootByFamily[family], 3);
+  }
+
+  const nextRelated = related[0];
+  const banksByFamily = {
+    system: [
+      `${self} sits at one point along the request path.`,
+      nextRelated ? `${self} passes information to ${nextRelated} or returns it back.` : `${self} sends, handles, stores, or returns — one clear job.`,
+      `Its single responsibility keeps the exchange flowing.`,
+    ],
+    biology: [
+      `${self} performs one step and nothing more.`,
+      nextRelated ? `Its result becomes what ${nextRelated} acts on.` : `Its result is what the next structure acts on.`,
+      `Skip it and the steps after it have nothing to continue with.`,
+    ],
+    market: [
+      `${self} pushes the outcome in one direction.`,
+      nextRelated ? `Its movement reshapes how ${nextRelated} responds.` : `Its movement reshapes the balance of the whole market.`,
+      `Track its direction and the price or quantity follows.`,
+    ],
+    history: [
+      `${self} applied pressure at a specific moment.`,
+      nextRelated ? `That pressure set up ${nextRelated} as the next turn.` : `That pressure set up the events that followed.`,
+      `Its effect carried forward into later consequences.`,
+    ],
+    process: [
+      `${self} handles one step on its own.`,
+      nextRelated ? `Its output is the input ${nextRelated} works on.` : `Its output is the input the next step works on.`,
+      `Remove it and the steps after it have nothing to act on.`,
+    ],
+    general: [
+      `${self} handles one step on its own.`,
+      nextRelated ? `Its output is the input ${nextRelated} works on.` : `Its output is what the next part works on.`,
+      `Remove it and the steps after it have nothing to act on.`,
+    ],
+  };
+  return uniqueNormalizedStrings(banksByFamily[family], 3);
 }
 
 function buildPromptAwareTeachingApproach(field, topicText, concepts) {
@@ -870,13 +783,13 @@ function buildPromptAwareTopicComprehension(topicText, field, title) {
   const rootConcept = concepts[0] || coreTitle || title;
   const supportConcepts = concepts.slice(1, 5);
   const supportSummary = supportConcepts.length ? supportConcepts.join(', ') : 'its main components and outcomes';
-  const keyTopics = concepts.slice(0, 6).map((concept) => {
+  const keyTopics = concepts.slice(0, 6).map((concept, conceptIndex) => {
     const role = detectPromptAwareConceptRole(concept, resolvedField, rootConcept);
     return buildTopicEntry(
       concept,
-      buildPromptAwareDefinition(concept, role, rootConcept, concepts),
-      buildPromptAwareImportance(concept, role, rootConcept, concepts),
-      buildPromptAwareDetails(concept, role, rootConcept, concepts),
+      buildPromptAwareDefinition(concept, role, rootConcept, concepts, conceptIndex, coreTitle),
+      buildPromptAwareImportance(concept, role, rootConcept, concepts, conceptIndex, coreTitle),
+      buildPromptAwareDetails(concept, role, rootConcept, concepts, conceptIndex, coreTitle),
       supportConcepts
         .filter((entry) => entry !== concept)
         .slice(0, 2)
@@ -885,16 +798,16 @@ function buildPromptAwareTopicComprehension(topicText, field, title) {
   });
 
   const coreThesis = resolvedField === 'biology'
-    ? `${rootConcept} is best understood as a biological system or sequence rather than a list of isolated terms. This lesson will track ${supportSummary} so the learner can explain what changes, what interacts, and what outcome the process produces.`
+    ? `${rootConcept} works as a biological system or sequence rather than a list of isolated terms. ${supportSummary} show what changes, what interacts, and what outcome the process produces.`
     : resolvedField === 'economics'
-      ? `${rootConcept} is best understood by tracking how market forces interact instead of memorizing isolated definitions. This lesson will connect ${supportSummary} so the learner can predict how the outcome shifts when conditions change.`
+      ? `${rootConcept} becomes clear when market forces are tracked together instead of memorized as isolated definitions. ${supportSummary} show how the outcome shifts when conditions change.`
       : resolvedField === 'history'
-        ? `${rootConcept} is best understood as a chain of causes, phases, and consequences rather than as a single event name. This lesson will connect ${supportSummary} so the learner can explain what triggered the change, what happened across the timeline, and what remained afterward.`
+        ? `${rootConcept} is a chain of causes, phases, and consequences rather than a single event name. ${supportSummary} show what triggered the change, what happened across the timeline, and what remained afterward.`
         : isCycleTopic
-          ? `${rootConcept} is best understood as a repeating process instead of a loose set of vocabulary words. This lesson will connect ${supportSummary} so the learner can track what changes at each stage and how the cycle continues.`
-      : /\b(blockchain|validator|ledger|consensus|distributed|transaction|network|protocol)\b/i.test(cleaned)
-        ? `${rootConcept} is best understood as a coordinated system with participants, records, and decision rules. This lesson will connect ${supportSummary} so the learner can explain how information moves and why one result becomes accepted.`
-        : `${rootConcept} should be explained through its concrete components, relationships, and visible changes over time. This lesson will connect ${supportSummary} so the learner can move from definition to mechanism to application.`;
+          ? `${rootConcept} is a repeating process instead of a loose set of vocabulary words. ${supportSummary} show what changes at each stage and how the cycle continues.`
+      : /\b(blockchain|validator|ledger|consensus|distributed|transaction|network|protocol|api|server|browser|client|request|response|web)\b/i.test(cleaned)
+        ? `${rootConcept} is a coordinated information exchange between components. ${supportSummary} show who sends the message, who handles it, and what comes back.`
+        : `${rootConcept} becomes clear by following its concrete parts and relationships. ${supportSummary} show the basic meaning, the mechanism, and the practical outcome.`;
 
   return {
     document_subject: title || rootConcept,
@@ -1227,6 +1140,114 @@ export async function planLesson(rawText, onProgress) {
   return _planLessonContent(spec, onProgress);
 }
 
+// ── Visual composition refinement (Pass 2.5) ─────────────────────────────────
+// Dry-runs the template pipeline, scores each part's board_scenes, then asks the
+// AI to REWRITE the visuals — richer "say" lines, SVG diagram beats, varied
+// intents — before the final render pass.
+
+async function refinePartBoardScenes(part, ctx, aiProvider, analysisModel, limits) {
+  const assessment = assessPartVisuals(part, ctx);
+  if (!assessment.needsRefinement && assessment.score >= 85) {
+    return part.board_scenes;
+  }
+
+  const crossPartNote = ctx.priorSignatures?.length
+    ? `Prior parts used these intent sequences (DO NOT repeat): ${ctx.priorSignatures.join(' | ')}`
+    : '';
+
+  const prompt = `${TUTOR_PHILOSOPHY}${VISUAL_COMPOSITION_PROMPT}
+
+PART TITLE: ${part.title}
+LEARNING OBJECTIVE: ${part.learning_objective || part.scene_goal || ''}
+KEY CONCEPTS: ${(part.key_concepts || []).join(', ')}
+FIELD: ${ctx.field || 'general'}
+${buildVisualPlaybook(ctx.field)}
+
+COMPOSITION PREVIEW (templates the renderer would pick):
+${JSON.stringify(assessment.preview.boards, null, 1)}
+
+ISSUES DETECTED:
+${assessment.issues.length ? assessment.issues.map((i) => `- ${i}`).join('\n') : '- General quality improvement needed'}
+
+${crossPartNote}
+
+CURRENT board_scenes:
+${JSON.stringify(part.board_scenes || [], null, 1)}
+
+SOURCE MATERIAL (teach from this):
+${String(ctx.sourceSnippet || '').slice(0, 6000)}
+
+Return ONLY JSON: { "board_scenes": [ ... ] }`;
+
+  try {
+    const result = await callAIRace(
+      prompt,
+      Math.min(limits.contentTok, 8000),
+      limits.contentTimeout,
+      aiProvider,
+      analysisModel,
+    );
+    const refined = validateBoardScenes(result?.board_scenes || []);
+    if (refined.length >= 3) {
+      const recheck = assessPartVisuals({ ...part, board_scenes: refined }, ctx);
+      if (recheck.score >= assessment.score || recheck.issues.length < assessment.issues.length) {
+        console.log(`[aiPlanner] Visual refine "${part.title}": ${assessment.score}→${recheck.score} (${refined.length} boards)`);
+        return refined;
+      }
+    }
+  } catch (err) {
+    console.warn(`[aiPlanner] Visual refine failed for "${part.title}": ${err.message}`);
+  }
+  return part.board_scenes;
+}
+
+async function refineLessonVisuals(plan, lessonSpec, aiProvider, analysisModel) {
+  const field = lessonSpec.comprehension?.field || '';
+  const limits = PROVIDER_LIMITS[aiProvider] || PROVIDER_LIMITS.blaze;
+  const { assessments, needsRefinement } = assessLessonVisuals(plan, field);
+
+  if (!needsRefinement) {
+    const avg = assessments.length
+      ? assessments.reduce((s, a) => s + a.score, 0) / assessments.length
+      : 100;
+    console.log(`[aiPlanner] Visual composition OK (avg score ${Math.round(avg)})`);
+    return plan;
+  }
+
+  console.log(`[aiPlanner] Phase 3 Pass 2.5: Refining visuals for ${assessments.filter((a) => a.needsRefinement).length}/${assessments.length} parts...`);
+
+  const priorSignatures = [];
+  const contentParts = plan.parts.filter((p) => p.part_type === 'content');
+
+  for (let i = 0; i < contentParts.length; i++) {
+    const part = contentParts[i];
+    const assessment = assessments.find((a) => a.partIndex === i);
+    if (!assessment?.needsRefinement && assessment?.score >= 80) {
+      priorSignatures.push(assessment.signature);
+      continue;
+    }
+
+    const refinedScenes = await refinePartBoardScenes(part, {
+      lessonTitle: plan.title,
+      field,
+      partIndex: i,
+      priorSignatures: [...priorSignatures],
+      sourceSnippet: lessonSpec.section_text,
+    }, aiProvider, analysisModel, limits);
+
+    if (refinedScenes?.length) {
+      part.board_scenes = refinedScenes;
+      const beatNarration = refinedScenes.map((s) => s.say).filter(Boolean).join(' ');
+      if (beatNarration) part.narration = beatNarration;
+    }
+
+    const after = assessPartVisuals(part, { lessonTitle: plan.title, field, partIndex: i, priorSignatures });
+    priorSignatures.push(after.signature);
+  }
+
+  return plan;
+}
+
 // ---- Planning pipeline -------------------------------------------------------
 
 async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, analysisModel = null) {
@@ -1246,6 +1267,9 @@ async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, ana
   const comprehensionContext = lessonSpec.comprehension
     ? `\n\nDOCUMENT UNDERSTANDING:\nSubject: ${lessonSpec.comprehension.document_subject}\nField: ${lessonSpec.comprehension.field}\nCore thesis: ${lessonSpec.comprehension.core_thesis}\nDifficulty: ${lessonSpec.comprehension.difficulty_level}\nTeaching approach: ${lessonSpec.comprehension.teaching_approach}\nLogical flow: ${lessonSpec.comprehension.logical_flow || ''}\nKey topics (ALL — use these for accurate content):\n${JSON.stringify(lessonSpec.comprehension.key_topics?.slice(0, 20), null, 1)}`
     : '';
+
+  // Light per-subject bias toward the board intents that teach this field best.
+  const visualPlaybook = buildVisualPlaybook(lessonSpec.comprehension?.field);
 
   const specText = [
     `Lesson Title: ${lessonSpec.title}`,
@@ -1269,7 +1293,7 @@ async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, ana
     const modePrefix = buildModePrefix(lessonSpec.explanation_mode);
     const sourceModePrefix = buildSourceModePrefix(lessonSpec.source_mode);
     const aiPlan = await callAIRace(
-      `${intentPrefix}${modePrefix}${sourceModePrefix}${TEACHING_PROMPT}${comprehensionContext}\n\nLESSON SPEC:\n${specText}`,
+      `${intentPrefix}${modePrefix}${sourceModePrefix}${TUTOR_PHILOSOPHY}${TEACHING_PROMPT}${comprehensionContext}${visualPlaybook}\n\nLESSON SPEC:\n${specText}`,
       limits.contentTok,
       limits.contentTimeout,
       aiProvider,
@@ -1294,7 +1318,7 @@ async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, ana
       await report('ai_refining');
       console.log(`[aiPlanner] Phase 3 Pass 2: Refining lesson "${lessonSpec.title}"...`);
       const refinedPlan = await callAIRace(
-        REFINEMENT_PROMPT + `\n\nORIGINAL LESSON PLAN:\n${JSON.stringify(finalPlan, null, 1).slice(0, refinePlanLimit)}\n\nSOURCE MATERIAL:\n${(lessonSpec.section_text || '').slice(0, refineSourceLimit)}`,
+        REFINEMENT_PROMPT + `\n\n${TUTOR_PHILOSOPHY}\n\nORIGINAL LESSON PLAN:\n${JSON.stringify(finalPlan, null, 1).slice(0, refinePlanLimit)}\n\nSOURCE MATERIAL:\n${(lessonSpec.section_text || '').slice(0, refineSourceLimit)}`,
         limits.contentTok,
         limits.contentTimeout,
         aiProvider,
@@ -1303,12 +1327,47 @@ async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, ana
       if (refinedPlan?.parts?.length) {
         const validated = validateAndFixPlan(refinedPlan, lessonSpec);
         if (validated.parts.length >= finalPlan.parts.length) {
+          // Refinement must never strip the AI's board_scenes. If a refined part
+          // lost the teaching beats its pre-refinement counterpart had, restore
+          // them so refinement can only improve coverage, never regress it.
+          validated.parts.forEach((part, i) => {
+            const prior = finalPlan.parts[i];
+            if (!part.board_scenes?.length && prior?.board_scenes?.length) {
+              part.board_scenes = prior.board_scenes;
+            }
+          });
           finalPlan = validated;
           console.log(`[aiPlanner] Phase 3 Pass 2 OK - refined to ${finalPlan.parts.length} parts`);
         }
       }
     } catch (refineErr) {
       console.warn('[aiPlanner] Phase 3 Pass 2 refinement skipped:', refineErr.message);
+    }
+  }
+
+  // ── Pass 2.5: Visual composition — AI edits board_scenes for rich SVG teaching ──
+  if (finalPlan) {
+    try {
+      await report('ai_visual_refining');
+      finalPlan = await refineLessonVisuals(finalPlan, lessonSpec, aiProvider, analysisModel);
+      // Re-validate after visual edits so narration syncs with refined beats
+      finalPlan = validateAndFixPlan(finalPlan, lessonSpec);
+
+      // Last-resort quality gate: if the AI's plan is mostly meta-language
+      // scaffolding (the "super duplicated, no meaning" failure mode), rebuild
+      // the parts from the comprehension `details` — the real source-grounded
+      // teaching content. We don't fall through to the local-text fallback;
+      // we keep the AI's structure but replace its paraphrases with verbatim
+      // source sentences. Only triggers if the comprehension pass actually
+      // produced details to work with.
+      if (looksLikeMetaOnlyPlan(finalPlan, lessonSpec)) {
+        const before = JSON.stringify(finalPlan).length;
+        finalPlan = rebuildPlanFromComprehension(finalPlan, lessonSpec);
+        finalPlan = validateAndFixPlan(finalPlan, lessonSpec);
+        console.log(`[aiPlanner] Plan was meta-only; rebuilt from comprehension (${before} → ${JSON.stringify(finalPlan).length} chars)`);
+      }
+    } catch (visualErr) {
+      console.warn('[aiPlanner] Phase 3 Pass 2.5 visual refinement skipped:', visualErr.message);
     }
   }
 
@@ -1357,13 +1416,12 @@ MATERIAL:\n${(lessonSpec.section_text || '').slice(0, refineSourceLimit)}`;
     finalPlan = buildFallbackLesson(lessonSpec);
   }
 
-  // ── AI-DRIVEN VISUAL GENERATION ──
-  // Each part gets its own AI call for visual generation (multi-request for quality)
+  // Ensure every content part has visual sequences
   const contentParts = finalPlan.parts.filter((p) => p.part_type === 'content');
   for (let i = 0; i < contentParts.length; i++) {
     await report(`planning_visuals_${i + 1}`);
     const part = contentParts[i];
-    part.visual_sequence = await generateContentVisualsAI({
+    part.visual_sequence = generateContentVisuals({
       lessonTitle: finalPlan.title,
       part,
       contentIndex: i,
@@ -1373,13 +1431,24 @@ MATERIAL:\n${(lessonSpec.section_text || '').slice(0, refineSourceLimit)}`;
         previous: lessonSpec.previous_lesson_title,
         next: lessonSpec.next_lesson_title,
       },
-    }, aiProvider, analysisModel);
+    });
+    // CONTENT-DRIVEN DURATION: there is no narration audio, so the board must
+    // end when the DRAWING ends. We pin duration to the last *drawn* shape's time
+    // plus a short read-hold — not the max scene time, which includes a trailing
+    // camera-reset that would otherwise leave the finished board frozen for a few
+    // extra seconds. This stops the player sitting on a dead board. Sane band.
+    const lastDraw = (part.visual_sequence || [])
+      .filter((s) => !['camera', 'clear'].includes(s.type || s.action_type))
+      .reduce((m, s) => Math.max(m, Number(s.time) || 0), 0);
+    if (lastDraw > 0) {
+      part.duration_seconds = clamp(Math.ceil(lastDraw + 2.0), 45, 200);
+    }
   }
 
-  // AI-driven quiz visuals
+  // Ensure quiz parts have visuals
   for (const part of finalPlan.parts) {
     if (part.part_type === 'quiz' && !part.visual_sequence?.length) {
-      part.visual_sequence = await generateQuizVisualsAI(finalPlan.title, part, aiProvider, analysisModel);
+      part.visual_sequence = generateQuizVisuals(finalPlan.title, part);
     }
   }
 
@@ -1716,204 +1785,22 @@ function buildVisualCueList(values, limit = 3, maxWords = 4) {
   return cues;
 }
 
-function isCueCoveredByLongerVariant(shortCue, longCue) {
-  const shortWords = normalizeText(String(shortCue || '')).toLowerCase().split(/\s+/).filter(Boolean);
-  const longWords = normalizeText(String(longCue || '')).toLowerCase().split(/\s+/).filter(Boolean);
 
-  if (!shortWords.length || shortWords.length >= longWords.length) return false;
-  if (` ${longWords.join(' ')} `.includes(` ${shortWords.join(' ')} `)) return true;
 
-  const longWordSet = new Set(longWords);
-  return shortWords.every((word) => longWordSet.has(word));
-}
 
-function pruneOverlappingVisualCues(values, limit = 3) {
-  const cues = [];
 
-  for (const value of Array.isArray(values) ? values : []) {
-    const cue = normalizeText(String(value || ''));
-    if (!cue) continue;
 
-    let skipCue = false;
-    for (let index = cues.length - 1; index >= 0; index -= 1) {
-      const existingCue = cues[index];
-      if (isCueCoveredByLongerVariant(cue, existingCue)) {
-        skipCue = true;
-        break;
-      }
-      if (isCueCoveredByLongerVariant(existingCue, cue)) {
-        cues.splice(index, 1);
-      }
-    }
 
-    if (!skipCue) {
-      cues.push(cue);
-    }
-  }
 
-  return cues.slice(0, limit);
-}
 
-function preferSpecificVisualCues(values, contextValues = [], limit = 3, maxWords = 4) {
-  const cues = [];
-
-  for (const value of Array.isArray(values) ? values : []) {
-    let cue = compactBoardLabel(value, maxWords)
-      || normalizeVisualCueWithContext(value, contextValues, maxWords)
-      || normalizeVisualCue(value, maxWords);
-
-    if (!cue) continue;
-
-    const words = cue.split(/\s+/).filter(Boolean);
-    const preserveSingleWordCue = words.length === 1 && (
-      /^[A-Z0-9+()./-]+$/.test(cue)
-      || /^(rubisco|chlorophyll|chloroplast|thylakoid|stroma|grana)$/i.test(cue)
-    );
-
-    if (words.length === 1 && !preserveSingleWordCue) {
-      const expandedCue = compactBoardLabel(expandVisualCueFromContext(cue, contextValues, maxWords), maxWords)
-        || expandVisualCueFromContext(cue, contextValues, maxWords);
-      if (!expandedCue || expandedCue.split(/\s+/).filter(Boolean).length === 1) {
-        continue;
-      }
-      cue = expandedCue;
-    }
-
-    cues.push(cue);
-  }
-
-  return pruneOverlappingVisualCues(uniqueNormalizedStrings(cues, limit * 3), limit);
-}
-
-function buildVisualContextWordSet(values) {
-  const contextWords = new Set();
-
-  for (const value of Array.isArray(values) ? values : []) {
-    const normalized = normalizeText(String(value || ''));
-    if (!normalized) continue;
-
-    const candidates = [normalizeVisualCue(normalized, 3), ...extractKeyConcepts(normalized, [], 4)]
-      .map((candidate) => normalizeVisualCue(candidate, 3))
-      .filter(Boolean);
-
-    for (const candidate of candidates) {
-      const words = candidate.split(/\s+/).filter(Boolean);
-      if (words.length !== 1) continue;
-
-      const token = words[0].toLowerCase();
-      if (STOPWORDS.has(token) || WEAK_CONCEPTS.has(token)) continue;
-      contextWords.add(token);
-    }
-  }
-
-  return contextWords;
-}
-
-function normalizeVisualCueWithContext(value, contextValues = [], maxWords = 4) {
-  const cue = normalizeVisualCue(value, maxWords);
-  if (!cue) return '';
-
-  const words = cue.split(/\s+/).filter(Boolean);
-  if (words.length <= 2) return cue;
-
-  const contextWords = buildVisualContextWordSet(contextValues);
-  while (words.length > 2 && contextWords.has(words[words.length - 1].toLowerCase())) {
-    words.pop();
-  }
-
-  const refined = words.join(' ');
-  return refined && !isWeakVisualCue(refined) ? refined : cue;
-}
-
-function expandVisualCueFromContext(cue, contextValues = [], maxWords = 4) {
-  const normalizedCue = normalizeVisualCue(cue, maxWords);
-  if (!normalizedCue) return '';
-
-  const cueKey = normalizedCue.toLowerCase();
-  const cueWords = cueKey.split(/\s+/).filter(Boolean);
-  const genericCue = cueWords.length === 1 && new Set([
-    'energy', 'function', 'organization', 'structure', 'process', 'system', 'phase', 'angle', 'value', 'graph', 'curve', 'cycle',
-  ]).has(cueWords[0]);
-
-  for (const value of Array.isArray(contextValues) ? contextValues : []) {
-    const candidate = normalizeVisualCueWithContext(value, [normalizedCue], maxWords) || normalizeVisualCue(value, maxWords);
-    if (!candidate) continue;
-
-    const candidateKey = candidate.toLowerCase();
-    if (candidateKey === cueKey) continue;
-    const candidateWords = candidate.split(/\s+/).filter(Boolean);
-    if (candidateWords.length <= cueWords.length) continue;
-    if (candidateKey.includes(cueKey) || genericCue) {
-      return candidate;
-    }
-  }
-
-  return normalizedCue;
-}
-
-function compactBoardLabel(value, maxWords = 4) {
-  const cue = normalizeVisualCue(value, maxWords);
-  if (!cue) return '';
-
-  const words = cue.split(/\s+/).filter(Boolean);
-  const genericTailWords = new Set(['organization', 'architecture', 'overview', 'function', 'properties', 'process', 'system']);
-  while (words.length > 2 && genericTailWords.has(words[words.length - 1].toLowerCase())) {
-    words.pop();
-  }
-  const hasConnector = words.some((word) => /^(and|or|of|for|to|in|with|from|via|through)$/i.test(word));
-  const allTitleLike = words.every((word) => /^[A-Z0-9][A-Za-z0-9/().-]*$/.test(word));
-  const refinedCue = words.join(' ');
-
-  if (refinedCue && refinedCue !== cue && !isWeakVisualCue(refinedCue)) {
-    return refinedCue;
-  }
-
-  if (words.length >= 4 && allTitleLike && !hasConnector) {
-    return words.slice(0, 2).join(' ');
-  }
-
-  return refinedCue || cue;
-}
-
-function extractTitleCueSegments(value, maxWords = 4) {
-  return normalizeText(String(value || ''))
-    .split(/\s+\band\b\s+|[:/,-]+/i)
-    .map((segment) => compactBoardLabel(segment, maxWords) || normalizeVisualCue(segment, maxWords) || truncateWords(segment, maxWords))
-    .filter(Boolean)
-    .filter((segment) => !/^(core notes|mechanism notes|review notes|visual map|diagramming|applying)$/i.test(segment))
-    .filter((segment, index, all) => all.findIndex((entry) => entry.toLowerCase() === segment.toLowerCase()) === index);
-}
-
-function buildVisualSubtitle(concepts, fallbackSentence = '', maxConcepts = 2) {
-  const rawConcepts = uniqueNormalizedStrings(concepts, maxConcepts + 1);
-  const subtitleConcepts = rawConcepts
-    .map((concept) => normalizeVisualCue(concept, 3))
-    .filter(Boolean)
-    .slice(0, maxConcepts);
-
-  if (subtitleConcepts.length >= 2) {
-    const candidate = subtitleConcepts.join(' | ');
-    if (candidate.length <= 58) return candidate;
-
-    const tighter = rawConcepts
-      .slice(0, maxConcepts)
-      .map((concept) => normalizeVisualCue(concept, 2))
-      .filter(Boolean)
-      .join(' | ');
-
-    return tighter || candidate;
-  }
-
-  if (subtitleConcepts.length === 1) {
-    return subtitleConcepts[0];
-  }
-
-  return compactVisualPhrase(fallbackSentence, 8);
-}
 
 function containsPlannerControlPhrase(text, lessonSpec) {
   const normalized = normalizePlannerPhrase(text);
   if (!normalized) return false;
+
+  if (/\b(should be explained|should be taught|should be shown|this lesson will|so the learner can|move from definition to mechanism|one coherent explanation|not in isolation|visible changes over time|clear learnable sequence)\b/.test(normalized)) {
+    return true;
+  }
 
   const hasStructuredPrefix = /^(primary lesson goal|preferred delivery style|specific user requirements|lesson intent|teaching preset)\b/.test(normalized);
   const matched = [...PLANNER_META_CONCEPTS].some((phrase) => normalized.includes(phrase));
@@ -1926,7 +1813,15 @@ function containsPlannerControlPhrase(text, lessonSpec) {
 }
 
 function sanitizeNarration(narration, lessonSpec, concepts) {
-  const sentences = extractSentences(narration || '');
+  // The AI sometimes returns narration where two duplicate sentences have been
+  // concatenated without a separator ("...and review How X begins with..."). The
+  // sentence splitter sees it as one long sentence and the dedup below can't
+  // help. Normalize "review.<duplicate>" → "review. <duplicate>" first so the
+  // splitter actually splits them and the dedup drops the second.
+  const splitReady = String(narration || '')
+    .replace(/([.!?])\s*(?=[A-Z])/g, '$1 ')
+    .replace(/(review|conclusion|summary)\.\s*([A-Z])/g, '$1. $2');
+  const sentences = extractSentences(stripGatewaySentinels(splitReady));
   const seen = new Set();
   const cleaned = [];
 
@@ -1937,12 +1832,18 @@ function sanitizeNarration(narration, lessonSpec, concepts) {
     if (seen.has(key)) continue;
     if (containsPlannerControlPhrase(normalized, lessonSpec)) continue;
     if (isInstructionalMetaSentence(normalized)) continue;
-    if (/^(this is important|understanding this matters|it is important to understand|now let'?s dive in|let'?s dive in|in conclusion|to summarize)\b/i.test(normalized)) {
+    // Reuse the validator's stronger meta-stripper so phrases like
+    // "is a central concept in this lesson" or "supports the rest of the
+    // topic" don't leak into the visible narration. The validator's
+    // patterns catch what the narrow INSTRUCTIONAL_META_* regexes miss.
+    const sayClean = cleanSay(normalized, 800);
+    if (!sayClean.text || sayClean.isMetaOnly) continue;
+    if (/^(this is important|understanding this matters|it is important to understand|now let'?s dive in|let'?s dive in|in conclusion|to summarize)\b/i.test(sayClean.text)) {
       continue;
     }
 
     seen.add(key);
-    cleaned.push(normalized);
+    cleaned.push(sayClean.text);
   }
 
   if (!cleaned.length) return normalizeText(narration || '');
@@ -1953,7 +1854,14 @@ function sanitizeNarration(narration, lessonSpec, concepts) {
 }
 
 function sanitizeNarrationWithoutEnrichment(narration, lessonSpec, concepts = [], sourceText = '') {
-  const sentences = extractSentences(narration || '');
+  // Same split-tied-sentences fix as sanitizeNarration: when the AI concatenates
+  // a duplicate sentence onto the previous one without punctuation, the splitter
+  // merges them and dedup never fires. Normalize "review.<dup>" → "review. <dup>"
+  // so the splitter splits them and the dedup below drops the second.
+  const splitReady = String(narration || '')
+    .replace(/([.!?])\s*(?=[A-Z])/g, '$1 ')
+    .replace(/(review|conclusion|summary)\.\s*([A-Z])/g, '$1. $2');
+  const sentences = extractSentences(splitReady);
   const seen = new Set();
   const cleaned = [];
 
@@ -1964,12 +1872,18 @@ function sanitizeNarrationWithoutEnrichment(narration, lessonSpec, concepts = []
     if (seen.has(key)) continue;
     if (containsPlannerControlPhrase(normalized, lessonSpec)) continue;
     if (isInstructionalMetaSentence(normalized)) continue;
-    if (/^(this is important|understanding this matters|it is important to understand|now let'?s dive in|let'?s dive in|in conclusion|to summarize)\b/i.test(normalized)) {
+    // Apply the validator's stronger meta-stripper so phrases like
+    // "is a central concept in this lesson" don't leak into the visible
+    // narration. The validator has 27+ meta-sentence patterns that catch
+    // what the narrow INSTRUCTIONAL_META_* regexes here miss.
+    const sayClean = cleanSay(normalized, 800);
+    if (!sayClean.text || sayClean.isMetaOnly) continue;
+    if (/^(this is important|understanding this matters|it is important to understand|now let'?s dive in|let'?s dive in|in conclusion|to summarize)\b/i.test(sayClean.text)) {
       continue;
     }
 
     seen.add(key);
-    cleaned.push(normalized);
+    cleaned.push(sayClean.text);
   }
 
   const rebuilt = cleaned.length ? collapseRepeatedWordRuns(cleaned.join(' ')) : collapseRepeatedWordRuns(normalizeText(narration || ''));
@@ -3045,99 +2959,9 @@ function buildSceneTextSignature(value) {
   return normalized.split(/\s+/).slice(0, 8).join(' ');
 }
 
-function isGenericSceneText(value) {
-  const normalized = normalizeText(String(value || '')).toLowerCase();
-  if (!normalized) return false;
-  return /^(focused|core|review|study|mechanism) notes$/.test(normalized)
-    || /^step \d+$/.test(normalized)
-    || /^question \d+$/.test(normalized)
-    || /^part \d+$/.test(normalized);
-}
 
-function analyzeVisualSequence(visualSeq, anchors = []) {
-  const safeScenes = Array.isArray(visualSeq) ? visualSeq : [];
-  const seenText = new Set();
-  const matchedAnchors = new Set();
-  const anchorSignatures = uniqueNormalizedStrings(anchors, 12)
-    .map((anchor) => buildSceneTextSignature(anchor))
-    .filter(Boolean);
-  const typeSet = new Set();
-  let nonClearCount = 0;
-  let duplicateTextCount = 0;
-  let uniqueTextCount = 0;
-  let genericTextCount = 0;
-  let richSceneCount = 0;
 
-  for (const scene of safeScenes) {
-    if (!scene || typeof scene !== 'object') continue;
-    const type = String(scene.type || '').trim();
-    if (!type) continue;
 
-    typeSet.add(type);
-    if (type === 'clear') continue;
-    nonClearCount += 1;
-
-    if (['draw_object', 'draw_physics_shape', 'draw_graph', 'draw_coordinate_system', 'draw_table', 'draw_path'].includes(type)) {
-      richSceneCount += 1;
-    }
-
-    for (const fragment of collectSceneTextFragments(scene)) {
-      if (isGenericSceneText(fragment)) {
-        genericTextCount += 1;
-      }
-
-      const signature = buildSceneTextSignature(fragment);
-      if (!signature) continue;
-
-      if (seenText.has(signature)) {
-        duplicateTextCount += 1;
-      } else {
-        seenText.add(signature);
-        uniqueTextCount += 1;
-      }
-
-      anchorSignatures.forEach((anchorSignature) => {
-        if (signature.includes(anchorSignature) || anchorSignature.includes(signature)) {
-          matchedAnchors.add(anchorSignature);
-        }
-      });
-    }
-  }
-
-  const totalTrackedText = uniqueTextCount + duplicateTextCount;
-  return {
-    nonClearCount,
-    typeCount: typeSet.size,
-    richSceneCount,
-    uniqueTextCount,
-    duplicateTextCount,
-    anchorMatchCount: matchedAnchors.size,
-    duplicateRatio: totalTrackedText ? duplicateTextCount / totalTrackedText : 0,
-    genericTextRatio: totalTrackedText ? genericTextCount / totalTrackedText : 0,
-  };
-}
-
-function hasStrongLessonSpecificVisualSequence(visualSeq, part, lessonSpec) {
-  const anchors = [
-    part?.title,
-    ...(Array.isArray(part?.key_concepts) ? part.key_concepts : []),
-    ...(Array.isArray(lessonSpec?.key_points) ? lessonSpec.key_points.slice(0, 4) : []),
-  ];
-  const metrics = analyzeVisualSequence(visualSeq, anchors);
-
-  if (metrics.nonClearCount < 10) return false;
-  if (metrics.typeCount < 4) return false;
-  if (metrics.anchorMatchCount < 1 && metrics.richSceneCount < 3) return false;
-  if (metrics.duplicateRatio > 0.45) return false;
-  if (metrics.genericTextRatio > 0.5 && metrics.richSceneCount < 3) return false;
-  if (metrics.uniqueTextCount < 6 && metrics.richSceneCount < 2) return false;
-
-  return true;
-}
-
-function mainSceneText(scene) {
-  return collectSceneTextFragments(scene)[0] || '';
-}
 
 function sanitizeSceneEntry(entry) {
   if (!entry || typeof entry !== 'object') return null;
@@ -3506,19 +3330,37 @@ function validateAndFixPlan(aiPlan, lessonSpec) {
       pedagogicalPlan.learning_objective,
       ...pedagogicalPlan.visual_logic.map((entry) => entry.content),
     ], fallbackConceptText, 8);
+    // Validate the AI's semantic board_scenes FIRST — these drive the template
+    // pipeline AND now carry the spoken teacher line (`say`) for each beat.
+    // Validating up front lets us assemble the part narration from the ordered
+    // beats so the voice and the drawing share one clock (beat N is spoken
+    // exactly while board N is drawn).
+    let cleanScenes = [];
+    if (Array.isArray(part.board_scenes) && part.board_scenes.length) {
+      cleanScenes = validateBoardScenes(part.board_scenes);
+    }
+    // The teaching beat is the unit of narration: each board scene's `say` line,
+    // joined in order, IS the part's spoken script. This keeps audio and board
+    // locked together. Fall back to the AI's free-form narration blob when the
+    // beats carry no spoken lines (older plans / fallback paths).
+    const beatNarration = cleanScenes.map((s) => s.say).filter(Boolean).join(' ');
+    const sourceNarration = beatNarration || part.narration || '';
+
     const fixed = {
       order_index: part.order_index || index + 1,
       title: sanitizeSceneText(part.title || `Part ${index + 1}`, 8) || `Part ${index + 1}`,
       part_type: part.part_type || 'content',
       duration_seconds: clamp(Number(part.duration_seconds) || 300, 55, 600),
-      narration: sanitizeNarration(part.narration || '', lessonSpec, keyConcepts),
+      narration: sanitizeNarration(sourceNarration, lessonSpec, keyConcepts),
       key_concepts: pedagogicalConcepts.length ? pedagogicalConcepts : keyConcepts,
       scene_goal: pedagogicalPlan.scene_goal,
       learning_objective: pedagogicalPlan.learning_objective,
       visual_logic: pedagogicalPlan.visual_logic,
       animation_sequence: pedagogicalPlan.animation_sequence,
-      visual_sequence: validateAIVisualOutput(Array.isArray(part.visual_sequence) ? part.visual_sequence : [], clamp(Number(part.duration_seconds) || 300, 55, 600)),
+      visual_sequence: normalizeVisualSequence(Array.isArray(part.visual_sequence) ? part.visual_sequence : [], clamp(Number(part.duration_seconds) || 300, 55, 600)),
     };
+
+    if (cleanScenes.length) fixed.board_scenes = cleanScenes;
 
     if (part.part_type === 'quiz') {
       fixed.quiz_questions = normalizeQuizQuestions(part.quiz_questions, lessonSpec);
@@ -3573,6 +3415,84 @@ function isWeakTopicPlan(plan, lessonSpec) {
   return false;
 }
 
+/**
+ * True if the AI's plan is mostly meta-language scaffolding instead of
+ * actual teaching. Detected by counting how many of the part's `say` and
+ * `narration` sentences survive the meta filter, and how much of the
+ * remaining word-count is real teaching content (no meta connector). Used
+ * to gate the last-resort rebuild-from-source pass.
+ */
+function looksLikeMetaOnlyPlan(plan, lessonSpec) {
+  if (!plan || !Array.isArray(plan.parts) || !plan.parts.length) return false;
+  const contentParts = plan.parts.filter((p) => p.part_type === 'content');
+  if (!contentParts.length) return false;
+  for (const part of contentParts) {
+    // Look at every `say` the AI produced across the part's board_scenes.
+    const says = Array.isArray(part.board_scenes) ? part.board_scenes.map((s) => s?.say || '').filter(Boolean) : [];
+    if (!says.length) return true;
+    let totalWords = 0;
+    let metaWords = 0;
+    for (const s of says) {
+      const sentences = String(s).split(/(?<=[.!?])\s+/).map((x) => x.trim()).filter(Boolean);
+      for (const sent of sentences) {
+        const words = sent.split(/\s+/).filter(Boolean);
+        totalWords += words.length;
+        if (containsPlannerControlPhrase(sent, lessonSpec) || isInstructionalMetaSentence(sent)) {
+          metaWords += words.length;
+        }
+      }
+    }
+    if (totalWords < 60) return true;            // barely any real teaching
+    if (metaWords / totalWords > 0.4) return true; // >40% of the words are meta scaffolding
+  }
+  return false;
+}
+
+/**
+ * Rebuild a plan's content parts from the comprehension `details` (real
+ * source-grounded facts the comprehension pass extracted from the user's
+ * document). Each part gets fresh `narration` and `board_scenes` built
+ * directly from those facts — no chance of the AI's prompt-shaped copy
+ * making it onto the board. Called when `looksLikeMetaOnlyPlan` flags
+ * the AI's output as mostly scaffolding.
+ */
+function rebuildPlanFromComprehension(plan, lessonSpec) {
+  const comprehension = lessonSpec.comprehension || {};
+  const compTopics = Array.isArray(comprehension.key_topics) ? comprehension.key_topics : [];
+  const compDetails = [];
+  for (const topic of compTopics) {
+    if (!topic || typeof topic !== 'object') continue;
+    const def = (topic.definition || '').toString().trim();
+    if (def) compDetails.push(def);
+    for (const d of (Array.isArray(topic.details) ? topic.details : [])) {
+      const s = String(d || '').trim();
+      if (s) compDetails.push(s);
+    }
+  }
+  if (!compDetails.length) return plan;
+
+  for (const part of plan.parts || []) {
+    if (part.part_type !== 'content') continue;
+    // Re-slice the comprehension details across the part's beats.
+    const sentences = compDetails.slice();
+    const scenes = Array.isArray(part.board_scenes) ? part.board_scenes : [];
+    const n = scenes.length || 4;
+    scenes.forEach((scene, i) => {
+      if (!scene || typeof scene !== 'object') return;
+      const start = Math.floor((i * sentences.length) / n);
+      const end = Math.floor(((i + 1) * sentences.length) / n);
+      const chunk = sentences.slice(start, end).join(' ').trim();
+      if (chunk) scene.say = chunk;
+    });
+    // Rebuild part narration as the joined say chunks so the side panel
+    // shows real teaching content.
+    const joined = scenes.map((s) => s?.say).filter(Boolean).join(' ');
+    if (joined) part.narration = joined;
+    part.board_scenes = scenes;
+  }
+  return plan;
+}
+
 function enrichNarration(narration, concepts, lessonSpec) {
   const sourceText = lessonSpec.section_text || '';
   const sentences = extractSentences(sourceText);
@@ -3581,21 +3501,41 @@ function enrichNarration(narration, concepts, lessonSpec) {
     && s.length > 35
   ).slice(0, 8);
 
-  const CONNECTORS = [
-    'More precisely,', 'To expand on this,', 'A related point is that',
-    'Additionally,', 'Looking deeper,', 'In practical terms,',
-    'From the source material,', 'Specifically,',
-  ];
+  // Source sentences stand alone — NO prompt-shaped connectors ("From the
+  // source material, ...", "Specifically, ...") because the AI parrots them
+  // back as content. The source sentence is the teaching; the connector adds
+  // nothing.
+  const CONNECTORS = [];
 
+  // Jaccard-based dedup: skip a source sentence if it overlaps the already-
+  // built narration by ≥60% of its first 12 content words. The old
+  // `.slice(0, 24)` substring check let many near-duplicates through.
+  const firstNTokens = (s, n = 12) => String(s || '').toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length > 2)
+    .slice(0, n);
+  const tokensOverlap = (a, b) => {
+    const A = new Set(firstNTokens(a));
+    const B = new Set(firstNTokens(b));
+    if (!A.size || !B.size) return 0;
+    let inter = 0;
+    A.forEach((t) => { if (B.has(t)) inter += 1; });
+    return inter / Math.min(A.size, B.size);
+  };
+  const seenKey = (s) => firstNTokens(s, 8).join(' ');
   const usedPhrases = new Set();
   const enriched = [narration];
-  conceptSentences.forEach((s, i) => {
+  conceptSentences.forEach((s) => {
     const normalized = normalizeSentence(s);
-    const key = normalized.toLowerCase().slice(0, 40);
+    const key = seenKey(normalized);
     if (usedPhrases.has(key)) return;
-    if (narration.toLowerCase().includes(normalized.toLowerCase().slice(0, 30))) return;
+    if (tokensOverlap(normalized, narration) >= 0.6) return;
     usedPhrases.add(key);
-    enriched.push(`${CONNECTORS[i % CONNECTORS.length]} ${normalized.charAt(0).toLowerCase()}${normalized.slice(1)}`);
+    // Append the source sentence verbatim. The connector slot is intentionally
+    // empty — adding scaffolding here is what taught the AI to write
+    // "From the source material, ..." in the first place.
+    enriched.push(normalized);
   });
 
   const result = enriched.filter(Boolean).join(' ');
@@ -3603,13 +3543,9 @@ function enrichNarration(narration, concepts, lessonSpec) {
 
   const extraSource = sentences
     .filter((sentence) => !containsPlannerControlPhrase(sentence, lessonSpec))
-    .filter((sentence) => !result.toLowerCase().includes(sentence.toLowerCase().slice(0, 24)))
+    .filter((sentence) => tokensOverlap(sentence, result) < 0.6)
     .slice(0, 3)
-    .map((sentence, index) => {
-      const connector = CONNECTORS[(index + conceptSentences.length) % CONNECTORS.length];
-      const normalized = normalizeSentence(sentence);
-      return `${connector} ${normalized.charAt(0).toLowerCase()}${normalized.slice(1)}`;
-    });
+    .map((sentence) => normalizeSentence(sentence));
 
   return assembleNarration([result, ...extraSource]);
 }
@@ -3769,29 +3705,11 @@ function buildTopicFallbackQuizTitles(explanationMode) {
   }
 }
 
-function buildOverviewPageTitle(explanationMode) {
-  return 'Let\u2019s define these';
-}
 
-function buildOverviewConnectionsTitle(explanationMode) {
-  return 'Now watch how they connect';
-}
 
-function buildDetailPageTitle(explanationMode, concept) {
-  return `Let\u2019s break down ${truncateWords(concept, 4)}`;
-}
 
-function buildDetailBadgeLabel(explanationMode) {
-  return '';
-}
 
-function buildApplicationBadgeLabel(explanationMode) {
-  return '';
-}
 
-function buildApplicationTakeawayTitle(explanationMode) {
-  return 'What to remember';
-}
 
 function buildTopicFallbackLesson(spec) {
   const lessonTitle = spec.title || spec.comprehension?.document_subject || buildTopicTitle(spec.topic_request || spec.section_text);
@@ -4124,29 +4042,65 @@ function buildLessonSummary(title, sourceText, concepts) {
   return `This lesson covers ${(concepts || []).slice(0, 3).join(', ')}.`;
 }
 
+// Build varied, TOPIC-SPECIFIC fallback quiz questions when the AI didn't author
+// any. Rotates question forms and draws answers/distractors from the lesson's
+// own concepts and sentences, so two different lessons never get the same quiz
+// (the old version always asked "A central concept in this lesson is ___").
+function buildConceptQuestions(rawConcepts, sourceText, lessonTitle) {
+  const concepts = (Array.isArray(rawConcepts) ? rawConcepts : []).map((c) => String(c || '').trim()).filter(Boolean);
+  const sentences = extractSentences(String(sourceText || '')).filter((s) => s.length > 25 && s.length < 200);
+  const topic = concepts[0] || coreTopic(lessonTitle);
+  const distractorsFor = (answer) => {
+    const pool = concepts.filter((c) => c && c.toLowerCase() !== String(answer).toLowerCase());
+    const picks = pool.slice(0, 3);
+    while (picks.length < 3) picks.push([`a related idea`, `the opposite case`, `none of these`][picks.length] || `option ${picks.length + 1}`);
+    return picks;
+  };
+  const mcq = (order, qtext, answer, why) => {
+    const choices = [answer, ...distractorsFor(answer)].slice(0, 4);
+    // deterministic shuffle by question text so the answer isn't always 'A'
+    const seed = qtext.length % 4;
+    const shuffled = choices.map((c, i) => choices[(i + seed) % choices.length]);
+    return { order_index: order, question_type: 'mcq', question_text: qtext, difficulty: 'medium', options: { choices: shuffled, correct: answer }, correct_answer: answer, explanation: why };
+  };
+
+  const questions = [];
+
+  // Q1 — define the core concept (MCQ over real concepts).
+  questions.push(mcq(1, `Which of these is the central idea of "${truncateWords(lessonTitle, 6)}"?`, topic,
+    `${topic} is the concept the lesson is built around.`));
+
+  // Q2 — cloze from a REAL sentence containing a concept (topic-specific recall).
+  const clozeConcept = concepts.find((c) => sentences.some((s) => s.toLowerCase().includes(c.toLowerCase()))) || topic;
+  const clozeSentence = sentences.find((s) => s.toLowerCase().includes(clozeConcept.toLowerCase()));
+  if (clozeSentence) {
+    const re = new RegExp(clozeConcept.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    questions.push({
+      order_index: 2, question_type: 'fill_blank',
+      question_text: clampText(clozeSentence.replace(re, '_____'), 160),
+      difficulty: 'medium', options: null, correct_answer: clozeConcept,
+      explanation: `The missing term is "${clozeConcept}".`,
+    });
+  } else {
+    questions.push({
+      order_index: 2, question_type: 'fill_blank',
+      question_text: `In this lesson, _____ is responsible for ${truncateWords(sentences[0] || lessonTitle, 8)}.`,
+      difficulty: 'medium', options: null, correct_answer: topic,
+      explanation: `${topic} plays that role here.`,
+    });
+  }
+
+  // Q3 — a second concept (relationship / role), only if we have another concept.
+  if (concepts[1]) {
+    questions.push(mcq(3, `How does ${concepts[1]} relate to ${topic}?`, `It supports ${topic}`,
+      `${concepts[1]} works together with ${topic} in this topic.`));
+  }
+
+  return questions;
+}
+
 function buildQuizPart({ orderIndex, title, narration, lessonTitle, concepts, sourceText }) {
-  const focus = concepts[0] || coreTopic(lessonTitle);
-  const answers = buildQuizChoices(lessonTitle, concepts);
-  const quizQuestions = [
-    {
-      order_index: 1,
-      question_type: 'mcq',
-      question_text: `Which of the following best describes ${focus}?`,
-      difficulty: 'medium',
-      options: { choices: answers, correct: answers[0] },
-      correct_answer: answers[0],
-      explanation: `${answers[0]} most accurately captures the concept of ${focus} as described in the lesson.`,
-    },
-    {
-      order_index: 2,
-      question_type: 'fill_blank',
-      question_text: `A central concept in this lesson is _____.`,
-      difficulty: 'medium',
-      options: null,
-      correct_answer: focus,
-      explanation: `${focus} is the primary concept connecting the ideas in this section.`,
-    },
-  ];
+  const quizQuestions = buildConceptQuestions(concepts, sourceText || narration, lessonTitle);
 
   return {
     order_index: orderIndex,
@@ -4155,463 +4109,339 @@ function buildQuizPart({ orderIndex, title, narration, lessonTitle, concepts, so
     duration_seconds: 55,
     narration,
     key_concepts: [],
-    visual_sequence: buildMinimalQuizFallback(lessonTitle, { title, duration_seconds: 55, narration, quiz_questions: quizQuestions }, 55),
+    visual_sequence: generateQuizVisuals(lessonTitle, { title, duration_seconds: 55, narration, quiz_questions: quizQuestions }),
     quiz_questions: quizQuestions,
   };
 }
 
 // =============================================================================
-// AI-DRIVEN VISUAL GENERATION ENGINE
-// The AI decides EVERYTHING: what to draw, when, how, pacing, layout, style.
-// No static templates. Every visual decision is made dynamically by the AI.
+// VISUAL GENERATION ENGINE
+// Every visual element must teach something from the document
 // =============================================================================
 
-// Visual generation tuning constants
-const SECONDS_PER_SCENE = 10; // 1 scene every N seconds of duration
-const MIN_SCENE_COUNT = 12;   // minimum scenes regardless of duration
-const MAX_SCENE_COUNT = 40;   // maximum scenes to avoid overwhelming the board
-const MAX_REFINEMENT_PROMPT_CHARS = 60000; // truncate scene JSON to fit context window
-const MIN_REFINEMENT_RETENTION = 0.7; // accept refinement if at least 70% of scenes retained
-const MAX_TEXT_CONTENT_LENGTH = 80; // max chars for scene text (callouts excluded)
-const MAX_LABEL_LENGTH = 60; // max chars for scene labels
 
-const VISUAL_GENERATION_PROMPT = `You are an elite whiteboard animation director. Your job is to generate the EXACT drawing commands that a whiteboard rendering engine will execute to teach a concept visually.
+// Composed template output is already clean, timed, paginated, collision-free,
+// and duration-fitted by the scene composer. The legacy normalizeVisualSequence
+// (density-limiter, dedup, box re-sizing/re-clamping, re-timing) is built for
+// hand-rolled heuristic scenes and would MOVE and RESIZE template geometry —
+// reintroducing the exact overlap problem templates exist to prevent. So we
+// finalize composed output with a geometry-preserving pass: drop only entries
+// that are structurally broken, leave every position/size/time untouched.
+function finalizeComposedSequence(composed) {
+  if (!Array.isArray(composed)) return [];
+  return composed
+    .filter((entry) => entry && typeof entry === 'object' && typeof entry.type === 'string' && entry.type)
+    .map((entry) => ({ ...entry, time: Number.isFinite(Number(entry.time)) ? Number(entry.time) : 0 }));
+}
 
-You are NOT generating descriptions or plans. You are generating the ACTUAL animation timeline — every shape, text, arrow, and clear command with precise coordinates and timing.
-
-AVAILABLE DRAWING PRIMITIVES (use ONLY these):
-
-1. draw_text: Write text on the board
-   { "time": N, "type": "draw_text", "content": "short text 3-12 words", "position": [x, y], "style": { "fontSize": 14-28, "color": "#hex", "fontWeight": "bold|normal", "textAnchor": "start|middle|end" } }
-
-2. draw_rect: Draw a labeled box
-   { "time": N, "type": "draw_rect", "x": N, "y": N, "width": N, "height": N, "label": "short label", "style": { "fill": "#hex", "stroke": "#hex", "strokeWidth": 1-3, "rx": 0-16 } }
-
-3. draw_circle: Draw a labeled circle
-   { "time": N, "type": "draw_circle", "center": [x, y], "radius": N, "label": "short", "style": { "fill": "#hex", "stroke": "#hex", "strokeWidth": 1-3 } }
-
-4. draw_arrow: Draw a directional arrow (cause→effect, flow, dependency)
-   { "time": N, "type": "draw_arrow", "from": [x, y], "to": [x, y], "label": "relationship", "style": { "color": "#hex", "strokeWidth": 1-3 } }
-
-5. draw_line: Draw a simple line
-   { "time": N, "type": "draw_line", "from": [x, y], "to": [x, y], "style": { "color": "#hex", "strokeWidth": 1-3, "dashed": true|false } }
-
-6. draw_badge: Small colored label chip
-   { "time": N, "type": "draw_badge", "content": "1-4 words", "position": [x, y], "style": { "bg": "#hex", "color": "#fff", "fontSize": 13-16 } }
-
-7. draw_callout: Explanation box with background
-   { "time": N, "type": "draw_callout", "content": "explanation sentence max 25 words", "position": [x, y], "width": 200-600, "style": { "bg": "#hex", "stroke": "#hex", "color": "#hex" } }
-
-8. draw_path: SVG path for custom shapes/curves
-   { "time": N, "type": "draw_path", "d": "M x y C ...", "style": { "fill": "none", "stroke": "#hex", "strokeWidth": 1-3 } }
-
-9. show_equation: Display a math formula
-   { "time": N, "type": "show_equation", "latex": "E = mc^2", "position": [x, y], "style": { "fontSize": 18-26, "color": "#hex" } }
-
-10. draw_table: Data comparison table
-    { "time": N, "type": "draw_table", "headers": ["Col1", "Col2"], "rows": [["val1", "val2"]], "position": [x, y], "cell_width": 100-200, "cell_height": 30-40 }
-
-11. draw_graph: Bar or line chart
-    { "time": N, "type": "draw_graph", "graph_type": "bar|line", "title": "short", "position": [x, y], "size": [w, h], "data": { "values": [N, ...], "labels": ["...", ...] } }
-
-12. draw_coordinate_system: Mathematical coordinate plane with plotted points
-    { "time": N, "type": "draw_coordinate_system", "origin": [x, y], "size": [w, h], "x_label": "X axis", "y_label": "Y axis", "plot_points": [[x,y], ...] }
-
-13. draw_object: Pre-built illustrative objects
-    { "time": N, "type": "draw_object", "object_type": "cell|network|blockchain|cycle|gear|document|checklist|triangle|leaf|flask|lightbulb|target|book|dialogue|layers|compass", "position": [x, y], "size": [w, h], "label": "short", "annotations": ["label1", "label2"] }
-
-14. draw_physics_shape: Physics diagrams
-    { "time": N, "type": "draw_physics_shape", "shape_type": "spring|pendulum|inclined_plane|pulley|free_body|wave|box_on_surface|bottle", "position": [x, y], "size": [w, h], "label": "short", "annotations": ["force1", "force2"] }
-
-15. highlight: Highlight existing text
-    { "time": N, "type": "highlight", "target": "text to highlight", "style": { "color": "#hex" } }
-
-16. clear: Erase the board (like a teacher wiping the whiteboard)
-    { "time": N, "type": "clear" }
-
-CANVAS: 800 x 480 pixels. Keep all elements within bounds with 30px margins.
-
-TEACHER-LIKE ANIMATION RULES:
-- Start with a title/hook at the top (y: 30-50)
-- Reveal ONE element at a time with 5-8 second gaps between elements
-- Use "clear" between major concept shifts (like erasing the board)
-- Maximum 5 elements visible at once before clearing
-- Build complexity: simple keyword → explanation → relationship → example
-- Every arrow must show a REAL relationship (cause→effect, input→output, before→after)
-- Use varied visual types across the timeline — never repeat the same pattern
-- Total scenes should be proportional to duration: aim for 1 new element every 8-12 seconds
-- Titles at top (y: 30-50), main content in middle (y: 80-380), summary at bottom (y: 400-460)
-
-COLOR PALETTE (use these for visual consistency):
-- Primary: #2563eb (blue), #16a34a (green), #d97706 (amber), #7c3aed (purple)
-- Accent: #be123c (red), #0891b2 (cyan), #ca8a04 (gold), #0f766e (teal)
-- Fills: #eff6ff, #f0fdf4, #fef3c7, #f5f3ff, #fff1f2, #ecfeff
-- Text: #1e3a5f (dark blue), #374151 (dark gray), #1f2937 (near black)
-
-RETURN FORMAT:
-Return ONLY a JSON array of scene objects. No markdown. No explanation. Just the array.
-[
-  { "time": 0, "type": "draw_text", ... },
-  { "time": 6, "type": "draw_rect", ... },
-  ...
-]`;
-
-const VISUAL_REFINEMENT_PROMPT = `You are a whiteboard animation quality controller. Review the visual sequence below and IMPROVE it.
-
-CHECK FOR AND FIX:
-1. OVERLAP: Elements placed too close together (need 60px+ between elements)
-2. PACING: Gaps between elements should be 5-10 seconds (not too fast, not too slow)
-3. VARIETY: No two consecutive elements should be the same type
-4. CLARITY: Text must be short (3-12 words). Labels must be meaningful.
-5. TEACHING FLOW: Does it build understanding progressively? Hook → Concept → Relationship → Example → Summary
-6. DENSITY: Maximum 5 elements per page before a "clear". If more, add clear commands.
-7. BOUNDS: All elements must fit within 800x480 canvas with 30px margins
-8. ARROWS: Every arrow must connect TWO meaningful concepts. No decorative arrows.
-9. TIMING: Total timeline must fit within the specified duration.
-10. UNIQUENESS: Each page (between clears) must look visually distinct from others.
-
-If the sequence is good (scores 9/10+ on all criteria), return it unchanged.
-If it needs fixes, return the IMPROVED version.
-
-Return ONLY the JSON array. No markdown. No explanation.`;
-
-/**
- * AI-driven visual generation: The AI decides what to draw, how, and when.
- * Uses multiple AI requests for quality:
- *   1. Generation pass: AI creates the visual timeline
- *   2. Refinement pass: AI reviews and improves its own output
- */
-async function generateContentVisualsAI({ lessonTitle, part, contentIndex, comprehension, continuity, explanationMode = 'full_lesson' }, aiProvider, analysisModel) {
-  const limits = PROVIDER_LIMITS[aiProvider] || PROVIDER_LIMITS.blaze;
+function generateContentVisuals({ lessonTitle, part, contentIndex, comprehension, continuity, explanationMode = 'full_lesson' }) {
   const durationSeconds = Number(part.duration_seconds) || 300;
-  const field = comprehension?.field || 'general';
+  const field = comprehension?.field;
 
-  // Build rich context for the AI to make visual decisions
-  const visualContext = [
-    `LESSON: "${lessonTitle}"`,
-    `PART TITLE: "${part.title || 'Untitled'}"`,
-    `PART INDEX: ${contentIndex + 1} (of the lesson)`,
-    `DURATION: ${durationSeconds} seconds`,
-    `FIELD/SUBJECT: ${field}`,
-    `EXPLANATION MODE: ${explanationMode}`,
-    `SCENE GOAL: ${part.scene_goal || 'Teach the concept clearly'}`,
-    `LEARNING OBJECTIVE: ${part.learning_objective || 'Understand the main idea'}`,
-    `KEY CONCEPTS: ${(part.key_concepts || []).join(', ')}`,
-    part.visual_logic?.length ? `AI VISUAL SUGGESTIONS: ${JSON.stringify(part.visual_logic)}` : '',
-    `NARRATION (what the teacher is saying): ${(part.narration || '').slice(0, 2000)}`,
-    continuity?.previous ? `PREVIOUS PART: "${continuity.previous}"` : '',
-    continuity?.next ? `NEXT PART: "${continuity.next}"` : '',
-    comprehension?.teaching_approach ? `TEACHING APPROACH: ${comprehension.teaching_approach}` : '',
-  ].filter(Boolean).join('\n');
-
-  const modeGuidance = explanationMode === 'visual_first'
-    ? '\nMODE OVERRIDE: VISUAL FIRST — Use MORE visual elements (25-40 scenes). Prioritize diagrams, objects, and graphs over text. Keep text minimal.'
-    : explanationMode === 'step_by_step'
-      ? '\nMODE OVERRIDE: STEP BY STEP — Number each concept visually. Use frequent clears. Show one step per page.'
-      : explanationMode === 'text_focus'
-        ? '\nMODE OVERRIDE: TEXT FOCUS — Use callouts and labeled diagrams. Build dense, information-rich pages. Fewer clears.'
-        : '';
-
-  // ── Pass 1: AI generates the visual timeline ──
-  console.log(`[aiPlanner] Visual Gen Pass 1: AI generating visuals for "${part.title}" (duration=${durationSeconds}s, field=${field})`);
-  let scenes = null;
-
+  // ── Single visual engine: the pedagogy-first, template-filled pipeline ──────
+  // The AI supplies semantic teaching beats (board_scenes / visual_logic). We
+  // fill pre-designed, collision-free templates with that data. Templates own
+  // all geometry, so a board can never overlap, and the composer paces + holds
+  // each board so nothing flashes by. This is the ONLY way visuals are built —
+  // there is no coordinate-placing fallback that could reintroduce overlap.
   try {
-    const generationPrompt = `${VISUAL_GENERATION_PROMPT}${modeGuidance}
-
-CONTEXT FOR THIS PART:
-${visualContext}
-
-Generate the complete visual timeline for this ${durationSeconds}-second part. Aim for ${Math.max(MIN_SCENE_COUNT, Math.min(Math.ceil(durationSeconds / SECONDS_PER_SCENE), MAX_SCENE_COUNT))} scenes.
-Remember: you are the TEACHER. Decide the best way to visualize this concept. Choose the right drawing types for the subject matter. Make it feel like a real classroom whiteboard.`;
-
-    const result = await callAIRace(generationPrompt, limits.contentTok, limits.contentTimeout, aiProvider, analysisModel);
-    if (Array.isArray(result) && result.length > 0) {
-      scenes = result;
-      console.log(`[aiPlanner] Visual Gen Pass 1 OK: ${scenes.length} scenes generated`);
-    } else if (result?.visual_sequence && Array.isArray(result.visual_sequence)) {
-      scenes = result.visual_sequence;
-      console.log(`[aiPlanner] Visual Gen Pass 1 OK (wrapped): ${scenes.length} scenes`);
+    const composed = buildWhiteboardForPart(part, { lessonTitle, field, partIndex: contentIndex });
+    if (Array.isArray(composed) && composed.length) {
+      console.log(`[aiPlanner] template pipeline produced ${composed.length} scenes for "${part.title}"`);
+      return finalizeComposedSequence(composed);
     }
-  } catch (error) {
-    console.warn(`[aiPlanner] Visual Gen Pass 1 failed: ${error.message}`);
+  } catch (err) {
+    console.warn(`[aiPlanner] template pipeline failed for "${part.title}": ${err.message} — synthesizing beats`);
   }
 
-  // ── Pass 2: AI refines the visual timeline ──
-  if (scenes?.length) {
-    try {
-      console.log(`[aiPlanner] Visual Gen Pass 2: AI refining ${scenes.length} scenes...`);
-      const refinementPrompt = `${VISUAL_REFINEMENT_PROMPT}
+  // Safety net (rarely hit): the part had no usable beats at all. Synthesize a
+  // minimal board_scenes set from whatever text we have and run it back THROUGH
+  // the same template pipeline — so the fallback is still collision-free and
+  // never produces hand-placed coordinate boards.
+  const concepts = sanitizeConceptList([
+    ...(Array.isArray(part.key_concepts) ? part.key_concepts : []),
+    part.scene_goal,
+    part.learning_objective,
+    ...(Array.isArray(part.visual_logic) ? part.visual_logic.map((entry) => entry?.content) : []),
+  ], `${lessonTitle}\n${part.title || ''}\n${part.narration || ''}`, 8);
+  const sentences = extractSentences(part.narration || '');
 
-PART CONTEXT:
-- Title: "${part.title}"
-- Duration: ${durationSeconds} seconds
-- Field: ${field}
-- Canvas: 800x480 pixels
+  const syntheticPart = {
+    ...part,
+    board_scenes: [
+      {
+        intent: 'define',
+        goal: part.scene_goal || part.title,
+        headline: part.title || lessonTitle,
+        definition: sentences[0] || '',
+        points: concepts.slice(0, 4),
+        say: sentences.slice(0, 2).join(' ') || part.title || '',
+      },
+      {
+        intent: 'cluster',
+        goal: 'key ideas',
+        center: part.title || lessonTitle,
+        items: concepts.slice(0, 5).map((c) => ({ title: c })),
+        say: sentences.slice(2, 4).join(' ') || concepts.join(', '),
+      },
+      {
+        intent: 'recap',
+        goal: 'recap',
+        points: concepts.slice(0, 4),
+        say: sentences[sentences.length - 1] || 'Let us recap the key ideas.',
+      },
+    ],
+  };
 
-CURRENT VISUAL SEQUENCE (${scenes.length} scenes):
-${JSON.stringify(scenes, null, 1).slice(0, MAX_REFINEMENT_PROMPT_CHARS)}
+  try {
+    const composed = buildWhiteboardForPart(syntheticPart, { lessonTitle, field, partIndex: contentIndex });
+    if (Array.isArray(composed) && composed.length) {
+      console.log(`[aiPlanner] template pipeline (synthesized) produced ${composed.length} scenes for "${part.title}"`);
+      return finalizeComposedSequence(composed);
+    }
+  } catch (err) {
+    console.warn(`[aiPlanner] synthesized template pipeline failed for "${part.title}": ${err.message}`);
+  }
 
-Review and return the improved sequence.`;
+  return [];
+}
 
-      const refined = await callAIRace(refinementPrompt, limits.contentTok, Math.min(limits.contentTimeout, 180_000), aiProvider, analysisModel);
-      if (Array.isArray(refined) && refined.length >= scenes.length * MIN_REFINEMENT_RETENTION) {
-        scenes = refined;
-        console.log(`[aiPlanner] Visual Gen Pass 2 OK: refined to ${scenes.length} scenes`);
+
+function rebalanceSceneLayout(scenes) {
+  const laidOutScenes = scenes.map((scene) => ({ ...scene }));
+  const titleScene = laidOutScenes.find(
+    (scene) => scene.type === 'draw_text'
+      && Array.isArray(scene.position)
+      && scene.position[1] <= 48,
+  );
+  const subtitleScene = laidOutScenes.find(
+    (scene) => scene.type === 'draw_text'
+      && Array.isArray(scene.position)
+      && scene.position[1] > 48
+      && scene.position[1] <= 96,
+  );
+
+  const longTitle = wordCount(titleScene?.content || '') > 5 || String(titleScene?.content || '').length > 42;
+  if (titleScene) {
+    titleScene.style = {
+      ...(titleScene.style || {}),
+      fontSize: Math.min(Number(titleScene.style?.fontSize) || 24, longTitle ? 22 : 24),
+    };
+  }
+
+  if (subtitleScene?.content) {
+    subtitleScene.content = compactVisualPhrase(subtitleScene.content, 8);
+    subtitleScene.position = [subtitleScene.position[0], longTitle ? 96 : 72];
+    subtitleScene.style = {
+      ...(subtitleScene.style || {}),
+      fontSize: Math.min(Number(subtitleScene.style?.fontSize) || 17, 16),
+    };
+  }
+
+  const headerFloor = subtitleScene ? (longTitle ? 156 : 128) : titleScene ? (longTitle ? 132 : 112) : 92;
+  let badgeLane = 0;
+
+  for (const scene of laidOutScenes) {
+    if (scene.type === 'draw_badge' && Array.isArray(scene.position)) {
+      const isCornerBadge = scene.position[0] <= 80 && scene.position[1] <= 30;
+      const isTopRightHeaderBadge = scene.position[0] >= 560 && scene.position[1] <= 20;
+      scene.fixedHeaderBadge = isTopRightHeaderBadge;
+      if (!isCornerBadge && !isTopRightHeaderBadge && scene.position[1] < headerFloor) {
+        scene.position = [Math.max(scene.position[0], 390), headerFloor + badgeLane * 54];
+        badgeLane += 1;
       }
-    } catch (refineErr) {
-      console.warn(`[aiPlanner] Visual Gen Pass 2 skipped: ${refineErr.message}`);
+      continue;
+    }
+
+    if ((scene.type === 'draw_object' || scene.type === 'draw_physics_shape') && Array.isArray(scene.position)) {
+      if (scene.position[1] < headerFloor - 12) {
+        scene.position = [scene.position[0], headerFloor + 10];
+      }
+      continue;
+    }
+
+    if (scene.type === 'draw_rect') {
+      if (!normalizeText(scene.label || '')) continue;
+      const height = Number(scene.height) || 90;
+      if (Number(scene.y) < headerFloor - 12) {
+        scene.y = clampBoxY(headerFloor + 6, height);
+      }
+      continue;
+    }
+
+    if (scene.type === 'draw_circle' && Array.isArray(scene.center)) {
+      const radius = Number(scene.radius) || 48;
+      if (scene.center[1] - radius < headerFloor - 10) {
+        scene.center = [scene.center[0], headerFloor + radius];
+      }
+      continue;
+    }
+
+    if (scene.type === 'draw_table' && Array.isArray(scene.position)) {
+      const rowCount = Array.isArray(scene.rows) ? scene.rows.length : 0;
+      const tableHeight = (rowCount + 1) * (Number(scene.cell_height) || 34);
+      scene.position = [scene.position[0], clampBoxY(scene.position[1], tableHeight)];
     }
   }
 
-  // ── Fallback: If AI fails completely, use rich template system ──
-  if (!scenes?.length) {
-    console.warn(`[aiPlanner] Visual Gen: AI failed, using template system for "${part.title}"`);
-    try {
-      const templateData = buildTemplateData(part, lessonTitle, comprehension);
-      const hasEquation = (part.visual_logic || []).some(v => v.type === 'equation' || v.semantic_role === 'equation');
-      const hasTable = (part.visual_logic || []).some(v => v.type === 'table' || v.semantic_role === 'table');
-      const hasGraph = (part.visual_logic || []).some(v => v.type === 'graph' || v.type === 'chart' || v.semantic_role === 'data');
-      const hasSteps = (part.visual_logic || []).some(v => v.type === 'process' || v.type === 'step' || v.semantic_role === 'sequence');
-      const template = selectTemplate(field, templateData.concepts, hasEquation, hasTable, hasGraph, hasSteps, contentIndex);
-      scenes = applyTemplate(template.id, templateData);
-      console.log(`[aiPlanner] Template applied: "${template.name}" (id=${template.id}, category=${template.category})`);
-    } catch (tmplErr) {
-      console.warn(`[aiPlanner] Template fallback also failed: ${tmplErr.message}`);
-      scenes = buildMinimalFallbackVisuals(part, durationSeconds);
+  const movableTypes = new Set(['draw_badge', 'draw_callout', 'draw_table', 'draw_rect', 'show_equation']);
+  const resolveSegmentHeuristically = (segmentScenes) => {
+    const occupiedBoxes = segmentScenes
+      .map((scene) => ({ scene, box: estimateSceneLayoutBox(scene) }))
+      .filter(({ scene, box }) => box && (!movableTypes.has(scene.type) || scene.fixedHeaderBadge))
+      .map(({ box }) => box);
+
+    for (const scene of segmentScenes) {
+      if (!movableTypes.has(scene.type) || scene.fixedHeaderBadge) continue;
+
+      const initialBox = estimateSceneLayoutBox(scene);
+      if (!initialBox) continue;
+
+      const resolvedBox = resolveSceneLayoutBox(initialBox, occupiedBoxes);
+      applySceneLayoutBox(scene, resolvedBox);
+      occupiedBoxes.push(resolvedBox);
     }
+  };
+
+  let currentSegment = [];
+  for (const scene of laidOutScenes) {
+    if (scene.type === 'clear') {
+      if (currentSegment.length && !layoutSceneSegmentWithGraph(currentSegment, headerFloor)) {
+        resolveSegmentHeuristically(currentSegment);
+      }
+      currentSegment = [];
+      continue;
+    }
+    currentSegment.push(scene);
+  }
+  if (currentSegment.length && !layoutSceneSegmentWithGraph(currentSegment, headerFloor)) {
+    resolveSegmentHeuristically(currentSegment);
   }
 
-  // Validate and normalize the AI output
-  scenes = validateAIVisualOutput(scenes, durationSeconds);
-  return scenes;
+  return laidOutScenes;
 }
 
-/**
- * AI-driven quiz visual generation.
- */
-async function generateQuizVisualsAI(lessonTitle, part, aiProvider, analysisModel) {
-  const limits = PROVIDER_LIMITS[aiProvider] || PROVIDER_LIMITS.blaze;
-  const durationSeconds = Number(part.duration_seconds) || 55;
+function normalizeVisualSequence(visualSeq, duration) {
+  const seenTextualScenes = new Set();
+  const deduped = visualSeq
+    .map((entry) => sanitizeSceneEntry(entry))
+    .filter(Boolean)
+    .filter((entry) => {
+      if (entry.type === 'clear') {
+        seenTextualScenes.clear();
+        return true;
+      }
 
-  const quizContext = [
-    `LESSON: "${lessonTitle}"`,
-    `QUIZ TITLE: "${part.title || 'Knowledge Check'}"`,
-    `DURATION: ${durationSeconds} seconds`,
-    `QUESTIONS:`,
-    ...(part.quiz_questions || []).map((q, i) => `  Q${i + 1} (${q.question_type}): ${q.question_text}${q.options?.choices ? '\n    Options: ' + q.options.choices.join(', ') : ''}`),
-  ].join('\n');
+      if (STRUCTURAL_SCENE_TYPES.has(entry.type)) return true;
 
-  try {
-    const prompt = `${VISUAL_GENERATION_PROMPT}
+      const signatures = collectSceneTextFragments(entry)
+        .map((fragment) => buildSceneTextSignature(fragment))
+        .filter(Boolean);
 
-SPECIAL MODE: QUIZ VISUALIZATION
-Generate a visual sequence that presents quiz questions on the whiteboard like a teacher would:
-- Show each question clearly with its options
-- Use draw_rect for multiple choice options (2x2 grid layout)
-- Use draw_callout for question text
-- Use draw_badge for question numbers
-- Use clear between different questions
-- Make it interactive and engaging
+      if (!signatures.length) return true;
 
-CONTEXT:
-${quizContext}
+      const unseenSignatures = signatures.filter((signature) => !seenTextualScenes.has(signature));
+      if (!unseenSignatures.length) return false;
 
-Generate the visual timeline for this ${durationSeconds}-second quiz.`;
+      unseenSignatures.forEach((signature) => seenTextualScenes.add(signature));
+      return true;
+    });
 
-    const result = await callAIRace(prompt, limits.contentTok, Math.min(limits.contentTimeout, 120_000), aiProvider, analysisModel);
-    if (Array.isArray(result) && result.length > 0) {
-      return validateAIVisualOutput(result, durationSeconds);
-    }
-  } catch (error) {
-    console.warn(`[aiPlanner] Quiz Visual Gen failed: ${error.message}`);
-  }
-
-  // Fallback for quiz visuals
-  return buildMinimalQuizFallback(lessonTitle, part, durationSeconds);
-}
-
-/**
- * Validate and fix AI-generated visual output to ensure it renders correctly.
- */
-function validateAIVisualOutput(scenes, durationSeconds) {
-  if (!Array.isArray(scenes)) return [];
-
-  const VALID_TYPES = new Set([
-    'draw_text', 'draw_rect', 'draw_circle', 'draw_arrow', 'draw_path',
-    'draw_badge', 'draw_callout', 'draw_line', 'show_equation',
-    'draw_table', 'draw_graph', 'draw_coordinate_system',
-    'draw_object', 'draw_physics_shape', 'highlight', 'clear',
-  ]);
-
-  // Filter out invalid scenes and normalize
-  let validated = scenes
-    .filter((s) => s && typeof s === 'object' && VALID_TYPES.has(s.type))
-    .map((s) => ({
-      ...s,
-      time: Math.max(0, Number(s.time) || 0),
-    }));
-
-  // Sort by time
-  validated.sort((a, b) => a.time - b.time);
-
-  // Enforce density limit: max 5 non-clear elements per page
+  // ── Board density limiter: max 5 non-clear elements per page ──
+  // RULE: "No more than 5 distinct concepts visible simultaneously without grouping"
+  // This prevents overlap and ensures the whiteboard teaches one idea at a time.
+  const MAX_PER_PAGE = 5;
   const densityLimited = [];
   let pageCount = 0;
-  for (const entry of validated) {
+  for (const entry of deduped) {
     if (entry.type === 'clear') {
       densityLimited.push(entry);
       pageCount = 0;
       continue;
     }
     pageCount++;
-    if (pageCount <= 5) {
+    if (pageCount <= MAX_PER_PAGE) {
       densityLimited.push(entry);
-    } else if (pageCount === 6) {
+    } else if (pageCount === MAX_PER_PAGE + 1) {
+      // Insert a clear and start a new page with this element
       densityLimited.push({ type: 'clear', time: entry.time });
       densityLimited.push(entry);
       pageCount = 1;
     }
   }
 
-  // Clamp positions within canvas bounds
-  for (const s of densityLimited) {
-    if (s.position) {
-      s.position = [
-        clamp(Number(s.position[0]) || 0, 30, 770),
-        clamp(Number(s.position[1]) || 0, 20, 460),
-      ];
-    }
-    if (s.center) {
-      s.center = [
-        clamp(Number(s.center[0]) || 0, 60, 740),
-        clamp(Number(s.center[1]) || 0, 60, 420),
-      ];
-    }
-    if (s.from && s.to) {
-      s.from = [clamp(Number(s.from[0]) || 0, 20, 780), clamp(Number(s.from[1]) || 0, 20, 460)];
-      s.to = [clamp(Number(s.to[0]) || 0, 20, 780), clamp(Number(s.to[1]) || 0, 20, 460)];
-    }
-    if (typeof s.x === 'number') s.x = clamp(s.x, 20, 700);
-    if (typeof s.y === 'number') s.y = clamp(s.y, 20, 420);
-    // Clamp text content length (callouts can be longer as they contain explanatory text)
-    if (s.content && typeof s.content === 'string' && s.type !== 'draw_callout') {
-      s.content = s.content.slice(0, MAX_TEXT_CONTENT_LENGTH);
-    }
-    if (s.label && typeof s.label === 'string') {
-      s.label = s.label.slice(0, MAX_LABEL_LENGTH);
-    }
-  }
-
-  return fitSceneTimeline(densityLimited, durationSeconds);
+  const scenes = rebalanceSceneLayout(densityLimited);
+  return fitSceneTimeline(scenes, duration);
 }
 
-/**
- * Minimal fallback when AI visual generation completely fails.
- * Now enhanced to use the template system for rich visuals.
- */
-function buildMinimalFallbackVisuals(part, durationSeconds) {
-  // Try template system first
-  try {
-    const templateData = buildTemplateData(part, part.title || 'Key Concepts', null);
-    const template = selectTemplate('general', templateData.concepts, false, false, false, false, 0);
-    const scenes = applyTemplate(template.id, templateData);
-    if (scenes && scenes.length > 0) return scenes;
-  } catch (e) { /* fall through to basic fallback */ }
 
-  // Ultra-basic fallback only if template system itself fails
-  const concepts = (part.key_concepts || []).slice(0, 4);
-  const title = truncateWords(part.title || 'Key Concepts', 6);
-  const scenes = [];
-  let t = 0;
+// ── Quiz visuals ─────────────────────────────────────────────────────────────
 
-  scenes.push({ time: t, type: 'draw_text', content: title, position: [400, 38], style: { fontSize: 24, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' } });
-  t += 8;
-
-  if (part.scene_goal) {
-    scenes.push({ time: t, type: 'draw_callout', content: truncateWords(part.scene_goal, 20), position: [100, 80], width: 600, style: { bg: '#eff6ff', stroke: '#2563eb', color: '#1e3a5f' } });
-    t += 10;
-  }
-
-  const colors = ['#2563eb', '#16a34a', '#d97706', '#7c3aed'];
-  const fills = ['#eff6ff', '#f0fdf4', '#fef3c7', '#f5f3ff'];
-  for (let i = 0; i < concepts.length; i++) {
-    if (i > 0 && i % 2 === 0) {
-      scenes.push({ time: t, type: 'clear' });
-      t += 6;
-      scenes.push({ time: t, type: 'draw_text', content: title, position: [400, 38], style: { fontSize: 22, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' } });
-      t += 6;
-    }
-    const y = 140 + (i % 2) * 130;
-    scenes.push({ time: t, type: 'draw_badge', content: `${i + 1}`, position: [50, y], style: { bg: colors[i % 4], color: '#fff', fontSize: 15 } });
-    t += 4;
-    scenes.push({ time: t, type: 'draw_rect', x: 80, y: y + 10, width: 640, height: 80, label: truncateWords(concepts[i], 10), style: { fill: fills[i % 4], stroke: colors[i % 4], strokeWidth: 2, rx: 10 } });
-    t += 8;
-  }
-
-  return scenes;
-}
-
-/**
- * Minimal quiz fallback when AI fails.
- */
-function buildMinimalQuizFallback(lessonTitle, part, durationSeconds) {
+function generateQuizVisuals(lessonTitle, part) {
   const q1 = part.quiz_questions?.[0];
+  const q2 = part.quiz_questions?.[1];
   const options = (q1?.options?.choices || []).slice(0, 4);
+  const choiceLabels = options.map((choice, i) => `${String.fromCharCode(65 + i)}. ${clampText(choice, 28)}`);
+
   const scenes = [
-    { time: 0, type: 'draw_text', content: truncateWords(part.title || 'Knowledge Check', 5), position: [400, 42], style: { fontSize: 24, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' } },
-    { time: 4, type: 'draw_badge', content: 'Quiz', position: [42, 24], style: { bg: '#0f766e', color: '#fff', fontSize: 15 } },
-    { time: 8, type: 'draw_callout', content: clampText(q1?.question_text || `Which idea best captures ${lessonTitle}?`, 140), position: [110, 96], width: 580, style: { bg: '#eff6ff', stroke: '#60a5fa', color: '#1e3a8a' } },
+    scene(0, 'draw_text', {
+      content: truncateWords(part.title || 'Knowledge Check', 5),
+      position: [400, 42],
+      style: { fontSize: 24, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
+    }),
+    scene(4, 'draw_badge', {
+      content: 'Quiz', position: [42, 24],
+      style: { bg: '#0f766e', color: '#fff', fontSize: 15 },
+    }),
+    scene(8, 'draw_callout', {
+      content: clampText(q1?.question_text || `Which idea best captures ${lessonTitle}?`, 140),
+      position: [110, 96], width: 580,
+      style: { bg: '#eff6ff', stroke: '#60a5fa', color: '#1e3a8a' },
+    }),
+    scene(14, 'draw_rect', {
+      x: 70, y: 206, width: 300, height: 74,
+      label: choiceLabels[0] || 'A. First option',
+      style: { fill: '#f8fafc', stroke: '#2563eb', strokeWidth: 2, rx: 12 },
+    }),
+    scene(19, 'draw_rect', {
+      x: 430, y: 206, width: 300, height: 74,
+      label: choiceLabels[1] || 'B. Second option',
+      style: { fill: '#f8fafc', stroke: '#16a34a', strokeWidth: 2, rx: 12 },
+    }),
+    scene(24, 'draw_rect', {
+      x: 70, y: 302, width: 300, height: 74,
+      label: choiceLabels[2] || 'C. Third option',
+      style: { fill: '#f8fafc', stroke: '#d97706', strokeWidth: 2, rx: 12 },
+    }),
+    scene(29, 'draw_rect', {
+      x: 430, y: 302, width: 300, height: 74,
+      label: choiceLabels[3] || 'D. Fourth option',
+      style: { fill: '#f8fafc', stroke: '#7c3aed', strokeWidth: 2, rx: 12 },
+    }),
+    scene(34, 'clear', {}),
+    scene(38, 'draw_text', {
+      content: 'Fill in the blank',
+      position: [400, 42],
+      style: { fontSize: 24, color: '#1e3a5f', fontWeight: 'bold', textAnchor: 'middle' },
+    }),
+    scene(42, 'draw_callout', {
+      content: clampText(q2?.question_text || 'Complete using the key concept from the lesson.', 150),
+      position: [96, 114], width: 608,
+      style: { bg: '#fff7ed', stroke: '#fb923c', color: '#7c2d12' },
+    }),
+    scene(47, 'draw_badge', {
+      content: `Hint: ${truncateWords(part.title || lessonTitle, 3)}`,
+      position: [316, 232],
+      style: { bg: '#2563eb', color: '#fff', fontSize: 15 },
+    }),
+    scene(51, 'draw_callout', {
+      content: clampText(q2?.explanation || 'Think about the core concept and how it connects to the lesson.', 150),
+      position: [130, 286], width: 540,
+      style: { bg: '#f0fdf4', stroke: '#4ade80', color: '#14532d' },
+    }),
   ];
-  const choicePositions = [[70, 206], [430, 206], [70, 302], [430, 302]];
-  const choiceColors = ['#2563eb', '#16a34a', '#d97706', '#7c3aed'];
-  for (let i = 0; i < Math.min(options.length, 4); i++) {
-    scenes.push({ time: 14 + i * 5, type: 'draw_rect', x: choicePositions[i][0], y: choicePositions[i][1], width: 300, height: 74, label: `${String.fromCharCode(65 + i)}. ${clampText(options[i], 28)}`, style: { fill: '#f8fafc', stroke: choiceColors[i], strokeWidth: 2, rx: 12 } });
-  }
-  return fitSceneTimeline(scenes, durationSeconds);
-}
 
-// Legacy helper kept for backward compat in buildFallbackLesson
-function selectPedagogicalStrategy(part, contentIndex, explanationMode) {
-  const goalText = normalizePlannerPhrase(`${part.scene_goal || ''} ${part.learning_objective || ''} ${part.title || ''}`);
-  const relationships = (Array.isArray(part.visual_logic) ? part.visual_logic : [])
-    .map((entry) => normalizePedagogicalRelationship(entry.relationship || entry.type || entry.semantic_role));
-
-  if (relationships.some((relationship) => relationship === 'sequence' || relationship === 'dependency')) {
-    return 'detail';
-  }
-
-  if (relationships.some((relationship) => relationship === 'comparison' || relationship === 'data')) {
-    return contentIndex === 0 ? 'overview' : 'application';
-  }
-
-  if (relationships.some((relationship) => relationship === 'example')) {
-    return 'application';
-  }
-
-  if (/(apply|example|practice|case|scenario|use)/.test(goalText)) {
-    return 'application';
-  }
-
-  if (/(compare|contrast|difference|hierarchy|structure|define|definition|overview|foundation|introduc)/.test(goalText)) {
-    return 'overview';
-  }
-
-  if (explanationMode === 'step_by_step') {
-    return 'detail';
-  }
-
-  if (explanationMode === 'visual_first') {
-    return contentIndex === 2 ? 'application' : 'overview';
-  }
-
-  if (explanationMode === 'text_focus') {
-    return contentIndex === 0 ? 'overview' : 'detail';
-  }
-
-  // Dynamic strategy rotation
-  const strategies = ['overview', 'detail', 'application'];
-  return strategies[contentIndex % strategies.length];
+  return fitSceneTimeline(scenes, Number(part.duration_seconds) || 55);
 }
 
 // ── AI caller ────────────────────────────────────────────────────────────────
@@ -4725,6 +4555,19 @@ async function callAIRace(prompt, maxTokens, timeoutMs = AI_TIMEOUT_MS, aiProvid
     aiCircuitReason = '';
     return result;
   } catch (error) {
+    // Check if all errors are gateway sentinels
+    const allErrors = error?.errors || [error];
+    const gatewayErrors = allErrors.filter(e => {
+      const msg = String(e?.message || e || '');
+      return /gateway|sentinel|retrying|simplified prompt|upstream/i.test(msg);
+    });
+
+    // If all errors are gateway issues, provide a clearer message
+    if (gatewayErrors.length === allErrors.length && gatewayErrors.length > 0) {
+      console.error('[aiPlanner] All models returned gateway errors - upstream API issues');
+      throw new Error('AI service temporarily unavailable. The upstream models are experiencing issues. Please try again in a moment.');
+    }
+
     if (!hasExplicitModelSelection && shouldTripCircuit(error)) {
       const limits = PROVIDER_LIMITS.blaze;
       circuit.openUntil = Date.now() + limits.cooldown;
@@ -4796,8 +4639,19 @@ ABSOLUTE RULES:
       throw new Error(`HTTP ${response.status}: ${errText.slice(0, 200)}`);
     }
 
-    const data = await response.json();
-    const parsed = parseJSON(data.choices?.[0]?.message?.content);
+    const data = await readChatCompletion(response);
+    const rawContent = data.choices?.[0]?.message?.content;
+    // Guard: upstream gateways (e.g. Grok proxy) sometimes return a plain-English
+    // STATUS string as the message content when the real model failed upstream
+    // — e.g. "...is retrying with a simplified prompt after an upstream failure".
+    // That text must NEVER reach the lesson. Treat it as a hard failure so the
+    // race/retry logic falls through to a different model.
+    const sentinel = detectGatewaySentinel(rawContent);
+    if (sentinel) {
+      console.error(`[aiPlanner] gateway sentinel from ${model}: "${sentinel}"`);
+      throw new Error(`Upstream gateway error (model=${model}): ${sentinel}`);
+    }
+    const parsed = parseJSON(rawContent);
     console.log(`[aiPlanner] <<< OK ${model} finish=${data.choices?.[0]?.finish_reason} usage=${JSON.stringify(data.usage || {})}`);
     return parsed;
   } finally {
@@ -4806,6 +4660,62 @@ ABSOLUTE RULES:
 }
 
 // ── Text utilities ───────────────────────────────────────────────────────────
+
+// Read an OpenAI-compatible chat.completion response that may arrive either as
+// a single JSON body OR as a Server-Sent-Events stream. The BLAZE gateway sends
+// SSE for slower models (e.g. moonshotai/kimi-k2.6): one or more `: waiting…`
+// heartbeat comment lines, then `data:` lines, then `data: [DONE]`. A direct
+// `response.json()` throws on the leading `:`. We handle both transports:
+//   • plain JSON  → parse as-is
+//   • SSE non-streamed → the single `data:` line carries the COMPLETE object
+//   • SSE delta-streamed → accumulate choices[].delta.content into a message
+async function readChatCompletion(response) {
+  const ctype = (response.headers?.get?.('content-type') || '').toLowerCase();
+  const body = await response.text();
+
+  const looksSSE = ctype.includes('event-stream')
+    || /^\s*(?::|data:)/m.test(body);
+  if (!looksSSE) {
+    return JSON.parse(body);
+  }
+
+  // Collect every `data:` payload (ignoring `:` heartbeat comments and [DONE]).
+  const payloads = [];
+  for (const line of body.split(/\r?\n/)) {
+    const m = line.match(/^data:\s?(.*)$/);
+    if (!m) continue;
+    const chunk = m[1].trim();
+    if (!chunk || chunk === '[DONE]') continue;
+    try { payloads.push(JSON.parse(chunk)); } catch { /* skip partial */ }
+  }
+  if (!payloads.length) {
+    throw new Error('Empty SSE stream (no parseable data: payloads)');
+  }
+
+  // Non-streamed-over-SSE: the last payload already has a full message.
+  const full = [...payloads].reverse().find(
+    (p) => p?.choices?.[0]?.message?.content != null,
+  );
+  if (full) return full;
+
+  // Delta-streamed: stitch the incremental content together.
+  let content = '';
+  let finish_reason = null;
+  let template = null;
+  for (const p of payloads) {
+    const ch = p?.choices?.[0];
+    if (!ch) continue;
+    if (typeof ch.delta?.content === 'string') content += ch.delta.content;
+    if (ch.finish_reason) finish_reason = ch.finish_reason;
+    if (!template) template = p;
+  }
+  const usage = payloads[payloads.length - 1]?.usage || {};
+  return {
+    ...(template || {}),
+    choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason }],
+    usage,
+  };
+}
 
 function normalizeText(text) {
   return String(text || '')
@@ -5023,7 +4933,7 @@ function fitSceneTimeline(scenes, durationSeconds) {
 
   // If we would overshoot with ideal spacing, cap number of visible scenes
   const idealTotalTime = nonClearCount * contentGap + clearBudget;
-  const useMinimumSpacing = idealTotalTime > targetEnd * 1.2;
+  const needsTruncation = idealTotalTime > targetEnd * 1.2;
 
   // Assign times sequentially
   let t = 0;
@@ -5042,7 +4952,7 @@ function fitSceneTimeline(scenes, durationSeconds) {
     } else if (afterClear) {
       t += POST_CLEAR_GAP;
     } else {
-      t += useMinimumSpacing ? MIN_GAP : contentGap;
+      t += needsTruncation ? MIN_GAP : contentGap;
     }
 
     return { ...entry, time: Math.round(t * 10) / 10 };
@@ -5236,7 +5146,7 @@ function containsFiniteVerb(text) {
 function detectField(text) {
   const n = text.toLowerCase();
   const fields = {
-    programming: /\b(algorithm|code|programming|software|data structure|array|variable|class|object|database|api|compiler|syntax|devops|docker|kubernetes|deployment|server|backend|frontend|pipeline|git|linux|nginx|blockchain|validator|ledger|consensus|distributed|transaction|protocol|cache|service|client|router)\b/g,
+    programming: /\b(algorithm|code|programming|software|data structure|array|variable|class|object|database|api|compiler|syntax|devops|docker|kubernetes|deployment|server|backend|frontend|pipeline|git|linux|nginx|blockchain|validator|ledger|consensus|distributed|transaction|protocol|cache|service|client|router|browser|http|https|web request|request-response|request response)\b/g,
     mathematics: /\b(theorem|proof|equation|algebra|geometry|calculus|trigonometry|matrix|vector|integral|derivative|polynomial|mathematical)\b/g,
     biology: /\b(biology|cell|mitosis|meiosis|chromosome|chromatid|spindle|dna|rna|gene|protein|enzyme|organelle|nucleus|membrane|chloroplast|photosynthesis|tissue|microtubule)\b/g,
     medical: /\b(anatomy|medical|disease|patient|surgery|diagnosis|symptom|treatment|organ|cell|tissue|blood|heart|brain|muscle|bone|nerve|clinical)\b/g,
@@ -5271,6 +5181,58 @@ function describeAIError(error) {
   return error?.message || 'unknown AI error';
 }
 
+// Patterns that indicate an upstream GATEWAY status/error message was returned
+// in place of real model output. If any matches, the content is not a lesson.
+const GATEWAY_SENTINEL_PATTERNS = [
+  /retrying with a simplified prompt/i,
+  /upstream failure/i,
+  /is retrying/i,
+  /upstream error/i,
+  /\bblazeai\b.*\b(retry|failed|error|unavailable)\b/i,
+  /the (model|provider|upstream) (is|was) (unavailable|overloaded|busy)/i,
+  /please try again (later|in a moment)/i,
+  /rate.?limit(ed|ing)?/i,
+  /\b(grok|qwen|deepseek|gpt)[\w.\- ]*\b(is|was) (retrying|unavailable|failing)/i,
+];
+
+/**
+ * Returns the offending snippet if `raw` looks like a gateway status message
+ * rather than a real (JSON) model response, else null.
+ */
+function detectGatewaySentinel(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return null;
+  // Real lesson output is JSON — it starts with { or [. A gateway status line
+  // is prose. Only scrutinise non-JSON-leading content for sentinels.
+  const looksJson = /^[\[{]/.test(text) || /```/.test(text) || text.includes('{');
+
+  // If it looks like JSON, don't flag it as a sentinel
+  if (looksJson && text.length > 100) return null;
+
+  const head = text.slice(0, 400);
+  for (const re of GATEWAY_SENTINEL_PATTERNS) {
+    if (re.test(head)) return head.replace(/\s+/g, ' ').slice(0, 160);
+  }
+  // Pure prose with no JSON object at all and no useful structure → suspicious.
+  if (!looksJson && text.length < 500 && /\b(retry|failure|error|unavailable|upstream)\b/i.test(text)) {
+    return head.replace(/\s+/g, ' ').slice(0, 160);
+  }
+  return null;
+}
+
+/**
+ * Strip any gateway-status sentences that may have leaked into narration text.
+ * Used as a final safety net before persisting lesson content.
+ */
+function stripGatewaySentinels(text) {
+  let s = String(text || '');
+  if (!s) return s;
+  const sentences = s.split(/(?<=[.!?])\s+/);
+  const kept = sentences.filter((sent) => !GATEWAY_SENTINEL_PATTERNS.some((re) => re.test(sent)));
+  s = kept.join(' ').trim();
+  return s;
+}
+
 function parseJSON(raw) {
   if (!raw) throw new Error('Empty response');
   let cleaned = String(raw)
@@ -5290,3 +5252,5 @@ function parseJSON(raw) {
     throw new Error(`Invalid JSON in model response: ${cleaned.slice(0, 120)}`);
   }
 }
+
+

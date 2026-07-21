@@ -21,7 +21,7 @@ Never behave like:
 
 Core rules:
 - Teach, do not summarize.
-- One scene or part teaches one main idea.
+- One scene or part teaches one main idea. 
 - Use anchor words, not paragraphs.
 - Every visual must have teaching purpose.
 - Never place coordinates in AI output.
