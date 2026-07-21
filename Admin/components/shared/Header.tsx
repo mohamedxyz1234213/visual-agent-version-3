@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { logoutRequest } from "@/lib/api";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   IconSearch,
   IconBell,
@@ -33,7 +34,7 @@ export function Header({ title, subtitle, username, onLogout, onToggleSidebar }:
       <div className="flex items-center gap-3">
         <button
           onClick={onToggleSidebar}
-          className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-black/5 transition-colors"
+          className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
           aria-label="Toggle sidebar"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -43,11 +44,11 @@ export function Header({ title, subtitle, username, onLogout, onToggleSidebar }:
           </svg>
         </button>
         <div>
-          <h1 className="text-[28px] font-bold text-[#0F0F0F] tracking-tight leading-tight">
+          <h1 className="text-[28px] font-bold text-[#0F0F0F] dark:text-white tracking-tight leading-tight">
             {title}
           </h1>
           {subtitle && (
-            <p className="text-[13px] text-[#6B6B6B] mt-0.5">{subtitle}</p>
+            <p className="text-[13px] text-[#6B6B6B] dark:text-slate-400 mt-0.5">{subtitle}</p>
           )}
         </div>
       </div>
@@ -67,7 +68,7 @@ export function Header({ title, subtitle, username, onLogout, onToggleSidebar }:
         </div>
 
         {/* Date label */}
-        <span className="text-[13px] text-[#6B6B6B] hidden lg:block">
+        <span className="text-[13px] text-[#6B6B6B] dark:text-slate-400 hidden lg:block">
           {new Date().toLocaleDateString("en-US", {
             day: "numeric",
             month: "short",
@@ -80,6 +81,9 @@ export function Header({ title, subtitle, username, onLogout, onToggleSidebar }:
           Today
           <IconChevronDown size={14} />
         </button>
+
+        {/* Theme toggle */}
+        <ThemeToggle />
 
         {/* Notification bell */}
         <button className="relative flux-icon-chip hover:bg-gray-200 transition-colors">
@@ -115,9 +119,9 @@ export function Header({ title, subtitle, username, onLogout, onToggleSidebar }:
                 className="fixed inset-0 z-40"
                 onClick={() => setShowProfile(false)}
               />
-              <div className="absolute right-0 mt-2 w-52 bg-white rounded-[20px] shadow-card py-2 z-50">
-                <div className="px-4 py-3 border-b border-[#E5E5E5]">
-                  <p className="text-[14px] font-semibold text-[#0F0F0F]">
+              <div className="absolute right-0 mt-2 w-52 bg-white dark:bg-[#1A1A1A] rounded-[20px] shadow-card py-2 z-50">
+                <div className="px-4 py-3 border-b border-[#E5E5E5] dark:border-[#2A2A2A]">
+                  <p className="text-[14px] font-semibold text-[#0F0F0F] dark:text-white">
                     {username}
                   </p>
                   <span className="flux-badge-lime mt-1 inline-block">
@@ -126,7 +130,7 @@ export function Header({ title, subtitle, username, onLogout, onToggleSidebar }:
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[#6B6B6B] hover:bg-gray-50 transition-colors"
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[#6B6B6B] dark:text-[#8A8A8A] hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
                 >
                   <IconLogout size={16} />
                   Sign Out

@@ -13,6 +13,27 @@
   --flux-text-dark-primary: #FFFFFF;
   --flux-text-dark-secondary: #A0A0A0;
   --flux-border: #E5E5E5;
+  --flux-card-bg: #FFFFFF;
+  --flux-chip-bg: #F5F5F5;
+  --flux-input-bg: #FFFFFF;
+  --flux-overlay: rgba(0,0,0,0.03);
+  --flux-progress-track: #EAEAEA;
+}
+
+.dark {
+  --flux-canvas: #0F0F0F;
+  --flux-sidebar: #0A0A0A;
+  --flux-card-dark: #1A1A1A;
+  --flux-text-primary: #EDEDED;
+  --flux-text-secondary: #8A8A8A;
+  --flux-text-dark-primary: #FFFFFF;
+  --flux-text-dark-secondary: #A0A0A0;
+  --flux-border: #2A2A2A;
+  --flux-card-bg: #1A1A1A;
+  --flux-chip-bg: rgba(255,255,255,0.08);
+  --flux-input-bg: #1A1A1A;
+  --flux-overlay: rgba(255,255,255,0.05);
+  --flux-progress-track: #2A2A2A;
 }
 
 html, body {
@@ -23,6 +44,7 @@ html, body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   letter-spacing: -0.01em;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 * {
@@ -32,11 +54,12 @@ html, body {
 
 /* ── Flux Card System ───────────────────────────────────────────────────── */
 .flux-card {
-  background: #FFFFFF;
+  background: var(--flux-card-bg);
   border-radius: 20px;
   padding: 20px 24px;
   box-shadow: 0 2px 4px 0 rgba(0,0,0,0.06);
   border: none;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .flux-card:hover {
@@ -44,12 +67,13 @@ html, body {
 }
 
 .flux-card-dark {
-  background: #1A1A1A;
+  background: var(--flux-card-dark);
   border-radius: 20px;
   padding: 20px 24px;
   box-shadow: 0 2px 4px 0 rgba(0,0,0,0.06);
   border: none;
-  color: #FFFFFF;
+  color: var(--flux-text-dark-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* ── Flux Button System ─────────────────────────────────────────────────── */
@@ -94,11 +118,11 @@ html, body {
   font-size: 13px;
   border: 1px solid var(--flux-border);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s ease, background-color 0.3s ease, color 0.3s ease;
 }
 
 .flux-btn-outline:hover {
-  background: rgba(0,0,0,0.03);
+  background: var(--flux-overlay);
 }
 
 /* ── Flux Badge System ──────────────────────────────────────────────────── */
@@ -122,7 +146,7 @@ html, body {
 
 /* ── Flux Progress Bar ──────────────────────────────────────────────────── */
 .flux-progress-track {
-  background: #EAEAEA;
+  background: var(--flux-progress-track);
   border-radius: 999px;
   height: 8px;
   overflow: hidden;
@@ -154,11 +178,12 @@ html, body {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: #F5F5F5;
+  background: var(--flux-chip-bg);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  transition: background-color 0.3s ease;
 }
 
 .flux-icon-chip-dark {
@@ -174,7 +199,7 @@ html, body {
 
 /* ── Flux Pill Input ────────────────────────────────────────────────────── */
 .flux-pill-input {
-  background: #FFFFFF;
+  background: var(--flux-input-bg);
   border: 1px solid var(--flux-border);
   border-radius: 999px;
   padding: 10px 16px 10px 40px;
@@ -182,10 +207,15 @@ html, body {
   width: 100%;
   outline: none;
   transition: all 0.2s ease;
+  color: var(--flux-text-primary);
+}
+
+.flux-pill-input::placeholder {
+  color: var(--flux-text-secondary);
 }
 
 .flux-pill-input:focus {
-  border-color: #171717;
+  border-color: var(--flux-text-primary);
 }
 
 /* ── Flux Stat Number ───────────────────────────────────────────────────── */
@@ -195,6 +225,7 @@ html, body {
   line-height: 1;
   letter-spacing: -0.02em;
   color: var(--flux-text-primary);
+  transition: color 0.3s ease;
 }
 
 .flux-stat-number-dark {
@@ -202,7 +233,8 @@ html, body {
   font-weight: 700;
   line-height: 1;
   letter-spacing: -0.02em;
-  color: #FFFFFF;
+  color: var(--flux-text-dark-primary);
+  transition: color 0.3s ease;
 }
 
 .flux-stat-label {

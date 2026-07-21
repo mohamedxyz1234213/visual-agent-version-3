@@ -25,12 +25,13 @@ export function ExerciseBlock({ exercise, onComplete }: ExerciseBlockProps) {
   const [status, setStatus] = useState<"idle" | "running" | "passed" | "failed">("idle");
   const [result, setResult] = useState<{ output: string; score: number } | null>(null);
   const [xpEarned, setXpEarned] = useState(0);
+  const [selectedLanguage, setSelectedLanguage] = useState(exercise.language || 'javascript');
 
   const handleRun = async (code: string) => {
     setStatus("running");
     setResult(null);
     try {
-      const res = await submitExercise(exercise._id, { code, language: exercise.language });
+      const res = await submitExercise(exercise._id, { code, language: selectedLanguage });
       const passed = res.submission.status === "passed";
       setStatus(passed ? "passed" : "failed");
       setResult({ output: res.submission.status, score: res.submission.score });
@@ -91,9 +92,11 @@ export function ExerciseBlock({ exercise, onComplete }: ExerciseBlockProps) {
       {/* Code editor */}
       <CodeEditor
         initialCode={exercise.starterCode || ""}
-        language={exercise.language || "javascript"}
+        language={selectedLanguage}
         hints={exercise.hints || []}
         onRun={handleRun}
+        showLanguageSelector={true}
+        onLanguageChange={setSelectedLanguage}
       />
 
       {/* Status feedback */}

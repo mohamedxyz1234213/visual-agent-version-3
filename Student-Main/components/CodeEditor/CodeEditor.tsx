@@ -11,7 +11,19 @@ interface CodeEditorProps {
   readOnly?: boolean;
   height?: string;
   placeholder?: string;
+  onLanguageChange?: (language: string) => void;
+  showLanguageSelector?: boolean;
+  supportedLanguages?: { id: string; label: string }[];
 }
+
+const DEFAULT_LANGUAGES = [
+  { id: 'javascript', label: 'JavaScript' },
+  { id: 'python', label: 'Python' },
+  { id: 'java', label: 'Java' },
+  { id: 'cpp', label: 'C++' },
+];
+
+
 
 export function CodeEditor({
   initialCode = "",
@@ -22,8 +34,14 @@ export function CodeEditor({
   readOnly = false,
   height = "280px",
   placeholder = "// Write your code here...",
+  onLanguageChange,
+  showLanguageSelector = false,
+  supportedLanguages = DEFAULT_LANGUAGES,
 }: CodeEditorProps) {
   const [code, setCode] = useState(initialCode);
+  const [selectedLanguage, setSelectedLanguage] = useState(language);
+  const [showLangDropdown, setShowLangDropdown] = useState(false);
+  const langDropdownRef = useRef<HTMLDivElement>(null);
   const [output, setOutput] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [showHints, setShowHints] = useState(false);
@@ -102,17 +120,69 @@ export function CodeEditor({
     [code, handleCodeChange, handleRun]
   );
 
+  // Click outside to close language dropdown
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (langDropdownRef.current && !langDropdownRef.current.contains(e.target as Node)) {
+        setShowLangDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const lineCount = code.split("\n").length;
   const lineNumbers = Array.from({ length: Math.max(lineCount, 1) }, (_, i) => i + 1);
 
   return (
     <div className="flux-card overflow-hidden" style={{ padding: 0 }}>
-      {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100 bg-slate-50/50">
+      {/* Toolbar */}        <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100 bg-slate-50/50">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            {language}
-          </span>
+          {/* Language selector */}
+          {showLanguageSelector && !readOnly ? (
+            <div className="relative" ref={langDropdownRef}>
+              <button
+                onClick={() => setShowLangDropdown(!showLangDropdown)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="2" y1="12" x2="22" y2="12" />
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                </svg>
+                {supportedLanguages.find((l) => l.id === selectedLanguage)?.label || selectedLanguage}
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`transition-transform ${showLangDropdown ? 'rotate-180' : ''}`}>
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+              {showLangDropdown && (
+                <div className="absolute top-full left-0 mt-1 w-36 bg-white border border-slate-200 rounded-xl shadow-lg z-50 py-1 overflow-hidden animate-flash-in" style={{ animation: 'fadeInUp 0.15s ease both' }}>
+                  {supportedLanguages.map((lang) => (
+                    <button
+                      key={lang.id}
+                      onClick={() => {
+                        setSelectedLanguage(lang.id);
+                        setShowLangDropdown(false);
+                        onLanguageChange?.(lang.id);
+                      }}
+                      className={`w-full text-left px-3.5 py-2 text-xs font-medium transition-colors flex items-center gap-2 ${
+                        lang.id === selectedLanguage
+                          ? 'bg-[#D6F63E]/10 text-[#0F0F0F]'
+                          : 'text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${lang.id === selectedLanguage ? 'bg-[#D6F63E]' : 'bg-slate-300'}`} />
+                      {lang.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              {supportedLanguages.find((l) => l.id === selectedLanguage)?.label || selectedLanguage}
+            </span>
+          )}
           {!readOnly && (
             <span className="text-[11px] text-slate-400">
               {cursorPosition.line}:{cursorPosition.col}

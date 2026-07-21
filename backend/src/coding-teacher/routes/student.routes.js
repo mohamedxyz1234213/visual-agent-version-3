@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireAuth } from '../../auth/middleware/auth.js';
 import { requireRole } from '../middleware/roles.js';
 import { Student, Progress, Submission, Exercise, CodingLesson, Achievement, AIConversation, Notification, ExerciseBlock } from '../models/index.js';
+import { executeCode, calculateScore, determineStatus } from '../services/code-execution/sandbox.service.js';
 import { User } from '../../auth/models/index.js';
 
 const router = Router();
@@ -244,27 +245,22 @@ router.post('/lessons/:id/lesson-exercises/:blockId/submit', requireRole('studen
     if (!block) return res.status(404).json({ error: 'Exercise block not found' });
 
     const { code, language, timeSpent } = req.body;
+    const lang = language || block.language || 'javascript';
 
-    // Simple evaluation
-    const results = block.testCases.map((tc) => ({
-      testCaseId: tc.id,
-      passed: true, // placeholder — real eval in sandbox
-      output: '',
-      expectedOutput: tc.expectedOutput,
-      executionTime: 0,
-      memoryUsed: 0,
-    }));
+    // Real code execution via sandbox
+    const results = await executeCode(code, lang, block.testCases || []);
 
     const passedCount = results.filter((r) => r.passed).length;
     const allPassed = passedCount === results.length;
-    const score = Math.round((passedCount / results.length) * 100);
+    const score = calculateScore(results);
+    const status = determineStatus(results);
 
     const submission = await Submission.create({
       studentId: student._id,
       exerciseId: block._id,
       code,
-      language: language || block.language || 'javascript',
-      status: allPassed ? 'passed' : 'failed',
+      language: lang,
+      status,
       results,
       score,
       maxScore: 100,
@@ -300,27 +296,22 @@ router.post('/exercises/:id/submit', requireRole('student'), async (req, res, ne
     if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
 
     const { code, language, timeSpent } = req.body;
+    const lang = language || 'javascript';
 
-    // Simple evaluation (in production, use sandbox)
-    const results = exercise.testCases.map((tc) => ({
-      testCaseId: tc.id,
-      passed: true, // placeholder — real eval in sandbox
-      output: '',
-      expectedOutput: tc.expectedOutput,
-      executionTime: 0,
-      memoryUsed: 0,
-    }));
+    // Real code execution via sandbox
+    const results = await executeCode(code, lang, exercise.testCases || []);
 
     const passedCount = results.filter((r) => r.passed).length;
     const allPassed = passedCount === results.length;
-    const score = Math.round((passedCount / results.length) * 100);
+    const score = calculateScore(results);
+    const status = determineStatus(results);
 
     const submission = await Submission.create({
       studentId: student._id,
       exerciseId: exercise._id,
       code,
-      language: language || 'javascript',
-      status: allPassed ? 'passed' : 'failed',
+      language: lang,
+      status,
       results,
       score,
       maxScore: 100,

@@ -28,6 +28,7 @@ import {
   IconX,
 } from "./FluxIcons";
 import { AnimatedLogo } from "./AnimatedLogo";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 // ── Icon map: string name → React component ────────────────────────────────
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string; size?: number }>> = {
@@ -117,7 +118,10 @@ export function Sidebar({ items, title, subtitle, bottomContent, isCollapsed = f
         })}
       </nav>
 
-      {/* Bottom content or empty spacer */}
+      {/* Bottom: Theme toggle + content */}
+      <div className="px-3 py-2 border-t border-white/10">
+        <ThemeToggle variant="full" className="w-full" />
+      </div>
       {bottomContent || <div className="p-3" />}
     </aside>
   );
