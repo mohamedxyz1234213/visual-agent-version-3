@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Sidebar } from "@/components/shared";
 import { Header } from "@/components/shared";
 import { useAuthStore } from "@/store/authStore";
@@ -21,6 +22,7 @@ const studentNavItems = [
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
   const { user, initialized, refresh } = useAuthStore();
   const router = useRouter();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => { if (!initialized) refresh(); }, [initialized, refresh]);
   useEffect(() => {
@@ -34,9 +36,9 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 
   return (
     <div className="min-h-screen bg-[#EDEDED]">
-      <Sidebar items={studentNavItems} title="CodeBuddy" subtitle={user.username} />
-      <main className="ml-[244px] min-h-screen p-5">
-        <Header title="Dashboard" subtitle="Take control of your learning journey" username={user.username} />
+      <Sidebar items={studentNavItems} title="CodeBuddy" subtitle={user.username} isCollapsed={!sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
+      <main className={`min-h-screen p-5 transition-all duration-300 ease-in-out ${sidebarOpen ? 'ml-[244px]' : 'ml-[96px]'}`}>
+        <Header title="Dashboard" subtitle="Take control of your learning journey" username={user.username} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
         {children}
       </main>
     </div>

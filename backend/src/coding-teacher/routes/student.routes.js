@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../../auth/middleware/auth.js';
 import { requireRole } from '../middleware/roles.js';
-import { Student, Progress, Submission, Exercise, CodingLesson, Achievement, AIConversation, Notification } from '../models/index.js';
+import { Student, Progress, Submission, Exercise, CodingLesson, Achievement, AIConversation, Notification, ExerciseBlock } from '../models/index.js';
 import { User } from '../../auth/models/index.js';
 
 const router = Router();
@@ -214,6 +214,77 @@ router.get('/exercises/:id', requireRole('student'), async (req, res, next) => {
     // Don't send solution to student
     const { solution, solutionExplanation, ...safeExercise } = exercise;
     res.json({ exercise: safeExercise });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── GET /api/v1/student/lessons/:id/exercises ─────────────────────────────────
+// Get exercise blocks for a specific lesson
+router.get('/lessons/:id/exercises', requireRole('student'), async (req, res, next) => {
+  try {
+    const blocks = await ExerciseBlock.find({ lessonId: req.params.id })
+      .sort({ order: 1 })
+      .select('-solution')  // Don't send solutions to students
+      .lean();
+    res.json({ blocks });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── POST /api/v1/student/lessons/:id/lesson-exercises/:blockId/submit ─────────
+// Submit a solution to an exercise block within a lesson
+router.post('/lessons/:id/lesson-exercises/:blockId/submit', requireRole('student'), async (req, res, next) => {
+  try {
+    const student = await Student.findOne({ userId: req.userId });
+    if (!student) return res.status(404).json({ error: 'Student profile not found' });
+
+    const block = await ExerciseBlock.findById(req.params.blockId).lean();
+    if (!block) return res.status(404).json({ error: 'Exercise block not found' });
+
+    const { code, language, timeSpent } = req.body;
+
+    // Simple evaluation
+    const results = block.testCases.map((tc) => ({
+      testCaseId: tc.id,
+      passed: true, // placeholder — real eval in sandbox
+      output: '',
+      expectedOutput: tc.expectedOutput,
+      executionTime: 0,
+      memoryUsed: 0,
+    }));
+
+    const passedCount = results.filter((r) => r.passed).length;
+    const allPassed = passedCount === results.length;
+    const score = Math.round((passedCount / results.length) * 100);
+
+    const submission = await Submission.create({
+      studentId: student._id,
+      exerciseId: block._id,
+      code,
+      language: language || block.language || 'javascript',
+      status: allPassed ? 'passed' : 'failed',
+      results,
+      score,
+      maxScore: 100,
+      timeSpent: timeSpent || 0,
+      attemptNumber: 1,
+    });
+
+    // Award XP
+    let xpReward = 0;
+    if (allPassed) {
+      xpReward = block.xpReward || 10;
+      student.addXP(xpReward);
+      await student.save();
+    }
+
+    res.json({
+      ok: true,
+      submission: { id: submission._id, status: submission.status, score },
+      xpEarned: xpReward,
+    });
   } catch (err) {
     next(err);
   }

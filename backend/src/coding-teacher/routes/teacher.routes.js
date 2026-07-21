@@ -11,6 +11,8 @@ import {
   Subject,
   Progress,
   WeeklyChallenge,
+  LessonPath,
+  ExerciseBlock,
 } from '../models/index.js';
 import { User } from '../../auth/models/index.js';
 
@@ -191,6 +193,212 @@ router.delete('/lessons/:id', requireRole('teacher'), async (req, res, next) => 
   try {
     const result = await CodingLesson.findOneAndDelete({ _id: req.params.id, teacherId: req.userId });
     if (!result) return res.status(404).json({ error: 'Lesson not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Lesson Paths (Patches) ───────────────────────────────────────────────────
+// GET /api/v1/teacher/lesson-paths — list all paths for this teacher
+router.get('/lesson-paths', requireRole('teacher'), async (req, res, next) => {
+  try {
+    const paths = await LessonPath.find({ teacherId: req.userId })
+      .populate('lessons.lessonId', 'title difficulty duration')
+      .populate('assignedStudentIds', 'studentCode')
+      .sort({ createdAt: -1 })
+      .lean();
+    res.json({ paths });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/v1/teacher/lesson-paths — create a new path
+router.post('/lesson-paths', requireRole('teacher'), async (req, res, next) => {
+  try {
+    const { title, description, subjectId, difficulty, estimatedWeeks } = req.body;
+    if (!title) return res.status(400).json({ error: 'Title is required' });
+
+    const path = await LessonPath.create({
+      title,
+      description: description || '',
+      teacherId: req.userId,
+      subjectId,
+      difficulty: difficulty || 'beginner',
+      estimatedWeeks: estimatedWeeks || 1,
+      lessons: [],
+      assignedStudentIds: [],
+    });
+
+    res.status(201).json({ ok: true, path });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/v1/teacher/lesson-paths/:id — update a path
+router.put('/lesson-paths/:id', requireRole('teacher'), async (req, res, next) => {
+  try {
+    const path = await LessonPath.findOneAndUpdate(
+      { _id: req.params.id, teacherId: req.userId },
+      { $set: req.body },
+      { new: true }
+    );
+    if (!path) return res.status(404).json({ error: 'Path not found' });
+    res.json({ ok: true, path });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/v1/teacher/lesson-paths/:id — delete a path
+router.delete('/lesson-paths/:id', requireRole('teacher'), async (req, res, next) => {
+  try {
+    const result = await LessonPath.findOneAndDelete({ _id: req.params.id, teacherId: req.userId });
+    if (!result) return res.status(404).json({ error: 'Path not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/v1/teacher/lesson-paths/:id/lessons — add a lesson to a path
+router.post('/lesson-paths/:id/lessons', requireRole('teacher'), async (req, res, next) => {
+  try {
+    const { lessonId, title, order, mandatory } = req.body;
+    if (!lessonId) return res.status(400).json({ error: 'lessonId is required' });
+
+    const path = await LessonPath.findOne({ _id: req.params.id, teacherId: req.userId });
+    if (!path) return res.status(404).json({ error: 'Path not found' });
+
+    const lessonEntry = {
+      lessonId,
+      title: title || '',
+      order: order || path.lessons.length,
+      mandatory: mandatory !== false,
+    };
+
+    path.lessons.push(lessonEntry);
+    await path.save();
+
+    res.json({ ok: true, path });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/v1/teacher/lesson-paths/:pathId/lessons/:lessonEntryId — remove a lesson from a path
+router.delete('/lesson-paths/:pathId/lessons/:lessonEntryId', requireRole('teacher'), async (req, res, next) => {
+  try {
+    const path = await LessonPath.findOne({ _id: req.params.pathId, teacherId: req.userId });
+    if (!path) return res.status(404).json({ error: 'Path not found' });
+
+    path.lessons = path.lessons.filter((l) => l._id.toString() !== req.params.lessonEntryId);
+    await path.save();
+
+    res.json({ ok: true, path });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/v1/teacher/lesson-paths/:id/assign — assign path to students
+router.post('/lesson-paths/:id/assign', requireRole('teacher'), async (req, res, next) => {
+  try {
+    const { studentIds } = req.body;
+    if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+      return res.status(400).json({ error: 'At least one studentId is required' });
+    }
+
+    const path = await LessonPath.findOne({ _id: req.params.id, teacherId: req.userId });
+    if (!path) return res.status(404).json({ error: 'Path not found' });
+
+    // Verify students belong to this teacher
+    const owned = await Student.find({ _id: { $in: studentIds }, teacherIds: req.userId })
+      .select('_id').lean();
+    if (owned.length !== studentIds.length) {
+      return res.status(403).json({ error: 'You can only assign paths to your own students.' });
+    }
+
+    // Merge without duplicates
+    const existing = new Set(path.assignedStudentIds.map((id) => id.toString()));
+    owned.forEach((s) => {
+      if (!existing.has(s._id.toString())) {
+        path.assignedStudentIds.push(s._id);
+      }
+    });
+    await path.save();
+
+    res.json({ ok: true, path });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Exercise Blocks (in-lesson exercises) ─────────────────────────────────────
+// GET /api/v1/teacher/lesson-exercises — get exercise blocks for a lesson
+router.get('/lesson-exercises', requireRole('teacher'), async (req, res, next) => {
+  try {
+    const { lessonId } = req.query;
+    const filter = {};
+    if (lessonId) filter.lessonId = lessonId;
+
+    const blocks = await ExerciseBlock.find(filter)
+      .sort({ order: 1 })
+      .lean();
+    res.json({ blocks });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/v1/teacher/lesson-exercises — create an exercise block for a lesson
+router.post('/lesson-exercises', requireRole('teacher'), async (req, res, next) => {
+  try {
+    const { lessonId, title, instructions, language, starterCode, solution, testCases, hints, difficulty, order, xpReward } = req.body;
+    if (!lessonId) return res.status(400).json({ error: 'lessonId is required' });
+
+    const block = await ExerciseBlock.create({
+      lessonId,
+      title: title || '',
+      instructions: instructions || '',
+      language: language || 'javascript',
+      starterCode: starterCode || '',
+      solution: solution || '',
+      testCases: testCases || [],
+      hints: hints || [],
+      difficulty: difficulty || 'easy',
+      order: order || 0,
+      xpReward: xpReward || 10,
+    });
+
+    res.status(201).json({ ok: true, block });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/v1/teacher/lesson-exercises/:id — update an exercise block
+router.put('/lesson-exercises/:id', requireRole('teacher'), async (req, res, next) => {
+  try {
+    const block = await ExerciseBlock.findByIdAndUpdate(
+      req.params.id,
+      { $set: req.body },
+      { new: true }
+    );
+    if (!block) return res.status(404).json({ error: 'Exercise block not found' });
+    res.json({ ok: true, block });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/v1/teacher/lesson-exercises/:id — delete an exercise block
+router.delete('/lesson-exercises/:id', requireRole('teacher'), async (req, res, next) => {
+  try {
+    const result = await ExerciseBlock.findByIdAndDelete(req.params.id);
+    if (!result) return res.status(404).json({ error: 'Exercise block not found' });
     res.json({ ok: true });
   } catch (err) {
     next(err);

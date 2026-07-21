@@ -15,9 +15,10 @@ interface HeaderProps {
   subtitle?: string;
   username?: string;
   onLogout?: () => void;
+  onToggleSidebar?: () => void;
 }
 
-export function Header({ title, subtitle, username, onLogout }: HeaderProps) {
+export function Header({ title, subtitle, username, onLogout, onToggleSidebar }: HeaderProps) {
   const [showProfile, setShowProfile] = useState(false);
 
   async function handleLogout() {
@@ -28,14 +29,27 @@ export function Header({ title, subtitle, username, onLogout }: HeaderProps) {
 
   return (
     <header className="sticky top-0 z-40 flex items-center justify-between px-0 py-4 mb-6">
-      {/* Left: Page Title + Subtitle */}
-      <div>
-        <h1 className="text-[28px] font-bold text-[#0F0F0F] tracking-tight leading-tight">
-          {title}
-        </h1>
-        {subtitle && (
-          <p className="text-[13px] text-[#6B6B6B] mt-0.5">{subtitle}</p>
-        )}
+      {/* Left: Hamburger + Page Title */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onToggleSidebar}
+          className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-black/5 transition-colors"
+          aria-label="Toggle sidebar"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
+        <div>
+          <h1 className="text-[28px] font-bold text-[#0F0F0F] tracking-tight leading-tight">
+            {title}
+          </h1>
+          {subtitle && (
+            <p className="text-[13px] text-[#6B6B6B] mt-0.5">{subtitle}</p>
+          )}
+        </div>
       </div>
 
       {/* Right: Search + Date + Notifications + Profile */}

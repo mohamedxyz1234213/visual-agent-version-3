@@ -4,15 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useAuthStore } from "@/store/authStore";
 import { useRouter } from "next/navigation";
-
-function IconCode({ className = "w-5 h-5" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor" className={className}>
-      <polyline points="16 18 22 12 16 6" />
-      <polyline points="8 6 2 12 8 18" />
-    </svg>
-  );
-}
+import { AnimatedLogo } from "@/components/shared/AnimatedLogo";
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState("");
@@ -44,8 +36,8 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2.5 mb-6">
-            <div className="w-9 h-9 bg-[#171717] rounded-lg flex items-center justify-center">
-              <IconCode className="w-5 h-5 text-[#D6F63E]" />
+            <div className="w-9 h-9 flex items-center justify-center">
+              <AnimatedLogo size={22} className="text-[#D6F63E]" />
             </div>
             <span className="text-xl font-bold tracking-tight text-[#0F0F0F]">
               CodeBuddy
@@ -114,15 +106,7 @@ export default function LoginPage() {
               Sign Up
             </Link>
           </p>
-          <p className="text-center text-sm text-[#6B6B6B]">
-            Want to try the whiteboard?{" "}
-            <Link
-              href="/request-access?feature=whiteboard"
-              className="text-[#0F0F0F] hover:underline font-semibold"
-            >
-              Request Access
-            </Link>
-          </p>
+
         </div>
       </div>
     </div>

@@ -25,7 +25,9 @@ import {
   IconTrending,
   IconPalette,
   IconCheck,
+  IconX,
 } from "./FluxIcons";
+import { AnimatedLogo } from "./AnimatedLogo";
 
 // ── Icon map: string name → React component ────────────────────────────────
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string; size?: number }>> = {
@@ -64,22 +66,28 @@ interface SidebarProps {
   title: string;
   subtitle?: string;
   bottomContent?: React.ReactNode;
+  isCollapsed?: boolean;
+  onToggle?: () => void;
 }
 
-export function Sidebar({ items, title, subtitle, bottomContent }: SidebarProps) {
+export function Sidebar({ items, title, subtitle, bottomContent, isCollapsed = false, onToggle }: SidebarProps) {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed left-0 top-0 h-[calc(100vh-24px)] w-[220px] bg-[#171717] text-white flex flex-col z-50 m-3 rounded-[20px]">
+    <aside className={`fixed left-0 top-0 h-[calc(100vh-24px)] bg-[#171717] text-white flex flex-col z-50 m-3 rounded-[20px] transition-all duration-300 ease-in-out ${isCollapsed ? 'w-[72px]' : 'w-[220px]'}`}>
       {/* Logo */}
-      <div className="px-5 pt-5 pb-4">
+      <div className={`${isCollapsed ? 'px-4' : 'px-5'} pt-5 pb-4`}>
         <Link href="/" className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-[#D6F63E] rounded-lg flex items-center justify-center">
-            <IconCode size={16} className="text-[#0F0F0F]" />
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0">
+            <AnimatedLogo size={20} />
           </div>
-          <span className="text-lg font-semibold tracking-tight">{title}</span>
+          {!isCollapsed && (
+            <>
+              <span className="text-lg font-semibold tracking-tight">{title}</span>
+            </>
+          )}
         </Link>
-        {subtitle && <p className="text-[12px] text-[#A0A0A0] mt-1 ml-[42px]">{subtitle}</p>}
+        {!isCollapsed && subtitle && <p className="text-[12px] text-[#A0A0A0] mt-1 ml-[42px]">{subtitle}</p>}
       </div>
 
       {/* Navigation */}
@@ -98,8 +106,8 @@ export function Sidebar({ items, title, subtitle, bottomContent }: SidebarProps)
               }`}
             >
               <IconComponent size={18} />
-              <span className="flex-1 truncate">{item.label}</span>
-              {item.badge && item.badge > 0 && (
+              {!isCollapsed && <span className="flex-1 truncate">{item.label}</span>}
+              {!isCollapsed && item.badge && item.badge > 0 && (
                 <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#D6F63E] text-[#0F0F0F]">
                   {item.badge}
                 </span>

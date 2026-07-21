@@ -3,21 +3,13 @@
 import Link from "next/link";
 import { useState } from "react";
 import { requestEarlyAccess } from "@/lib/api";
+import { AnimatedLogo } from "@/components/shared/AnimatedLogo";
 
 function IconCheck({ className = "w-8 h-8" }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="#22C55E" className={className}>
       <circle cx="12" cy="12" r="10" fill="rgba(34,197,94,0.15)" />
       <polyline points="8 12 11 15 16 9" />
-    </svg>
-  );
-}
-
-function IconCode({ className = "w-5 h-5" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor" className={className}>
-      <polyline points="16 18 22 12 16 6" />
-      <polyline points="8 6 2 12 8 18" />
     </svg>
   );
 }
@@ -92,8 +84,8 @@ export default function RequestAccessPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2.5 mb-6">
-            <div className="w-9 h-9 bg-[#171717] rounded-lg flex items-center justify-center">
-              <IconCode className="w-5 h-5 text-[#D6F63E]" />
+            <div className="w-9 h-9 flex items-center justify-center">
+              <AnimatedLogo size={22} className="text-[#D6F63E]" />
             </div>
             <span className="text-xl font-bold tracking-tight text-[#0F0F0F]">
               CodeBuddy

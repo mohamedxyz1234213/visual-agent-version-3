@@ -14,3 +14,5 @@ export { WeeklyChallenge } from './WeeklyChallenge.js';
 export { StudentRegistrationRequest } from './StudentRegistrationRequest.js';
 export { School } from './School.js';
 export { SchoolYear } from './SchoolYear.js';
+export { LessonPath } from './LessonPath.js';
+export { ExerciseBlock } from './ExerciseBlock.js';

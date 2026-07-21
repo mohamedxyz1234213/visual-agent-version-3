@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { fetchMe, type SafeUser } from "@/lib/api";
+import { AnimatedLogo } from "@/components/shared/AnimatedLogo";
 
-function IconCode({ className = "w-5 h-5" }: { className?: string }) {
+function IconCode2({ className = "w-5 h-5" }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor" className={className}>
       <polyline points="16 18 22 12 16 6" />
@@ -30,15 +31,6 @@ function IconRobot({ className = "w-5 h-5" }: { className?: string }) {
       <circle cx="15" cy="14" r="1.5" fill="currentColor" stroke="none" />
       <path d="M12 8V5" /><circle cx="12" cy="3.5" r="1.5" />
       <path d="M5 12H3m18 0h-2" />
-    </svg>
-  );
-}
-
-function IconCode2({ className = "w-5 h-5" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor" className={className}>
-      <polyline points="16 18 22 12 16 6" />
-      <polyline points="8 6 2 12 8 18" />
     </svg>
   );
 }
@@ -136,8 +128,8 @@ export default function HomePage() {
       {/* ── Navigation ──────────────────────────────────────────────── */}
       <nav className="flex items-center justify-between px-8 py-5 bg-white border-b border-[#E5E5E5]">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-[#171717] rounded-lg flex items-center justify-center">
-            <IconCode className="w-5 h-5 text-[#D6F63E]" />
+          <div className="w-9 h-9 flex items-center justify-center">
+            <AnimatedLogo size={22} className="text-[#D6F63E]" />
           </div>
           <span className="text-xl font-bold tracking-tight text-[#0F0F0F]">
             CodeBuddy
@@ -203,6 +195,12 @@ export default function HomePage() {
           <Link
             href={user ? "/upload" : "/login?next=" + encodeURIComponent("/upload")}
             className="flux-btn-primary text-base px-8 py-4 flex items-center gap-2 hover:scale-105 transition-transform"
+            onClick={(e) => {
+              if (!user && !loading) {
+                e.preventDefault();
+                window.location.href = "/login?next=" + encodeURIComponent("/upload");
+              }
+            }}
           >
             <IconBoard className="w-5 h-5" />
             Try Whiteboard
