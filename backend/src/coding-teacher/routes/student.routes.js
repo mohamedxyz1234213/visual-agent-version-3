@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../../auth/middleware/auth.js';
 import { requireRole } from '../middleware/roles.js';
-import { Student, Progress, Submission, Exercise, CodingLesson, Achievement, AIConversation, Notification, ExerciseBlock, Exam } from '../models/index.js';
+import { Student, Progress, Submission, Exercise, CodingLesson, Achievement, AIConversation, Notification, ExerciseBlock, Exam, LessonPath } from '../models/index.js';
 import { executeCode, calculateScore, determineStatus } from '../services/code-execution/sandbox.service.js';
 import { User } from '../../auth/models/index.js';
 
@@ -303,7 +303,7 @@ router.get('/lessons', requireRole('student'), async (req, res, next) => {
 
     const lessons = await CodingLesson.find(filter)
       .sort({ order: 1 })
-      .select('title subjectId duration difficulty tags totalExercises isPublished order')
+      .select('title subjectId duration difficulty tags totalExercises isPublished order avatarLessonId')
       .lean();
 
     res.json({ lessons });
@@ -1328,6 +1328,54 @@ router.get('/adaptive-path', requireAuth, async (req, res, next) => {
         level: student.level,
       },
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── GET /api/v1/student/lesson-paths ───────────────────────────────────────────
+// Returns lesson paths assigned to this student, with full lesson materials
+router.get('/lesson-paths', requireRole('student'), async (req, res, next) => {
+  try {
+    const student = await Student.findOne({ userId: req.userId });
+    if (!student) return res.status(404).json({ error: 'Student not found' });
+
+    const paths = await LessonPath.find({
+      assignedStudentIds: student._id,
+      isActive: true,
+    })
+      .populate({
+        path: 'lessons.lessonId',
+        model: 'CodingLesson',
+        select: 'title content difficulty duration attachments codeSnippets videoUrl',
+      })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const result = paths.map(path => ({
+      id: path._id,
+      title: path.title,
+      description: path.description,
+      difficulty: path.difficulty,
+      estimatedWeeks: path.estimatedWeeks,
+      lessons: (path.lessons || [])
+        .filter(l => l.lessonId)
+        .sort((a, b) => a.order - b.order)
+        .map(l => ({
+          id: l.lessonId._id,
+          title: l.lessonId.title,
+          difficulty: l.lessonId.difficulty,
+          duration: l.lessonId.duration,
+          hasVideo: !!l.lessonId.videoUrl,
+          attachments: l.lessonId.attachments || [],
+          codeSnippets: l.lessonId.codeSnippets || [],
+          mandatory: l.mandatory,
+          order: l.order,
+        })),
+      totalLessons: (path.lessons || []).filter(l => l.lessonId).length,
+    }));
+
+    res.json({ paths: result });
   } catch (err) {
     next(err);
   }

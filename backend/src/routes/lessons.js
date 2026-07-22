@@ -119,11 +119,15 @@ router.get('/:id', async (req, res, next) => {
     const lesson = await Lesson.findById(req.params.id).lean();
     if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
 
-    // Non-admin users may only view their own lessons
+    // Non-admin users may only view their own lessons (or published/ready ones)
     if (req.user?.role !== 'admin') {
-      const ownerId = lesson.ownerId?.toString();
-      if (!ownerId || ownerId !== req.user?._id?.toString()) {
-        return res.status(404).json({ error: 'Lesson not found' });
+      if (lesson.status === 'ready') {
+        // ready lessons are viewable by any authenticated user
+      } else {
+        const ownerId = lesson.ownerId?.toString();
+        if (!ownerId || ownerId !== req.user?._id?.toString()) {
+          return res.status(404).json({ error: 'Lesson not found' });
+        }
       }
     }
 

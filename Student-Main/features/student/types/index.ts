@@ -81,6 +81,7 @@ export interface Lesson {
   content?: string;
   videoUrl?: string;
   codeSnippets?: CodeSnippet[];
+  avatarLessonId?: string;
 }
 
 export interface CodeSnippet {

@@ -14,13 +14,14 @@ import { AiRequestLog } from '../../auth/models/index.js';
 import { toUserFacingError } from '../../utils/errors.js';
 import { getBlazeConfig, resolveBlazeModel } from '../../services/blazeConfig.js';
 import { resolveBlazeAPIModel } from '../../services/blazeapiConfig.js';
+import { processVoice, submitCode, startSession } from '../../services/fastapiClient.js';
 
 const router = Router();
 
 router.use(requireAuth);
 
 // ── POST /api/v1/ai/avatar/start ──────────────────────────────────────────────
-router.post('/avatar/start', requireRole('student'), async (req, res, next) => {
+router.post('/avatar/start', requireRole('student', 'admin'), async (req, res, next) => {
   try {
     const student = await Student.findOne({ userId: req.userId });
     if (!student) return res.status(404).json({ error: 'Student profile not found' });
@@ -28,10 +29,42 @@ router.post('/avatar/start', requireRole('student'), async (req, res, next) => {
     const { topic, dialect, subjectId, lessonId } = req.body;
     const sessionId = crypto.randomUUID();
 
+    // Load lesson content if lessonId is provided
+    let lessonContent = '';
+    let lessonTitle = topic || 'General Programming';
+    if (lessonId) {
+      // Try CodingLesson first, then whiteboard Lesson
+      const codingLesson = await (await import('../models/index.js')).CodingLesson.findById(lessonId).lean();
+      if (codingLesson) {
+        lessonTitle = codingLesson.title;
+        lessonContent = codingLesson.content || '';
+        if (codingLesson.codeSnippets?.length) {
+          lessonContent += '\n\nCode examples:\n' + codingLesson.codeSnippets.map(s =>
+            `\`\`\`${s.language}\n${s.code}\n\`\`\`\n${s.explanation || ''}`
+          ).join('\n');
+        }
+        if (codingLesson.attachments?.length) {
+          lessonContent += '\n\nMaterials: ' + codingLesson.attachments.map(a => a.name).join(', ');
+        }
+      } else {
+        const wbLesson = await Lesson.findById(lessonId).lean();
+        if (wbLesson) {
+          lessonTitle = wbLesson.title || lessonTitle;
+          const parts = await LessonPart.find({ lessonId: wbLesson._id }).sort({ orderIndex: 1 }).lean();
+          lessonContent = parts.map(p => `${p.title ? '## ' + p.title : ''}\n${p.narration || ''}`).join('\n\n');
+        }
+      }
+    }
+
+    const systemMsg = generateSystemPrompt(dialect || 'msa');
+    const lessonContext = lessonContent
+      ? `\n\nLESSON CONTENT (teach this material to the student):\n${lessonContent.slice(0, 8000)}`
+      : '';
+
     const conversation = await AIConversation.create({
       studentId: student._id,
       sessionId,
-      topic: topic || 'General Programming',
+      topic: lessonTitle,
       subjectId,
       lessonId,
       status: 'active',
@@ -39,12 +72,12 @@ router.post('/avatar/start', requireRole('student'), async (req, res, next) => {
         {
           id: crypto.randomUUID(),
           role: 'system',
-          content: generateSystemPrompt(dialect || 'msa'),
+          content: systemMsg + lessonContext,
         },
       ],
     });
 
-    const greeting = generateGreeting(topic, dialect);
+    const greeting = generateGreeting(lessonTitle, dialect);
 
     res.json({
       sessionId,
@@ -58,7 +91,7 @@ router.post('/avatar/start', requireRole('student'), async (req, res, next) => {
 });
 
 // ── POST /api/v1/ai/avatar/message ────────────────────────────────────────────
-router.post('/avatar/message', requireRole('student'), async (req, res, next) => {
+router.post('/avatar/message', requireRole('student', 'admin'), async (req, res, next) => {
   try {
     const { sessionId, content, type } = req.body;
     if (!sessionId || !content) {
@@ -101,7 +134,7 @@ router.post('/avatar/message', requireRole('student'), async (req, res, next) =>
 });
 
 // ── DELETE /api/v1/ai/avatar/end ──────────────────────────────────────────────
-router.delete('/avatar/end', requireRole('student'), async (req, res, next) => {
+router.delete('/avatar/end', requireRole('student', 'admin'), async (req, res, next) => {
   try {
     const { sessionId, rating } = req.body;
     const conversation = await AIConversation.findOne({ sessionId });
@@ -527,53 +560,25 @@ function generateExamQuestions(title, subjectId, difficulty, count) {
 }
 
 // ── POST /api/v1/ai/voice ─────────────────────────────────────────────────────
+// ── POST /api/v1/ai/voice ─────────────────────────────────────────────────────
 router.post('/voice', requireRole('student', 'admin'), async (req, res, next) => {
   try {
-    const { text, dialect, audio } = req.body;
-    if (!text && !audio) return res.status(400).json({ error: 'Text or audio data is required' });
+    const { transcript, text } = req.body;
+    const input = transcript || text;
+    if (!input) return res.status(400).json({ error: 'Transcript or text is required' });
 
-    if (audio) {
-      const provider = selectProvider();
-      const model = resolveModel(provider, null);
-      const prompt = `Transcribe and analyze this audio input from a student. Return a JSON object with: transcript (what the student said), emotion (one of: neutral/happy/frustrated/confused), and a brief tutorResponse (a helpful reply in English). Audio metadata: dialect=${dialect || 'msa'}. The audio data is base64 encoded and ${audio.length} chars long.`;
-      const aiResp = await callAIRace(prompt, 500, 30000, provider, model);
-      const transcript = aiResp?.transcript || 'Audio received and processed.';
-      const emotion = aiResp?.emotion || 'neutral';
-      const tutorResponse = aiResp?.tutorResponse || '';
-      let audioUrl = null;
-      if (tutorResponse) {
-        try {
-          const audioBuf = await synthesize(tutorResponse, `voice-${Date.now()}`);
-          if (audioBuf) audioUrl = await uploadAudio(audioBuf, `voice-${Date.now()}`);
-        } catch (ttsErr) {
-          console.warn('[ai.routes] TTS failed for voice response:', ttsErr.message);
-        }
-      }
-      return res.json({ transcript, audioUrl, emotion, tutorResponse });
-    }
-
-    const provider = selectProvider();
-    const model = resolveModel(provider, null);
-    const prompt = `You are a coding tutor. Respond to this student voice input conversationally and helpfully. Keep your response concise (under 80 words) and engaging. Student says: "${text}"`;
-    const aiResp = await callAIRace(prompt, 300, 20000, provider, model);
-
-    const responseText = typeof aiResp === 'string' ? aiResp : (aiResp?.response || aiResp?.text || aiResp?.content || '');
-    let audioUrl = null;
-    if (responseText) {
-      try {
-        const audioBuf = await synthesize(responseText, `voice-${Date.now()}`);
-        if (audioBuf) audioUrl = await uploadAudio(audioBuf, `voice-${Date.now()}`);
-      } catch (ttsErr) {
-        console.warn('[ai.routes] TTS failed:', ttsErr.message);
-      }
-    }
-
+    const result = await processVoice({ transcript: input });
     res.json({
-      audioUrl,
-      text: responseText || text,
-      duration: Math.ceil((responseText || text).length / 15),
-      provider,
-      model,
+      teacherResponse: result.teacher_response?.speech || result.teacher_response?.speech || '',
+      emotion: result.teacher_response?.emotion || 'neutral',
+      nextAction: result.teacher_response?.next_action || '',
+      lessonState: result.teacher_response?.lesson_state || '',
+      audioBytes: result.audio_bytes || null,
+      enableMicrophone: result.teacher_response?.enable_microphone ?? true,
+      showCodeEditor: result.teacher_response?.show_code_editor ?? false,
+      progress: result.teacher_response?.progress || null,
+      studentFeedback: result.teacher_response?.student_feedback || null,
+      source: 'fastapi',
     });
   } catch (err) {
     next(err);
@@ -583,17 +588,17 @@ router.post('/voice', requireRole('student', 'admin'), async (req, res, next) =>
 // ── POST /api/v1/ai/session/start ──────────────────────────────────────────────
 router.post('/session/start', requireRole('student', 'admin'), async (req, res, next) => {
   try {
-    const { topic, dialect, subjectId, lessonId } = req.body;
-    const provider = selectProvider();
-    const model = resolveModel(provider, null);
-    const prompt = `You are an AI coding teacher starting a new tutoring session. The student wants to learn about: "${topic || 'programming'}". Generate an engaging opening turn (2-3 sentences) that introduces the topic and asks a thought-provoking question to gauge the student's current understanding. Return JSON: { "teacherTurn": string, "suggestedQuestion": string }.`;
-    const aiResp = await callAIRace(prompt, 400, 30000, provider, model);
+    const result = await startSession({});
     res.json({
-      sessionId: crypto.randomUUID(),
-      teacherTurn: aiResp?.teacherTurn || aiResp?.response || `Let's explore ${topic || 'programming'} together! What do you already know about it?`,
-      suggestedQuestion: aiResp?.suggestedQuestion || `What interests you most about ${topic || 'programming'}?`,
-      provider,
-      model,
+      teacherResponse: result.teacher_response?.speech || '',
+      emotion: result.teacher_response?.emotion || 'neutral',
+      nextAction: result.teacher_response?.next_action || '',
+      lessonState: result.teacher_response?.lesson_state || '',
+      audioBytes: result.audio_bytes || null,
+      enableMicrophone: result.teacher_response?.enable_microphone ?? true,
+      showCodeEditor: result.teacher_response?.show_code_editor ?? false,
+      progress: result.teacher_response?.progress || null,
+      source: 'fastapi',
     });
   } catch (err) {
     next(err);
@@ -603,31 +608,21 @@ router.post('/session/start', requireRole('student', 'admin'), async (req, res, 
 // ── POST /api/v1/ai/code ──────────────────────────────────────────────────────
 router.post('/code', requireRole('student', 'admin'), async (req, res, next) => {
   try {
-    const { code, exerciseId, language } = req.body;
+    const { code, exerciseId } = req.body;
     if (!code) return res.status(400).json({ error: 'Code is required' });
 
-    const exercise = exerciseId ? await Exercise.findById(exerciseId).lean() : null;
-    const provider = selectProvider();
-    const model = resolveModel(provider, null);
-    const prompt = `You are an expert coding teacher evaluating a student's code submission. Analyze the code thoroughly and return a JSON object with:
-- "passed": boolean (whether the code is correct)
-- "output": string (expected output or what the code produces)
-- "errors": string (any bugs, issues, or empty string)
-- "feedback": string (encouraging, constructive teacher feedback with specific suggestions for improvement)
-- "testResults": array of { "name": string, "passed": boolean, "message": string }
-${exercise ? `Exercise context: ${exercise.title} - ${exercise.description}. Starter code: ${exercise.starterCode || 'none'}. Test cases: ${JSON.stringify(exercise.testCases || [])}` : ''}
-Student's code (${language || 'javascript'}):
-\`\`\`
-${code}
-\`\`\`
-Return ONLY valid JSON, no markdown.`;
-    const aiResp = await callAIRace(prompt, 1000, 45000, provider, model);
-    const passed = aiResp?.passed === true;
-    const output = aiResp?.output || '';
-    const errors = aiResp?.errors || '';
-    const feedback = aiResp?.feedback || '';
-    const testResults = aiResp?.testResults || [];
-    res.json({ passed, output, errors, feedback, testResults, provider, model });
+    const result = await submitCode(code, exerciseId || 'general');
+    res.json({
+      executionResult: result.execution_result || null,
+      teacherResponse: result.teacher_response?.speech || '',
+      emotion: result.teacher_response?.emotion || 'neutral',
+      nextAction: result.teacher_response?.next_action || '',
+      lessonState: result.teacher_response?.lesson_state || '',
+      audioBytes: result.audio_bytes || null,
+      studentFeedback: result.teacher_response?.student_feedback || null,
+      progress: result.teacher_response?.progress || null,
+      source: 'fastapi',
+    });
   } catch (err) {
     next(err);
   }
@@ -683,46 +678,41 @@ function generateGreeting(topic, dialect) {
   return greetings[dialect] || greetings.msa;
 }
 
-async function generateAIResponse(message) {
-  const lowerMsg = message.toLowerCase();
+async function generateAIResponse(message, conversation) {
+  const systemMsg = conversation.messages.find(m => m.role === 'system')?.content || '';
+  const history = conversation.messages
+    .filter(m => m.role !== 'system')
+    .slice(-6)
+    .map(m => `${m.role === 'user' ? 'Student' : 'Teacher'}: ${m.content}`)
+    .join('\n');
 
-  if (lowerMsg.includes('function') || lowerMsg.includes('دالة')) {
+  const provider = selectProvider();
+  const model = resolveModel(provider, null);
+  const prompt = `You are Nour, an AI coding teacher. Use the lesson context below and the conversation history to teach the student. Respond in Arabic (Egyptian dialect if the student uses it, otherwise MSA). Be encouraging, clear, and concise. Include code examples when relevant.
+
+${systemMsg.slice(0, 3000)}
+
+Conversation so far:
+${history}
+
+Student: ${message}
+Teacher: Return a JSON object with: "text" (your response in Arabic, max 150 words), "emotion" (one of: explaining/happy/encouraging/thinking/curious), "codeSnippet" (object with "language" and "code" fields, or null if no code).`;
+
+  try {
+    const aiResp = await callAIRace(prompt, 600, 30000, provider, model);
     return {
-      text: 'ممتاز! الدالة (Function) هي بلوك من الكود يُعرَّف مرة واحدة ويمكن استخدامه عدة مرات. هل تريد أن أشرحها بمثال؟',
-      emotion: 'explaining',
-      codeSnippet: { language: 'javascript', code: 'function greet(name) {\n  return "Hello, " + name + "!";\n}' },
+      text: aiResp?.text || 'سؤال رائع! دعني أفكر في الإجابة...',
+      emotion: aiResp?.emotion || 'explaining',
+      codeSnippet: aiResp?.codeSnippet || null,
+    };
+  } catch (err) {
+    console.warn('[avatar] AI response failed, using fallback:', err.message);
+    return {
+      text: 'سؤال رائع! دعني أشرح لك هذا المفهوم بالتفصيل. البرمجة هي عملية كتابة تعليمات للكمبيوتر. هل تريد مثالاً؟',
+      emotion: 'happy',
+      codeSnippet: null,
     };
   }
-
-  if (lowerMsg.includes('loop') || lowerMsg.includes('حلقة')) {
-    return {
-      text: 'حلقة التكرار (Loop) تُكرِّر عملية معينة عدة مرات. زي ما بتلف حولين البيت! هل تريد رؤية مثال؟',
-      emotion: 'explaining',
-      codeSnippet: { language: 'javascript', code: 'for (let i = 0; i < 5; i++) {\n  console.log(i);\n}' },
-    };
-  }
-
-  if (lowerMsg.includes('array') || lowerMsg.includes('مصفوفة')) {
-    return {
-      text: 'المصفوفة (Array) هي مجموعة من القيم في متغير واحد. تخيّلها زي القائمة اللي فيها أكلات مختلفة!',
-      emotion: 'explaining',
-      codeSnippet: { language: 'javascript', code: 'const fruits = ["apple", "banana", "cherry"];\nconsole.log(fruits[0]); // "apple"' },
-    };
-  }
-
-  if (lowerMsg.includes('variable') || lowerMsg.includes('متغير')) {
-    return {
-      text: 'المتغير (Variable) هو صندوق تحط فيه قيمة وتأخذها بعدين. زي لما تحط الموبايل في جيبك!',
-      emotion: 'explaining',
-      codeSnippet: { language: 'javascript', code: 'let name = "Ahmed";\nconst age = 15;\nconsole.log(name); // "Ahmed"' },
-    };
-  }
-
-  return {
-    text: 'سؤال رائع! دعني أشرح لك. البرمجة هي عملية كتابة تعليمات للكمبيوتر. كل سطر كود هو أمر نقوله للجهاز. عايز تتعلم مفهوم معين؟',
-    emotion: 'happy',
-    codeSnippet: null,
-  };
 }
 
 function generateSessionSummary(conversation) {
@@ -862,6 +852,28 @@ async function processGeneratedLesson(lessonId, seriesId, topic, analysisModel, 
       }
     } catch (exErr) {
       console.warn(`Failed to auto-generate exercise for lesson ${lessonId}:`, exErr.message);
+    }
+
+    // Create a CodingLesson entry so the lesson appears in students' Learn page
+    try {
+      const parts = await LessonPart.find({ lessonId: lesson._id }).sort({ orderIndex: 1 }).lean();
+      const content = parts.map(p =>
+        `${p.title ? '## ' + p.title : ''}\n${p.narration || ''}`
+      ).join('\n\n');
+      const { CodingLesson } = await import('../models/index.js');
+      await CodingLesson.create({
+        title: lesson.title || topic,
+        content: content.slice(0, 50000),
+        teacherId: lesson.ownerId || undefined,
+        difficulty: 'intermediate',
+        tags: [topic],
+        isPublished: true,
+        hasAvatarVersion: true,
+        avatarLessonId: lesson._id,
+      });
+      console.log(`Created CodingLesson entry for ${lessonId}`);
+    } catch (clErr) {
+      console.warn(`Failed to create CodingLesson for ${lessonId}:`, clErr.message);
     }
 
     if (aiLogId) {

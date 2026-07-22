@@ -35,7 +35,7 @@ const lessonSchema = new Schema(
       },
     ],
     hasAvatarVersion: { type: Boolean, default: false },
-    avatarLessonId: { type: Schema.Types.ObjectId, ref: 'AvatarLesson' },
+    avatarLessonId: { type: Schema.Types.ObjectId, ref: 'Lesson' },
     isPublished: { type: Boolean, default: false },
     viewCount: { type: Number, default: 0 },
     totalExercises: { type: Number, default: 0 },

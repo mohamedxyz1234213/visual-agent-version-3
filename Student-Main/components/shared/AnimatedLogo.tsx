@@ -6,7 +6,7 @@ interface AnimatedLogoProps {
   animate?: boolean;
 }
 
-export function AnimatedLogo({ size = 200, className = "", animate = true }: AnimatedLogoProps) {
+export function AnimatedLogo({ size = 250, className = "", animate = true }: AnimatedLogoProps) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"

@@ -58,7 +58,7 @@ export function Header({ title, subtitle, username, onLogout, onToggleSidebar }:
   };
 
   return (
-    <header className="sticky top-0 z-40 flex items-center justify-between px-0 py-4 mb-6">
+    <header className="sticky top-0 z-40 flex items-center justify-between px-0 py-8 mb-6">
       {/* Left: Hamburger + Page Title */}
       <div className="flex items-center gap-3">
         <button
