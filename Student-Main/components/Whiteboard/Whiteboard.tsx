@@ -120,6 +120,8 @@ export interface WhiteboardProps {
   width?: number;
   height?: number;
   zoom?: number;
+  onSandboxOpen?: (payload: Record<string, unknown>, sceneId: string) => void;
+  onSandboxResult?: (passed: boolean, sceneId: string) => void;
 }
 
 interface RenderedEl { id: string; jsx: React.ReactNode; }
@@ -140,11 +142,11 @@ export default function Whiteboard({
 }: WhiteboardProps) {
   const [visible, setVisible] = useState<RenderedEl[]>([]);
   const [camera, setCamera] = useState<CameraState>({ zoom: 1, offsetX: 0, offsetY: 0, transition: 'none' });
-  // The teacher's spoken line for the current beat, written along the bottom band
-  // (there is no audio — captions ARE the narration the student reads).
   const [caption, setCaption] = useState<{ text: string; index: number; total: number } | null>(null);
+  const [activeSandbox, setActiveSandbox] = useState<{ sceneId: string; payload: Record<string, unknown> } | null>(null);
   const renderedIds = useRef<Set<string>>(new Set());
   const prevElapsed = useRef<number>(-1);
+  const sandboxNotified = useRef<Set<string>>(new Set());
 
   // Reset when the scene list changes (new lesson part loaded)
   useEffect(() => {
@@ -193,13 +195,28 @@ export default function Whiteboard({
     }
     setCaption(latestCaption);
 
+    // Sandbox question: detect the latest sandbox_question scene at/under elapsed
+    let foundSandbox: { sceneId: string; payload: Record<string, unknown> } | null = null;
+    for (const scene of scenes) {
+      if (scene.action_type !== "sandbox_question") continue;
+      if (scene.time_offset > elapsed) continue;
+      foundSandbox = { sceneId: scene.id, payload: scene.payload as Record<string, unknown> };
+    }
+    if (foundSandbox && !sandboxNotified.current.has(foundSandbox.sceneId)) {
+      sandboxNotified.current.add(foundSandbox.sceneId);
+      setActiveSandbox(foundSandbox);
+      onSandboxOpen?.(foundSandbox.payload, foundSandbox.sceneId);
+    } else if (!foundSandbox) {
+      setActiveSandbox(null);
+    }
+
     // Collect all non-clear scenes that should be visible:
     // after the last clear AND at or before current elapsed
     const shouldBeVisible: RenderedEl[] = [];
     const newIds = new Set<string>();
 
     for (const scene of scenes) {
-      if (scene.action_type === "clear" || scene.action_type === "camera" || scene.action_type === "draw_caption") continue;
+      if (scene.action_type === "clear" || scene.action_type === "camera" || scene.action_type === "draw_caption" || scene.action_type === "sandbox_question") continue;
       if (scene.time_offset > elapsed) continue;
       if (scene.time_offset <= lastClearTime) continue;
 
@@ -350,6 +367,20 @@ export default function Whiteboard({
           ))}
         </g>
       </svg>
+
+      {/* Sandbox question overlay — HTML overlay on top of the SVG */}
+      {activeSandbox && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <DrawSandboxQuestion
+            id={activeSandbox.sceneId}
+            payload={activeSandbox.payload}
+            onClose={(passed) => {
+              setActiveSandbox(null);
+              onSandboxResult?.(passed, activeSandbox.sceneId);
+            }}
+          />
+        </div>
+      )}
     </div>
 
     {/* Narration caption band — the teacher's written explanation (no audio).
@@ -402,6 +433,7 @@ function renderScene(scene: StoryboardScene): React.ReactNode {
     case "draw_object":            return <DrawObject           id={scene.id} p={p as unknown as DrawObjectP}           />;
     case "draw_table":             return <DrawTable             id={scene.id} p={p as unknown as DrawTableP}             />;
     case "draw_highlight":         return <DrawHighlight         id={scene.id} p={p as unknown as DrawHighlightP}         />;
+    case "sandbox_question":       return null; // rendered as HTML overlay in Whiteboard
     default:              return null;
   }
 }
@@ -2146,6 +2178,92 @@ interface DrawHighlightP {
   opacity?: number;
   rx?: number;
   label?: string;
+}
+
+interface DrawSandboxQuestionP {
+  title?: string;
+  instructions?: string;
+  language?: string;
+  starterCode?: string;
+  testCases?: { id: string; input: string; expectedOutput: string; description: string }[];
+}
+
+function DrawSandboxQuestion({ id, payload, onClose }: { id: string; payload: Record<string, unknown>; onClose: (passed: boolean) => void }) {
+  const p = payload as unknown as DrawSandboxQuestionP;
+  const [code, setCode] = useState(p.starterCode || '');
+  const [results, setResults] = useState<{ passed: boolean; output: string; expectedOutput: string; executionTime: number; error: string | null; description: string }[] | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubmit() {
+    setSubmitting(true); setError(''); setResults(null);
+    try {
+      const res = await fetch('/api/v1/sandbox/submit', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sceneId: id, code, language: p.language || 'javascript' }),
+      });
+      if (!res.ok) { const err = await res.json().catch(() => ({ error: 'Submission failed' })); throw new Error(err.error || 'Submission failed'); }
+      const data = await res.json();
+      setResults(data.results || []);
+      if (data.passed) {
+        setTimeout(() => onClose(true), 1200);
+      }
+    } catch (e: any) {
+      setError(e.message || 'Something went wrong');
+    } finally { setSubmitting(false); }
+  }
+
+  const allPassed = results && results.length > 0 && results.every(r => r.passed);
+
+  return (
+    <div className="mx-auto w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl" style={{ maxHeight: '85vh', overflowY: 'auto' }}>
+      <div className="border-b border-slate-200 px-6 py-4">
+        <h3 className="text-lg font-bold text-slate-900">{p.title || 'Coding Challenge'}</h3>
+        {p.instructions && <p className="mt-1 text-sm text-slate-600">{p.instructions}</p>}
+      </div>
+      <div className="p-4">
+        <textarea
+          value={code}
+          onChange={e => setCode(e.target.value)}
+          className="w-full rounded-lg border border-slate-300 bg-slate-900 p-4 font-mono text-sm text-green-300"
+          rows={12}
+          spellCheck={false}
+          placeholder="Write your code here..."
+        />
+      </div>
+      <div className="flex items-center justify-between border-t border-slate-200 px-6 py-4">
+        <div className="flex items-center gap-2">
+          <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{p.language || 'javascript'}</span>
+          {results && <span className={`text-xs font-medium ${allPassed ? 'text-green-600' : 'text-amber-600'}`}>{allPassed ? 'Passed!' : `${results.filter(r => r.passed).length}/${results.length} passed`}</span>}
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => onClose(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Skip</button>
+          <button onClick={handleSubmit} disabled={submitting || !code.trim()} className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
+            {submitting ? 'Running...' : 'Submit'}
+          </button>
+        </div>
+      </div>
+      {error && <div className="border-t border-red-200 bg-red-50 px-6 py-3"><p className="text-sm text-red-700">{error}</p></div>}
+      {results && results.length > 0 && (
+        <div className="border-t border-slate-200 px-6 py-4">
+          <h4 className="mb-2 text-sm font-semibold text-slate-700">Results</h4>
+          <div className="space-y-2">
+            {results.map((r, i) => (
+              <div key={i} className={`rounded-lg border p-3 ${r.passed ? 'border-green-200 bg-green-50' : r.error ? 'border-red-200 bg-red-50' : 'border-red-200 bg-red-50'}`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-slate-500">{r.description || `Test ${i + 1}`}</span>
+                  <span className={`text-xs font-bold ${r.passed ? 'text-green-600' : 'text-red-600'}`}>{r.passed ? 'PASS' : 'FAIL'}</span>
+                </div>
+                {r.error && <p className="mt-1 font-mono text-xs text-red-600">{r.error}</p>}
+                {!r.passed && !r.error && <p className="mt-1 font-mono text-xs text-slate-500">Got: {r.output?.slice(0, 200)}</p>}
+                {r.executionTime > 0 && <p className="mt-0.5 text-[10px] text-slate-400">{r.executionTime}ms</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function DrawHighlight({ id, p }: { id: string; p: DrawHighlightP }) {

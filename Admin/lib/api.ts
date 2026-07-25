@@ -38,8 +38,8 @@ export async function uploadDocument(
   form.append("file", file);
   if (subject) form.append("subject", subject);
   if (userInstructions) form.append("user_instructions", userInstructions);
-  form.append("ai_provider", aiProvider || "blaze");
-  form.append("analysis_model", analysisModel || "qwen3.6-plus-thinking");
+  form.append("ai_provider", aiProvider || "openrouter");
+  form.append("analysis_model", analysisModel || "nvidia/nemotron-3-ultra-550b-a55b:free");
   if (explanationMode) form.append("explanation_mode", explanationMode);
   if (lessonIntent) form.append("lesson_intent", lessonIntent);
 
@@ -65,8 +65,8 @@ export async function explainText(
       subject: subject || undefined,
       user_instructions: userInstructions || undefined,
       explanation_mode: explanationMode || "full_lesson",
-      ai_provider: aiProvider || "blaze",
-      analysis_model: analysisModel || "qwen3.6-plus-thinking",
+      ai_provider: aiProvider || "openrouter",
+      analysis_model: analysisModel || "nvidia/nemotron-3-ultra-550b-a55b:free",
       lesson_intent: lessonIntent || "teach",
     }),
   });
@@ -92,7 +92,7 @@ export type AiProviderOption = {
 };
 
 export async function testAIConnection(
-  provider = "blaze",
+  provider = "openrouter",
   model?: string
 ): Promise<{ ok: boolean; provider: string; model: string; endpoint: string; error?: string; latencyMs: number }> {
   const q = new URLSearchParams({ provider });

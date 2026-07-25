@@ -1,5 +1,5 @@
 import path from 'path';
-import { getBlazeConfig, resolveBlazeModel } from './blazeConfig.js';
+import { getOpenRouterConfig, OPENROUTER_DEFAULT_MODEL } from './openrouterConfig.js';
 
 /**
  * Extract plain text from an uploaded file buffer.
@@ -33,21 +33,18 @@ async function extractDocx(buffer) {
 }
 
 async function extractImage(buffer, aiProvider = null, analysisModel = null) {
-  const requestedAI = String(aiProvider || process.env.ACTIVE_LLM || 'blaze').trim().toLowerCase();
-  const activeAI = requestedAI === 'deepseek' || requestedAI === 'blazeai'
-    ? 'blaze'
-    : (requestedAI || 'blaze');
+  const requestedAI = String(aiProvider || process.env.ACTIVE_LLM || 'openrouter').trim().toLowerCase();
   const b64 = buffer.toString('base64');
 
-  // BlazeAI (OpenAI-compatible vision)
-  const blaze = getBlazeConfig();
-  if (activeAI === 'blaze' && blaze.apiKey) {
+  // OpenRouter (OpenAI-compatible vision via API)
+  const or = getOpenRouterConfig();
+  if (or.apiKey) {
     const { default: OpenAI } = await import('openai');
     const client = new OpenAI({
-      apiKey: blaze.apiKey,
-      baseURL: blaze.baseURL,
+      apiKey: or.apiKey,
+      baseURL: or.baseURL,
     });
-    const model = resolveBlazeModel(analysisModel, blaze.defaultModel);
+    const model = analysisModel || OPENROUTER_DEFAULT_MODEL;
     const response = await client.chat.completions.create({
       model,
       messages: [

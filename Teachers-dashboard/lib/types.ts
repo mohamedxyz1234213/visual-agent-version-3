@@ -34,7 +34,8 @@ export type ActionType =
   | "draw_table"
   | "draw_highlight"
   | "draw_caption"
-  | "camera";
+  | "camera"
+  | "sandbox_question";
 
 export interface LessonPart {
   id: string;
@@ -162,6 +163,19 @@ export interface DrawGraphPayload {
   position: [number, number];
   size: [number, number];
   title?: string;
+}
+
+export interface SandboxQuestionPayload {
+  title?: string;
+  instructions?: string;
+  language?: string;
+  starterCode?: string;
+  testCases?: {
+    id: string;
+    input: string;
+    expectedOutput: string;
+    description: string;
+  }[];
 }
 
 export interface ShowEquationPayload {

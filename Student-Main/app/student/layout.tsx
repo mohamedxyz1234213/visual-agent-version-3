@@ -9,7 +9,6 @@ import { useEffect } from "react";
 
 const studentNavItems = [
   { label: "Dashboard", href: "/student/dashboard", icon: "dashboard" },
-  { label: "Learn", href: "/student/learn", icon: "book" },
   { label: "Avatar Teacher", href: "/student/avatar-teacher", icon: "robot" },
   { label: "Exercises", href: "/student/exercises", icon: "code" },
   { label: "Exams", href: "/student/exams", icon: "clipboard" },

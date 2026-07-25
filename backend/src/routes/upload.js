@@ -10,6 +10,7 @@ import { synthesize } from '../services/ttsService.js';
 import { uploadFile, uploadAudio } from '../services/storageService.js';
 import { BLAZE_MODELS, getBlazeConfig, resolveBlazeModel } from '../services/blazeConfig.js';
 import { BLAZEAPI_MODELS, getBlazeAPIConfig } from '../services/blazeapiConfig.js';
+import { OPENROUTER_MODELS, getOpenRouterConfig } from '../services/openrouterConfig.js';
 import { toUserFacingError } from '../utils/errors.js';
 import { reserveAiRequest, markAiRequestFinished, releaseAiRequest } from '../auth/services/aiQuota.js';
 import { requireAuth } from '../auth/middleware/auth.js';
@@ -34,6 +35,24 @@ router.use(requireAuth);
 // ── Available AI providers + models (must match frontend PROVIDER_MODELS) ───
 const AI_PROVIDERS = [
   {
+    id: 'openrouter',
+    label: 'OpenRouter',
+    icon: '🔀',
+    name: 'OpenRouter (Primary)',
+    desc: 'Multi-model gateway — free & paid models',
+    badge: 'Recommended',
+    models: OPENROUTER_MODELS,
+  },
+  {
+    id: 'fastapi',
+    label: 'FastAPI',
+    icon: '🚀',
+    name: 'Render FastAPI',
+    desc: 'AI through Render-hosted service',
+    badge: null,
+    models: [{ id: 'fastapi', label: 'FastAPI', desc: 'FastAI on Render', badge: 'Active' }],
+  },
+  {
     id: 'blaze',
     label: 'BlazeAI',
     icon: '🔥',
@@ -47,8 +66,8 @@ const AI_PROVIDERS = [
     label: 'BlazeAPI',
     icon: '⚡',
     name: 'BlazeAPI Gateway',
-    desc: 'OpenAI-compatible gateway to frontier models',
-    badge: 'New',
+    desc: 'OpenAI-compatible gateway',
+    badge: null,
     models: BLAZEAPI_MODELS,
   },
 ];
@@ -58,10 +77,19 @@ function normalizeProvider(raw) {
   if (p === 'deepseek') return 'blaze';
   if (p === 'blaze' || p === 'blazeai') return 'blaze';
   if (p === 'blazeapi' || p === 'blaze-api') return 'blazeapi';
+  if (p === 'fastapi' || p === 'fast-api' || p === 'render') return 'fastapi';
+  if (p === 'openrouter' || p === 'open-router' || p === 'or') return 'openrouter';
   return null;
 }
 
 function resolveAnalysisModel(aiProvider, fromBody) {
+  if (aiProvider === 'openrouter') {
+    const { defaultModel } = getOpenRouterConfig();
+    return String(fromBody || '').trim() || defaultModel;
+  }
+  if (aiProvider === 'fastapi') {
+    return 'fastapi';
+  }
   if (aiProvider === 'blazeapi') {
     const { defaultModel } = getBlazeAPIConfig();
     return String(fromBody || '').trim() || defaultModel;
@@ -88,7 +116,7 @@ router.get('/providers', (_req, res) => {
 // GET /api/v1/upload/test-ai?provider=blaze — verify Blaze connectivity
 router.get('/test-ai', async (req, res, next) => {
   try {
-    const aiProvider = normalizeProvider(req.query.provider) || 'blaze';
+    const aiProvider = normalizeProvider(req.query.provider) || 'openrouter';
     const analysisModel = resolveAnalysisModel(aiProvider, req.query.model);
     const { testAIConnection } = await import('../services/aiPlanner.js');
     const result = await testAIConnection(aiProvider, analysisModel);
@@ -107,7 +135,7 @@ router.post('/', upload.single('file'), async (req, res, next) => {
     const subject = req.body.subject || null;
     const userInstructions = req.body.user_instructions || null;
     const lessonIntent = req.body.lesson_intent || 'teach';
-    const aiProvider = normalizeProvider(req.body.ai_provider) || normalizeProvider(process.env.ACTIVE_LLM) || 'blaze';
+    const aiProvider = normalizeProvider(req.body.ai_provider) || normalizeProvider(process.env.ACTIVE_LLM) || 'openrouter';
     const analysisModel = resolveAnalysisModel(aiProvider, req.body.analysis_model);
     const explanationMode = req.body.explanation_mode || 'full_lesson';
 
@@ -206,9 +234,9 @@ router.get('/status/:lessonId', async (req, res, next) => {
   }
 });
 
-async function processLesson(lessonId, seriesId, buffer, filename, userInstructions, analysisModel, aiProvider = 'blaze', explanationMode = 'full_lesson', lessonIntent = 'teach', aiLogId = null) {
+async function processLesson(lessonId, seriesId, buffer, filename, userInstructions, analysisModel, aiProvider = 'openrouter', explanationMode = 'full_lesson', lessonIntent = 'teach', aiLogId = null) {
   try {
-    const provider = normalizeProvider(aiProvider) || 'blaze';
+    const provider = normalizeProvider(aiProvider) || 'openrouter';
     const model = resolveAnalysisModel(provider, analysisModel);
     console.log(`[upload] processLesson: provider=${provider}, model=${model}`);
 
@@ -306,7 +334,7 @@ async function processLesson(lessonId, seriesId, buffer, filename, userInstructi
 }
 
 // ─── Background: generate lessons 2..N in parallel while user watches lesson 1 ─
-async function processRemainingLessons(seriesId, sourceFilename, totalLessons, aiProvider = 'blaze', analysisModel = null) {
+async function processRemainingLessons(seriesId, sourceFilename, totalLessons, aiProvider = 'openrouter', analysisModel = null) {
   const series = await LessonSeries.findById(seriesId);
   if (!series || !series.remainingSpecs?.length) return;
 

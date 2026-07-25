@@ -21,10 +21,17 @@ import {
   IconTerminal,
   IconStar,
   IconCompass,
+  IconPalette,
+  IconChevronRight,
+  IconUpload,
 } from "@/components/shared/FluxIcons";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { getAdaptivePath } from "@/features/student/api";
 import type { AdaptivePathResponse, AdaptiveRecommendation } from "@/features/student/types";
+import { fetchDashboard } from "@/lib/api";
+import type { DashboardLesson } from "@/lib/types";
 
 export default function StudentDashboard() {
   const { data, loading } = useStudentDashboard();
@@ -82,6 +89,17 @@ export default function StudentDashboard() {
     return entry ? Math.min(entry.count * 10, 100) : 0;
   });
   const todayIdx = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
+
+  // ── Recent Whiteboard Lessons ──────────────────────────────────────────────
+  const [wbLessons, setWbLessons] = useState<DashboardLesson[]>([]);
+  const [wbLoading, setWbLoading] = useState(true);
+
+  useEffect(() => {
+    fetchDashboard({ page: 1, limit: 4, sort: "recent" })
+      .then((res) => setWbLessons(res.lessons))
+      .catch(() => {})
+      .finally(() => setWbLoading(false));
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -279,6 +297,139 @@ export default function StudentDashboard() {
           <LeaderboardPreview />
         </div>
       </div>
+
+      {/* ── Row 5: Recent Whiteboard Lessons ───────────────────────────────── */}
+      <div className="flux-card">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[#D6F63E] flex items-center justify-center">
+              <IconPalette size={16} className="text-[#0F0F0F]" />
+            </div>
+            <h3 className="text-[15px] font-semibold text-[#0F0F0F]">My Whiteboard Lessons</h3>
+          </div>
+          <Link
+            href="/student/whiteboard"
+            className="text-xs font-semibold text-[#A78BFA] hover:text-[#7C3AED] transition-colors flex items-center gap-1"
+          >
+            View All <IconChevronRight size={14} />
+          </Link>
+        </div>
+
+        {wbLoading ? (
+          <div className="grid grid-cols-4 gap-3">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-[120px] bg-[#F5F5F5] rounded-xl animate-pulse" />
+            ))}
+          </div>
+        ) : wbLessons.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <div className="w-12 h-12 rounded-xl bg-[#F5F5F5] flex items-center justify-center text-[#A0A0A0] mb-3">
+              <IconPalette size={24} />
+            </div>
+            <p className="text-sm font-medium text-[#0F0F0F] mb-1">No whiteboard lessons yet</p>
+            <p className="text-xs text-[#6B6B6B] mb-3">Upload a document or type a topic to generate your first lesson.</p>
+            <Link
+              href="/upload"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#0F0F0F] text-white rounded-xl text-xs font-semibold hover:bg-[#2A2A2A] transition-colors"
+            >
+              <IconUpload size={14} />
+              Create Lesson
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {wbLessons.map((lesson) => (
+              <DashboardLessonCard
+                key={lesson.id}
+                lesson={lesson}
+                onDelete={async () => {
+                  try {
+                    const { deleteLesson } = await import("@/lib/api");
+                    await deleteLesson(lesson.id);
+                    setWbLessons((prev) => prev.filter((l) => l.id !== lesson.id));
+                  } catch { /* ignore */ }
+                }}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Dashboard Lesson Card ──────────────────────────────────────────────────────
+
+const lessonStatusCfg: Record<string, { dot: string; text: string; bg: string; label: string }> = {
+  ready:      { dot: "bg-emerald-400",           text: "text-emerald-700", bg: "bg-emerald-50", label: "Ready"      },
+  processing: { dot: "bg-amber-400 animate-pulse", text: "text-amber-700",  bg: "bg-amber-50",  label: "Processing" },
+  error:      { dot: "bg-red-400",               text: "text-red-700",    bg: "bg-red-50",    label: "Error"      },
+};
+
+function DashboardLessonCard({ lesson, onDelete }: { lesson: DashboardLesson; onDelete: () => void }) {
+  const router = useRouter();
+  const cfg = lessonStatusCfg[lesson.status] ?? lessonStatusCfg.error;
+  const date = new Date(lesson.created_at).toLocaleDateString("en-US", {
+    month: "short", day: "numeric",
+  });
+
+  function handleClick() {
+    if (lesson.status !== "ready") return;
+    const params = new URLSearchParams();
+    if (lesson.series_id) params.set("series", lesson.series_id);
+    if (lesson.total_lessons > 1) params.set("total", String(lesson.total_lessons));
+    const qs = params.toString();
+    router.push(`/lesson/${lesson.id}${qs ? `?${qs}` : ""}`);
+  }
+
+  function handleDelete(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!confirm("Delete this lesson?")) return;
+    onDelete();
+  }
+
+  return (
+    <div
+      onClick={handleClick}
+      className={`relative rounded-xl border p-3.5 transition-all group ${
+        lesson.status === "ready"
+          ? "border-[#E5E5E5] bg-white hover:border-[#A0A0A0] hover:shadow-sm cursor-pointer"
+          : "border-[#E5E5E5] bg-white/80 cursor-default"
+      }`}
+    >
+      <button
+        onClick={handleDelete}
+        title="Delete lesson"
+        className="absolute top-2 right-2 p-1 rounded-md text-[#A0A0A0] hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition z-10"
+      >
+        <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.8" stroke="currentColor" className="w-3.5 h-3.5">
+          <path d="M3 6h18M8 6V4h8v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M10 11v6M14 11v6" strokeLinecap="round" />
+        </svg>
+      </button>
+
+      <div className="flex items-center justify-between mb-2">
+        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium ${cfg.bg} ${cfg.text}`}>
+          <span className={`w-1 h-1 rounded-full ${cfg.dot}`} />
+          {cfg.label}
+        </span>
+        <span className="text-[10px] text-[#A0A0A0]">{date}</span>
+      </div>
+      <h4 className="text-xs font-semibold text-[#0F0F0F] leading-5 line-clamp-2 mb-1">
+        {lesson.title || "Untitled Lesson"}
+      </h4>
+      {lesson.subject && (
+        <p className="text-[10px] text-[#6B6B6B] truncate">{lesson.subject}</p>
+      )}
+      {lesson.status === "processing" && (
+        <div className="mt-1.5 flex items-center gap-1.5">
+          <div className="animate-spin rounded-full h-2 w-2 border-2 border-[#E5E5E5] border-t-amber-500" />
+          <span className="text-[10px] text-amber-600 capitalize">{lesson.processing_step}</span>
+        </div>
+      )}
+      {lesson.status === "error" && lesson.error_message && (
+        <p className="mt-1.5 text-[10px] text-red-600 line-clamp-1">{lesson.error_message}</p>
+      )}
     </div>
   );
 }

@@ -17,7 +17,7 @@ const difficultyColors: Record<string, string> = {
 export function LessonCard({ lesson, index, onComplete }: LessonCardProps) {
   return (
     <a
-      href={lesson.avatarLessonId ? `/lesson/${lesson.avatarLessonId}` : `/student/learn/${lesson._id}`}
+      href={lesson.avatarLessonId ? `/lesson/${lesson.avatarLessonId}` : `/lesson/${lesson._id}`}
       className="flex items-center gap-4 bg-white rounded-2xl p-5 shadow-sm hover:shadow-md transition-all group"
     >
       <div className="w-12 h-12 rounded-xl bg-[#D4F542]/10 flex items-center justify-center text-lg font-bold text-[#18181B] group-hover:bg-[#D4F542] transition-colors">

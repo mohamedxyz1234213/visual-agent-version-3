@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { Lesson, LessonPart, StoryboardScene } from '../models/Lesson.js';
 import { Quiz, QuizQuestion, QuizAttempt } from '../models/Quiz.js';
+import { User } from '../auth/models/index.js';
 import { requireAuth } from '../auth/middleware/auth.js';
 
 const router = Router();
@@ -181,6 +182,14 @@ router.delete('/:id', async (req, res, next) => {
     await Quiz.deleteMany({ partId: { $in: partIds } });
     await QuizQuestion.deleteMany({ quizId: { $in: quizIds } });
     await QuizAttempt.deleteMany({ quizId: { $in: quizIds } });
+
+    // Free up one AI request slot so the user can generate a new lesson
+    if (req.user?.role !== 'admin') {
+      await User.updateOne(
+        { _id: req.user._id, aiRequestsUsed: { $gt: 0 } },
+        { $inc: { aiRequestsUsed: -1 } },
+      );
+    }
 
     res.status(204).send();
   } catch (err) {

@@ -202,14 +202,14 @@ function resolveModel(provider, fromBody) {
 }
 
 const providerCounter = { index: 0 };
-const PROVIDERS = ['blaze', 'blazeapi'];
+const PROVIDERS = ['openrouter', 'blazeapi'];
 
 function selectProvider(preferred) {
   if (preferred && normalizeProvider(preferred)) return normalizeProvider(preferred);
   const forced = process.env.ACTIVE_LLM_FORCE;
-  if (forced) return normalizeProvider(forced) || 'blaze';
+  if (forced) return normalizeProvider(forced) || 'openrouter';
   if (process.env.ACTIVE_LLM_MIX !== 'true') {
-    return normalizeProvider(process.env.ACTIVE_LLM) || 'blaze';
+    return normalizeProvider(process.env.ACTIVE_LLM) || 'openrouter';
   }
   const p = PROVIDERS[providerCounter.index % PROVIDERS.length];
   providerCounter.index += 1;
@@ -390,28 +390,74 @@ router.post('/generate-exam', requireRole('teacher', 'admin'), async (req, res, 
   }
 });
 
-// ── Rich Exercise Generator ─────────────────────────────────────────────────────
-function generateRichExercise(topic, difficulty, type) {
-  const diffMultiplier = difficulty === 'easy' ? 1 : difficulty === 'medium' ? 2 : 3;
-  const templates = getExerciseTemplates(topic, difficulty, type);
+// ── AI-Powered Rich Exercise Generator ─────────────────────────────────────────
+async function generateRichExercise(topic, difficulty, type) {
+  const aiProvider = selectProvider();
+  const model = resolveModel(aiProvider, null);
 
-  // Pick a template based on type
-  const template = templates[0] || {
+  const prompt = `Generate a coding exercise about "${topic}" at "${difficulty}" difficulty of type "${type}".
+
+Return a JSON object with these exact fields:
+- "title": short exercise title (max 60 chars)
+- "description": clear instructions (max 200 words)
+- "starterCode": template code with placeholders
+- "solution": the complete working solution
+- "solutionExplanation": teach why this solution works (max 100 words)
+- "testCases": array of { "id", "input", "expectedOutput", "description" } objects (3-5 test cases, mark first as isHidden=false, last as isHidden=true)
+- "hints": array of { "order", "text" (max 40 words), "cost" (coins) } — 2-3 hints
+- "xpReward": number (10-100 depending on difficulty)
+- "estimatedTime": number in minutes
+- "tags": array of 2-4 keyword strings
+
+Make the exercise specific to ${topic}, not generic. Use real programming concepts.`;
+
+  try {
+    const result = await callAIRace(prompt, 4096, 60000, aiProvider, model);
+    return {
+      title: result.title || `Practice: ${topic}`,
+      description: result.description || `Write code to demonstrate ${topic}.`,
+      starterCode: result.starterCode || '// Write your solution here\n',
+      solution: result.solution || '// Solution\n',
+      solutionExplanation: result.solutionExplanation || `This exercise tests ${topic}.`,
+      testCases: (result.testCases || []).map((tc, i) => ({
+        id: tc.id || String(i + 1),
+        input: tc.input || '',
+        expectedOutput: tc.expectedOutput || '',
+        isHidden: tc.isHidden ?? (i > 1),
+        description: tc.description || `Test case ${i + 1}`,
+      })),
+      hints: (result.hints || []).map((h, i) => ({
+        order: h.order || i + 1,
+        text: h.text || 'Think about the core concept.',
+        cost: h.cost || 5 * (i + 1),
+      })),
+      xpReward: result.xpReward || 10,
+      estimatedTime: result.estimatedTime || 15,
+      tags: result.tags || [topic.toLowerCase().replace(/\s+/g, '-')],
+    };
+  } catch (err) {
+    console.warn(`[ai.routes] AI exercise generation failed, using fallback:`, err.message);
+    return getFallbackExercise(topic, difficulty, type);
+  }
+}
+
+function getFallbackExercise(topic, difficulty, type) {
+  const diffMultiplier = difficulty === 'easy' ? 1 : difficulty === 'medium' ? 2 : 3;
+  return {
     title: `Practice: ${topic}`,
     description: `Write code to demonstrate your understanding of ${topic}.`,
     starterCode: '// Write your solution here\n',
     solution: '// Solution\n',
     solutionExplanation: `This exercise tests your knowledge of ${topic}.`,
     testCases: [
-      { id: '1', input: 'test', expectedOutput: 'expected', isHidden: false, description: 'Basic test case' },
+      { id: '1', input: 'test', expectedOutput: 'expected', isHidden: false, description: 'Basic test' },
+      { id: '2', input: '', expectedOutput: '', isHidden: true, description: 'Edge case' },
     ],
     hints: [{ order: 1, text: 'Think about the core concept first', cost: 5 }],
     xpReward: 10 * diffMultiplier,
     estimatedTime: 10 * diffMultiplier,
     tags: [topic.toLowerCase().replace(/\s+/g, '-')],
   };
-
-  return template;
 }
 
 // ── Exercise Templates ──────────────────────────────────────────────────────────
@@ -502,60 +548,85 @@ function getExerciseTemplates(topic, difficulty, type) {
   return templates[type] || templates['free-code'];
 }
 
-// ── Exam Question Generator ─────────────────────────────────────────────────────
-function generateExamQuestions(title, subjectId, difficulty, count) {
-  const diff = difficulty || 'medium';
-  const questionTypes = ['mcq', 'code', 'fill-blank', 'predict-output'];
-  const questions = [];
+// ── AI-Powered Exam Question Generator ──────────────────────────────────────────
+async function generateExamQuestions(title, subjectId, difficulty, count) {
+  const aiProvider = selectProvider();
+  const model = resolveModel(aiProvider, null);
 
-  for (let i = 0; i < count; i++) {
-    const qType = questionTypes[i % questionTypes.length];
-    const points = diff === 'easy' ? 1 : diff === 'medium' ? 2 : 3;
+  const prompt = `Generate ${count} exam questions about "${title}" at "${difficulty || 'medium'}" difficulty.
 
-    const question = {
+Return a JSON object with a "questions" array. Each question object must have:
+- "id": string (sequential)
+- "type": one of "mcq", "code", "fill-blank", "predict-output"
+- "question": the question text
+- "points": number (1-5 based on difficulty)
+- "difficulty": "${difficulty || 'medium'}"
+- "tags": array of keyword strings
+- "explanation": explanation of the correct answer
+- "hint": a helpful hint (max 30 words)
+
+For type "mcq", also include:
+- "options": array of 4 answer strings
+- "correctAnswer": index string ("0", "1", "2", or "3")
+
+For type "code", also include:
+- "code": starter code template
+
+For type "fill-blank", also include:
+- "code": code with _____ blanks
+- "correctAnswer": the missing text
+
+For type "predict-output", also include:
+- "code": code snippet to analyze
+- "correctAnswer": expected output
+
+Make all questions specific to ${title}. Use real concepts, real syntax, real programming scenarios. No generic templates.`;
+
+  try {
+    const result = await callAIRace(prompt, 4096, 60000, aiProvider, model);
+    const aiQuestions = result.questions || [];
+    return aiQuestions.slice(0, count).map((q, i) => ({
       id: String(i + 1),
-      type: qType,
-      question: '',
-      points,
-      difficulty: diff,
-      tags: [title.toLowerCase().replace(/\s+/g, '-')],
-    };
-
-    if (qType === 'mcq') {
-      question.question = `What is the correct way to work with ${title}?`;
-      question.options = [
-        `Option A: Standard approach for ${title}`,
-        `Option B: Alternative method for ${title}`,
-        `Option C: A different technique`,
-        `Option D: None of the above`,
-      ];
-      question.correctAnswer = '0';
-      question.explanation = `The standard approach is the most common and recommended way to handle ${title}.`;
-      question.code = '';
-      question.hint = 'Think about the most common pattern used in practice.';
-    } else if (qType === 'code') {
-      question.question = `Write code that demonstrates your understanding of ${title}.`;
-      question.code = '// Your solution here\n';
-      question.correctAnswer = 'function solution() { }';
-      question.explanation = `A correct implementation of ${title} should handle the core requirements.`;
-      question.hint = `Break down ${title} into its fundamental concepts.`;
-    } else if (qType === 'fill-blank') {
-      question.question = `Complete the following about ${title}:`;
-      question.code = `// Complete the ${title} implementation\nfunction process(data) {\n  return data._____;\n}`;
-      question.correctAnswer = 'toUpperCase()';
-      question.explanation = `This method converts the string to uppercase, which is commonly used when working with ${title}.`;
-      question.hint = 'Look at what the function is supposed to return.';
-    } else if (qType === 'predict-output') {
-      question.question = `What will be the output of this code related to ${title}?`;
-      question.code = `const data = ['a', 'b', 'c'];\nconst result = data.map(x => x.toUpperCase());\nconsole.log(result);`;
-      question.correctAnswer = "['A', 'B', 'C']";
-      question.explanation = 'The map function transforms each element, and toUpperCase converts each string to uppercase.';
-      question.hint = 'Trace through the array method step by step.';
-    }
-
-    questions.push(question);
+      type: q.type || 'mcq',
+      question: q.question || `Question about ${title}.`,
+      points: q.points || 2,
+      difficulty: difficulty || 'medium',
+      tags: q.tags || [title.toLowerCase().replace(/\s+/g, '-')],
+      options: q.options || [],
+      correctAnswer: q.correctAnswer || '0',
+      explanation: q.explanation || 'Review the concept.',
+      code: q.code || '',
+      hint: q.hint || 'Think carefully.',
+    }));
+  } catch (err) {
+    console.warn(`[ai.routes] AI exam generation failed, using fallback:`, err.message);
+    return getFallbackExamQuestions(title, difficulty, count);
   }
+}
 
+function getFallbackExamQuestions(title, difficulty, count) {
+  const diff = difficulty || 'medium';
+  const questions = [];
+  for (let i = 0; i < count; i++) {
+    questions.push({
+      id: String(i + 1),
+      type: 'mcq',
+      question: `What is the correct way to work with ${title}?`,
+      options: [
+        `Standard approach for ${title}`,
+        `Alternative method for ${title}`,
+        `A different technique`,
+        `None of the above`,
+      ],
+      correctAnswer: '0',
+      explanation: `The standard approach is the most common and recommended way.`,
+      points: diff === 'easy' ? 1 : diff === 'medium' ? 2 : 3,
+      difficulty: diff,
+      code: '',
+      hint: 'Think about the most common pattern.',
+      tags: [title.toLowerCase().replace(/\s+/g, '-')],
+    });
+  }
   return questions;
 }
 
@@ -699,7 +770,7 @@ Student: ${message}
 Teacher: Return a JSON object with: "text" (your response in Arabic, max 150 words), "emotion" (one of: explaining/happy/encouraging/thinking/curious), "codeSnippet" (object with "language" and "code" fields, or null if no code).`;
 
   try {
-    const aiResp = await callAIRace(prompt, 600, 30000, provider, model);
+    const aiResp = await callAIRace(prompt, 4096, 60000, provider, model);
     return {
       text: aiResp?.text || 'سؤال رائع! دعني أفكر في الإجابة...',
       emotion: aiResp?.emotion || 'explaining',
@@ -791,7 +862,7 @@ async function processGeneratedLesson(lessonId, seriesId, topic, analysisModel, 
 
     // Auto-generate an exam for this lesson
     try {
-      const examQuestions = generateExamQuestions(topic, null, 'medium', 5);
+      const examQuestions = await generateExamQuestions(topic, null, 'medium', 5);
       const exam = await Exam.create({
         title: `Exam: ${topic}`,
         subjectId: null,

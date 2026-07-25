@@ -13,6 +13,7 @@ import explainRouter from './routes/explain.js';
 import lessonsRouter from './routes/lessons.js';
 import storyboardRouter from './routes/storyboard.js';
 import quizRouter from './routes/quiz.js';
+import sandboxRouter from './routes/sandbox.js';
 import dashboardRouter from './routes/dashboard.js';
 
 // ── Auth & Admin (existing, enhanced) ─────────────────────────────────────────
@@ -80,6 +81,7 @@ app.use('/api/v1/explain', explainRouter);
 app.use('/api/v1/lessons', lessonsRouter);
 app.use('/api/v1/storyboard', storyboardRouter);
 app.use('/api/v1/quiz', quizRouter);
+app.use('/api/v1/sandbox', sandboxRouter);
 app.use('/api/v1/dashboard', dashboardRouter);
 
 // New: Coding Teacher Platform

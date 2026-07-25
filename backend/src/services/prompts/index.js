@@ -183,7 +183,7 @@ Critical rules:
 - visual_logic entries must stay semantic, purposeful, and compact.
 - PRESERVE and IMPROVE the board_scenes array on every content part. Never delete
   board_scenes. Each board scene keeps its intent (define/compare/process/
-  hierarchy/timeline/cause/data/cluster/cycle/example/recap/formula/map) and its
+  hierarchy/timeline/cause/data/cluster/cycle/example/recap/formula/map/sandbox) and its
   slot fields (headline, definition, points, steps, columns, cards, etc.). If a
   scene is weak, rewrite its content — do not remove it. Aim for 3-6 board_scenes
   per content part, each a distinct teaching beat.
@@ -296,7 +296,7 @@ Return ONLY valid JSON:
 {
   "board_scenes": [
     {
-      "intent": "define|compare|process|hierarchy|timeline|cause|data|cluster|cycle|example|recap|formula|map",
+      "intent": "define|compare|process|hierarchy|timeline|cause|data|cluster|cycle|example|recap|formula|map|sandbox",
       "goal": "what this board teaches",
       "say": "2-4 rich spoken sentences — REQUIRED",
       "template": "optional template id",
@@ -565,6 +565,9 @@ CRITICAL RULES FOR board_scenes:
 11. For problems/equations, give each solution step its own beat
 12. EVERY visual must MEAN something for THIS topic — restructure bullet lists into
     diagrams showing how pieces relate (flow, hierarchy, cause→effect, labeled figure)
+13. For programming/coding topics, include at least one sandbox_question scene per
+    part where students write real code. Set intent="sandbox" and provide a "sandbox"
+    object with title, instructions, language, starterCode, and 2-4 testCases.
 
 OUTPUT CONTRACT
 Return ONLY valid JSON with this schema:
@@ -585,7 +588,7 @@ Return ONLY valid JSON with this schema:
       "board_scenes": [
         {
           "segment": "hook|prerequisite|core|mechanism|example|reinforcement|recap",
-          "intent": "define|compare|process|hierarchy|timeline|cause|data|cluster|cycle|example|recap|formula|map",
+          "intent": "define|compare|process|hierarchy|timeline|cause|data|cluster|cycle|example|recap|formula|map|sandbox",
           "goal": "what this board teaches",
           "say": "2-4 spoken sentences for this beat — REQUIRED",
           "headline": "main concept",
@@ -593,6 +596,21 @@ Return ONLY valid JSON with this schema:
           "focus": "optional zoom target"
         }
       ],
+      "sandbox_question_scene": {
+        "segment": "mechanism|example|reinforcement",
+        "intent": "sandbox",
+        "goal": "coding challenge",
+        "say": "spoken instruction for the coding challenge",
+        "sandbox": {
+          "title": "challenge title",
+          "instructions": "detailed problem description",
+          "language": "javascript|python|java|cpp",
+          "starterCode": "initial code template",
+          "testCases": [
+            { "id": "tc1", "input": "test input", "expectedOutput": "expected output", "description": "what this tests" }
+          ]
+        }
+      },
       "animation_sequence": ["hook", "concept", "relationship", "example", "mini_recap"]
     },
     {

@@ -10,7 +10,7 @@ import { normalizeIntent } from './sceneComposer.js';
 
 const VALID_INTENTS = new Set([
   'define', 'compare', 'process', 'hierarchy', 'timeline', 'cause',
-  'data', 'cluster', 'cycle', 'example', 'recap', 'formula', 'map',
+  'data', 'cluster', 'cycle', 'example', 'recap', 'formula', 'map', 'sandbox',
 ]);
 
 // Generic/placeholder text the AI sometimes emits that we should reject.

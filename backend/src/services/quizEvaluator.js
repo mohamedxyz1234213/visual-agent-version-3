@@ -1,4 +1,4 @@
-import { getBlazeConfig, resolveBlazeModel } from './blazeConfig.js';
+import { getOpenRouterConfig, OPENROUTER_DEFAULT_MODEL } from './openrouterConfig.js';
 
 /**
  * Evaluate quiz answers and return score, feedback, and passed flag.
@@ -72,20 +72,17 @@ async function evalOpen(q, answer, aiProvider = null, analysisModel = null) {
     'Is the student\'s answer correct or substantially correct? ' +
     'Reply with JSON: {"correct": true/false, "explanation": "brief feedback"}';
 
-  const requestedAI = String(aiProvider || process.env.ACTIVE_LLM || 'blaze').trim().toLowerCase();
-  const activeAI = requestedAI === 'deepseek' || requestedAI === 'blazeai'
-    ? 'blaze'
-    : (requestedAI || 'blaze');
+  const requestedAI = String(aiProvider || process.env.ACTIVE_LLM || 'openrouter').trim().toLowerCase();
 
   try {
-    const blaze = getBlazeConfig();
-    if (activeAI === 'blaze' && blaze.apiKey) {
+    const or = getOpenRouterConfig();
+    if (or.apiKey) {
       const { default: OpenAI } = await import('openai');
       const client = new OpenAI({
-        apiKey: blaze.apiKey,
-        baseURL: blaze.baseURL,
+        apiKey: or.apiKey,
+        baseURL: or.baseURL,
       });
-      const model = resolveBlazeModel(analysisModel, blaze.defaultModel);
+      const model = analysisModel || OPENROUTER_DEFAULT_MODEL;
       const response = await client.chat.completions.create({
         model,
         messages: [{ role: 'user', content: prompt }],

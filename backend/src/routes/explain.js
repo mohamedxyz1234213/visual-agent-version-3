@@ -6,6 +6,7 @@ import { saveLessonPlan } from '../services/storyboardGenerator.js';
 import { synthesize } from '../services/ttsService.js';
 import { uploadAudio } from '../services/storageService.js';
 import { getBlazeConfig, resolveBlazeModel } from '../services/blazeConfig.js';
+import { getOpenRouterConfig } from '../services/openrouterConfig.js';
 import { toUserFacingError } from '../utils/errors.js';
 import { reserveAiRequest, markAiRequestFinished } from '../auth/services/aiQuota.js';
 import { requireAuth } from '../auth/middleware/auth.js';
@@ -18,10 +19,18 @@ function normalizeProvider(raw) {
   const p = String(raw || '').trim().toLowerCase();
   if (p === 'deepseek') return 'blaze';
   if (p === 'blaze' || p === 'blazeai') return 'blaze';
+  if (p === 'blazeapi' || p === 'blaze-api') return 'blazeapi';
+  if (p === 'fastapi' || p === 'fast-api' || p === 'render') return 'fastapi';
+  if (p === 'openrouter' || p === 'open-router' || p === 'or') return 'openrouter';
   return null;
 }
 
 function resolveModel(provider, fromBody) {
+  if (provider === 'openrouter') {
+    const { defaultModel } = getOpenRouterConfig();
+    return String(fromBody || '').trim() || defaultModel;
+  }
+  if (provider === 'fastapi') return 'fastapi';
   const { defaultDeepModel } = getBlazeConfig();
   return resolveBlazeModel(fromBody, defaultDeepModel);
 }
@@ -51,7 +60,7 @@ router.post('/', async (req, res, next) => {
     const lessonIntent = req.body.lesson_intent || 'teach';
     const aiProvider = normalizeProvider(req.body.ai_provider)
       || normalizeProvider(process.env.ACTIVE_LLM)
-      || 'blaze';
+      || 'openrouter';
     const analysisModel = resolveModel(aiProvider, req.body.analysis_model);
 
     const sourceTitle = text.slice(0, 60).replace(/\s+/g, ' ') + (text.length > 60 ? '…' : '');
@@ -118,7 +127,7 @@ router.post('/', async (req, res, next) => {
 
 async function processDirectText(lessonId, seriesId, rawText, userInstructions, analysisModel, aiProvider, explanationMode = 'full_lesson', lessonIntent = 'teach', aiLogId = null) {
   try {
-    const provider = normalizeProvider(aiProvider) || 'blaze';
+    const provider = normalizeProvider(aiProvider) || 'openrouter';
     const model = resolveModel(provider, analysisModel);
 
     const lesson = await Lesson.findById(lessonId);

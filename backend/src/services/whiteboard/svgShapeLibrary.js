@@ -1,3 +1,5 @@
+import { registerProgrammingShapes } from './programmingShapeLibrary.js';
+
 // =============================================================================
 // MASSIVE SVG Shape Library — 500+ educational shapes for whiteboard rendering
 // =============================================================================
@@ -2160,6 +2162,11 @@ export const SHAPE_ALIASES = {
   'direction': 'compass', 'navigation': 'compass', 'orientation': 'compass',
 };
 
+// ── Wire in 100+ programming shapes from programmingShapeLibrary.js ─────────
+if (typeof registerProgrammingShapes === 'function') {
+  registerProgrammingShapes(SHAPE_REGISTRY, SHAPE_ALIASES);
+}
+
 // =============================================================================
 // RESOLVE — find shape by name with alias support
 // =============================================================================
@@ -2212,13 +2219,27 @@ export function searchShapes(query) {
  * Get all shape names grouped by category.
  */
 export function getShapeCategories() {
+  const progShapes = ['flowchart_process','flowchart_decision','flowchart_start','flowchart_end','flowchart_io','server_icon','database_icon','cloud_service','api_box','cache_box','queue_box','firewall','lock_icon','key_icon','shield_icon','stack_icon','linked_list','tree_node','hash_table','http_request','http_response','json_block'];
+  const dsShapes = ['array_linear','array_2d','linked_list_single','linked_list_double','stack_diagram','queue_diagram','priority_queue','binary_tree','bst_diagram','avl_tree','heap_min','heap_max','trie_diagram','graph_undirected','graph_directed','graph_weighted','adjacency_matrix','bloom_filter','lru_cache','disjoint_set','skip_list'];
+  const algoShapes = ['binary_search','linear_search','bubble_sort','selection_sort','insertion_sort','merge_sort','quick_sort','heap_sort','counting_sort','bfs_graph','dfs_graph','dijkstra','recursion_tree','dp_table','sliding_window','two_pointer','knapsack'];
+  const codeShapes = ['code_block','function_declaration','variable_declaration','if_else_diagram','for_loop_diagram','while_loop','try_catch','class_diagram','arrow_function','async_function','promise_chain','destructuring','spread_operator','import_statement','switch_case','array_method_chain','interface_diagram'];
+  const webShapes = ['client_server','rest_api','browser_diagram','dom_tree','url_components','jwt_diagram','oauth_flow','middleware_chain','graphql_diagram','websocket','http_request_diagram','http_response_diagram','cookie_session','ssr_diagram','csr_diagram'];
+  const sdShapes = ['load_balancer','message_queue','pub_sub','api_gateway','microservices','monolithic','event_driven','cap_theorem','cdn_diagram','database_shard','cqrs_pattern','circuit_breaker','rate_limiter','reverse_proxy'];
+  const devopsShapes = ['git_branch','git_merge','docker_container','ci_cd_pipeline','docker_compose','kubernetes_pod','github_actions','terraform','monitoring','helm_chart','service_mesh'];
+  const allProg = [...progShapes, ...dsShapes, ...algoShapes, ...codeShapes, ...webShapes, ...sdShapes, ...devopsShapes];
   return {
     science_biology: Object.keys(SHAPE_REGISTRY).filter(k => ['dna_advanced','cell_animal','cell_bacteria','mitochondria','chloroplast','endoplasmic_reticulum','ribosome','golgi_apparatus','nucleus_detailed','virus','antibody','stem_cell','white_blood_cell','red_blood_cell','platelet','neuron_detailed','synapse','heart_organ','lung','brain','kidney','liver','stomach','leaf_detailed','tree_detailed','flower','mushroom','spider','butterfly','fish','bird','pollen_grain','ecosystem','sun','moon','cloud','rain_cloud','snowflake','lightning','tornado','volcano','mountain','wave_nature','rock_cycle','water_cycle','carbon_cycle','food_chain'].includes(k)),
     mathematics: Object.keys(SHAPE_REGISTRY).filter(k => ['coordinate_plane','number_line','fraction_bar','pie_chart','bar_chart','line_graph','pyramid','set_venn','triangle','square','pentagon','hexagon','octagon','star_shape','circle_shape','oval','parallelogram','trapezoid','diamond','cube','sphere','cylinder','cone','prism'].includes(k)),
     physics: Object.keys(SHAPE_REGISTRY).filter(k => ['spring','pendulum','inclined_plane','pulley','free_body_diagram','force_vector','electric_circuit','lens','concave_lens','mirror','magnet_shape','electric_field','gravitational_field','wave_pulse','standing_wave','energy_bar','velocity_arrow','acceleration_arrow','friction_arrow','normal_force','gravity_arrow','lever','wheel_axle','screw','wedge','ramp'].includes(k)),
     chemistry: Object.keys(SHAPE_REGISTRY).filter(k => ['beaker','flask','test_tube','molecule_water','molecule_co2','methane','reaction_arrow','equilibrium_arrow','benzene_ring','electron_config','phase_diagram','periodic_cell','bond_single','bond_double','bond_triple','ph_scale'].includes(k)),
     engineering: Object.keys(SHAPE_REGISTRY).filter(k => ['gear_detailed','bolt','nut','valve','pipe','heat_exchanger','motor','generator','transformer','breadboard','arduino','raspberry_pi','sensor','antenna'].includes(k)),
-    programming: Object.keys(SHAPE_REGISTRY).filter(k => ['flowchart_process','flowchart_decision','flowchart_start','flowchart_end','flowchart_io','server_icon','database_icon','cloud_service','api_box','cache_box','queue_box','firewall','lock_icon','key_icon','shield_icon','stack_icon','linked_list','tree_node','hash_table','http_request','http_response','json_block'].includes(k)),
+    programming: Object.keys(SHAPE_REGISTRY).filter(k => allProg.includes(k)),
+    data_structures: Object.keys(SHAPE_REGISTRY).filter(k => dsShapes.includes(k)),
+    algorithms: Object.keys(SHAPE_REGISTRY).filter(k => algoShapes.includes(k)),
+    code_syntax: Object.keys(SHAPE_REGISTRY).filter(k => codeShapes.includes(k)),
+    web_api: Object.keys(SHAPE_REGISTRY).filter(k => webShapes.includes(k)),
+    system_design: Object.keys(SHAPE_REGISTRY).filter(k => sdShapes.includes(k)),
+    devops_tools: Object.keys(SHAPE_REGISTRY).filter(k => devopsShapes.includes(k)),
     business_general: Object.keys(SHAPE_REGISTRY).filter(k => ['funnel','org_chart','timeline_bar','swot_matrix','gauge_meter','progress_ring','donut_chart','kpi','target_icon','bulb_icon','rocket_icon','flag_icon','star_badge','warning_triangle','check_circle','cross_circle','arrow_up','arrow_down','hourglass','compass'].includes(k)),
   };
 }

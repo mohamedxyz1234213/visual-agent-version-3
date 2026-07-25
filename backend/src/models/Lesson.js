@@ -34,7 +34,7 @@ const lessonSchema = new Schema(
     processingStep: { type: String, default: 'queued' },
     errorMessage: { type: String },
     // ── AI provider + model chosen by user ───────────────────────────────────
-    aiProvider: { type: String, enum: ['blaze', 'blazeapi', 'deepseek'], default: 'blaze' },
+    aiProvider: { type: String, enum: ['openrouter', 'blaze', 'blazeapi', 'fastapi'], default: 'openrouter' },
     analysisModel: { type: String },
     // ── Series fields ────────────────────────────────────────────────────────
     seriesId: { type: mongoose.Schema.Types.ObjectId, ref: 'LessonSeries' },

@@ -53,9 +53,8 @@ const examSchema = new Schema(
 );
 
 // Auto-calculate total points on save
-examSchema.pre('save', function (next) {
+examSchema.pre('save', function () {
   this.totalPoints = this.questions.reduce((sum, q) => sum + (q.points || 0), 0);
-  next();
 });
 
 export const Exam = mongoose.model('Exam', examSchema);

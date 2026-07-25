@@ -42,6 +42,7 @@ const INTENT_ALIASES = {
   recap: 'recap', summary: 'recap', review: 'recap', takeaways: 'recap', conclusion: 'recap', hook: 'recap', intro: 'recap',
   formula: 'formula', equation: 'formula', math: 'formula', calculation: 'formula',
   diagram: 'map', labeled: 'map', anatomy: 'map', parts: 'map',
+  sandbox: 'sandbox', coding: 'sandbox', challenge: 'sandbox', exercise: 'sandbox',
 };
 
 function normalizeIntent(intent) {
@@ -216,6 +217,25 @@ function isHeaderOnly(fragments) {
  */
 function composeScene(pscene, ctx, used, seed) {
   const intent = normalizeIntent(pscene.intent);
+  // Sandbox question: bypass template rendering, emit a single sandbox_question fragment
+  if (intent === 'sandbox') {
+    const sandboxData = pscene.data?.sandbox || pscene.data || {};
+    const sandboxFrag = {
+      type: 'sandbox_question',
+      title: String(sandboxData.title || pscene.title || 'Coding Challenge'),
+      instructions: String(sandboxData.instructions || ''),
+      language: String(sandboxData.language || 'javascript'),
+      starterCode: String(sandboxData.starterCode || sandboxData.code || ''),
+      testCases: Array.isArray(sandboxData.testCases) ? sandboxData.testCases.map(tc => ({
+        id: String(tc.id || Math.random().toString(36).slice(2, 8)),
+        input: String(tc.input ?? ''),
+        expectedOutput: String(tc.expectedOutput ?? tc.expected ?? ''),
+        description: String(tc.description || tc.name || ''),
+      })) : [],
+    };
+    return { fragments: [sandboxFrag], templateId: 'sandbox_question', intent, say: pscene.say, segment: pscene.segment };
+  }
+
   const baseData = enrichData(intent, coerceData(intent, pscene.data), {
     title: pscene.title || ctx.title,
     say: pscene.say,
@@ -375,7 +395,23 @@ export function composeStoryboard(pscenes, ctx, durationSeconds) {
   const out = [];
   let t = 0;
 
+  const SANDBOX_DURATION = 300; // 5 minutes for coding challenges
+
   boards.forEach((board, bi) => {
+    // Sandbox boards: emit a single sandbox_question fragment with a long duration
+    const isSandboxBoard = board.fragments.length === 1 && board.fragments[0].type === 'sandbox_question';
+    if (isSandboxBoard) {
+      if (bi > 0) { out.push({ time: round(t), type: 'clear' }); t += CLEAR; }
+      out.push({ time: round(t), type: 'camera', mode: 'enter', zoom: 1.0 });
+      t += CAMERA;
+      const sandboxFrag = { ...board.fragments[0], time: round(t), step_index: out.length };
+      out.push(sandboxFrag);
+      t += SANDBOX_DURATION;
+      out.push({ time: round(t), type: 'camera', mode: 'reset', zoom: 1.0 });
+      t += CAMERA;
+      return;
+    }
+
     if (bi > 0) { out.push({ time: round(t), type: 'clear' }); t += CLEAR; }
     out.push({ time: round(t), type: 'camera', mode: 'enter', zoom: 1.0 });
     t += CAMERA;

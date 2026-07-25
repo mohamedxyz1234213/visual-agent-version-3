@@ -88,6 +88,12 @@ const LESSON_PRESETS: LessonPreset[] = [
 const PROVIDER_MODELS: Record<string, Array<{
   id: string; label: string; modelName: string; desc: string; badge: string | null;
 }>> = {
+  openrouter: [
+    { id: "nvidia/nemotron-3-ultra-550b-a55b:free", label: "Nemotron 3 Ultra", modelName: "nvidia/nemotron-3-ultra-550b-a55b:free", desc: "Fast & capable (free)", badge: "Recommended" },
+    { id: "deepseek/deepseek-v4-flash:free", label: "DeepSeek V4 Flash (free)", modelName: "deepseek/deepseek-v4-flash:free", desc: "Fast & accurate", badge: null },
+    { id: "google/gemma-4-27b-it:free", label: "Gemma 4 27B (free)", modelName: "google/gemma-4-27b-it:free", desc: "Google model", badge: null },
+    { id: "meta-llama/llama-4-maverick:free", label: "Llama 4 Maverick (free)", modelName: "meta-llama/llama-4-maverick:free", desc: "Meta latest", badge: null },
+  ],
   blaze: [
     { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash", modelName: "deepseek-v4-flash", desc: "Fast & accurate", badge: "Recommended" },
     { id: "deepseek-v4-pro", label: "DeepSeek V4 Pro", modelName: "deepseek-v4-pro", desc: "Deepest analysis", badge: null },
@@ -336,7 +342,7 @@ export default function UploadZone({ onReady }: UploadZoneProps) {
 
   // Shared AI config
   const [analysisModel, setAnalysisModel] = useState<string>("qwen3.6-plus-thinking");
-  const [aiProvider, setAiProvider] = useState<string>("blaze");
+  const [aiProvider, setAiProvider] = useState<string>("openrouter");
   const [providers, setProviders] = useState<AiProviderOption[]>([]);
 
   // UI control state
@@ -363,7 +369,7 @@ export default function UploadZone({ onReady }: UploadZoneProps) {
       .then(setProviders)
       .catch(() => {
         setProviders([
-          { id: "blaze",    label: "BlazeAI",     icon: "", name: "BlazeAI (Multi-model)", desc: "Free tier with multiple models",    badge: null },
+          { id: "openrouter", label: "OpenRouter", icon: "", name: "OpenRouter (Primary)", desc: "Multi-model gateway", badge: "Recommended" },
         ]);
       });
   }, []);
@@ -528,7 +534,7 @@ const selectedModel = allModels.find((m) => m.id === analysisModel) ?? modelOpti
 
   // ── Idle form ─────────────────────────────────────────────────────────────
   const fallbackProviders: AiProviderOption[] = [
-    { id: "blaze", label: "BlazeAI", icon: "", name: "BlazeAI (Multi-model)", desc: "Free tier with multiple models", badge: null },
+    { id: "openrouter", label: "OpenRouter", icon: "", name: "OpenRouter (Primary)", desc: "Multi-model gateway — free & paid models", badge: "Recommended" },
   ];
 
   return (

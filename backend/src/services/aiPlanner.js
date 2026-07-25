@@ -14,7 +14,8 @@
 
 import dagre from '@dagrejs/dagre';
 import { getBlazeConfig, resolveBlazeModel } from './blazeConfig.js';
-import { getBlazeAPIConfig, resolveBlazeAPIModel } from './blazeapiConfig.js';
+import { getBlazeAPIConfig, buildBlazeAPIModelChain } from './blazeapiConfig.js';
+import { getOpenRouterConfig, OPENROUTER_DEFAULT_MODEL } from './openrouterConfig.js';
 import { buildWhiteboardForPart, assessLessonVisuals, assessPartVisuals } from './whiteboard/index.js';
 import { COMPREHENSION_PROMPT, DECOMPOSITION_PROMPT, REFINEMENT_PROMPT, TEACHING_PROMPT, TOPIC_SCAFFOLD_PROMPT, VISUAL_COMPOSITION_PROMPT, TUTOR_PHILOSOPHY } from './prompts/index.js';
 import { validateBoardScenes, cleanSay } from './whiteboard/validator.js';
@@ -133,13 +134,20 @@ const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS ?? 600_000);
 const AI_COOLDOWN_MS = Number(process.env.AI_COOLDOWN_MS ?? 120_000);
 
 const circuitState = {
-  blaze:    { openUntil: 0, reason: '' },
-  default:  { openUntil: 0, reason: '' },
+  blaze:     { openUntil: 0, reason: '' },
+  blazeapi:  { openUntil: 0, reason: '' },
+  fastapi:   { openUntil: 0, reason: '' },
+  openrouter: { openUntil: 0, reason: '' },
+  default:   { openUntil: 0, reason: '' },
 };
 let aiCircuitOpenUntil = 0;
 let aiCircuitReason = '';
 /** Records which backend path served the most recent AI request. */
 let lastAiVia = null;
+/** Cached working model for each provider — we try it first next time. */
+let workingBlazeModel = null;
+let workingBlazeAPIModel = null;
+let workingOpenRouterModel = null;
 
 // =============================================================================
 // PHASE 1 PROMPT: Deep document comprehension
@@ -4461,6 +4469,8 @@ function normalizeProvider(raw) {
   if (p === 'deepseek') return 'blaze';
   if (p === 'blaze' || p === 'blazeai') return 'blaze';
   if (p === 'blazeapi' || p === 'blaze-api' || p === 'api-blaze') return 'blazeapi';
+  if (p === 'fastapi' || p === 'fast-api' || p === 'render') return 'fastapi';
+  if (p === 'openrouter' || p === 'open-router' || p === 'or') return 'openrouter';
   return null;
 }
 
@@ -4471,7 +4481,7 @@ function resolveModel(aiProvider, analysisModel) {
 }
 
 export function resetAICircuit(aiProvider) {
-  const key = normalizeProvider(aiProvider) || 'blaze';
+  const key = normalizeProvider(aiProvider) || 'openrouter';
   const circuit = circuitState[key] || circuitState.default;
   circuit.openUntil = 0;
   circuit.reason = '';
@@ -4488,7 +4498,7 @@ function shouldTripCircuit(error) {
 
 /** Quick connectivity check — call from GET /upload/test-ai */
 export async function testAIConnection(aiProvider, analysisModel) {
-  const provider = normalizeProvider(aiProvider) || 'blaze';
+  const provider = normalizeProvider(aiProvider) || 'openrouter';
   resetAICircuit(provider);
   const model = resolveModel(provider, analysisModel);
   const cfg = getBlazeConfig();
@@ -4532,7 +4542,7 @@ export async function callAIRace(prompt, maxTokens, timeoutMs = AI_TIMEOUT_MS, a
   }
 
   lastAiVia = null;
-  const activeAI = normalizeProvider(aiProvider) || normalizeProvider(process.env.ACTIVE_LLM) || 'blaze';
+  const activeAI = normalizeProvider(aiProvider) || normalizeProvider(process.env.ACTIVE_LLM) || 'openrouter';
   const circuit = circuitState[activeAI] || circuitState.default;
   const model = resolveModel(activeAI, analysisModel);
   const hasExplicitModelSelection = Boolean(String(analysisModel || '').trim());
@@ -4545,76 +4555,247 @@ export async function callAIRace(prompt, maxTokens, timeoutMs = AI_TIMEOUT_MS, a
     return callBlazeAPI(prompt, maxTokens, timeoutMs, model, hasExplicitModelSelection, circuit);
   }
 
-  // Legacy BlazeAI (blazeai.boxu.dev)
-  const { baseURL, apiKey, defaultModel, defaultDeepModel } = getBlazeConfig();
-  if (!apiKey) throw new Error('BLAZE_API_KEY not set');
+  if (activeAI === 'fastapi') {
+    return callFastAPI(prompt, maxTokens, timeoutMs, circuit);
+  }
 
-  const models = analysisModel
-    ? [model]
-    : [...new Set([
-        defaultDeepModel,
-        defaultModel,
-      ].filter(Boolean))];
+  if (activeAI === 'openrouter') {
+    return callOpenRouter(prompt, maxTokens, timeoutMs, model, hasExplicitModelSelection, circuit);
+  }
 
-  console.log(`[aiPlanner] BlazeAI → ${models.join(' | ')} (max_tokens=${maxTokens}, timeout=${timeoutMs}ms)`);
+  // Legacy BlazeAI — now routes through BlazeAPI endpoint (set in .env BLAZE_BASE_URL)
+  const cfg = getBlazeConfig();
+  if (!cfg.apiKey) throw new Error('BLAZE_API_KEY not set');
 
+  const preferred = workingBlazeModel || model || cfg.defaultModel;
+  const modelsToTry = buildBlazeAPIModelChain(preferred);
+
+  console.log(`[aiPlanner] BlazeAI → ${modelsToTry.join(' → ')} (max_tokens=${maxTokens}, timeout=${timeoutMs}ms)`);
+
+  let lastError;
+  for (const m of modelsToTry) {
+    try {
+      const result = await callOpenAICompatible(cfg.baseURL, cfg.apiKey, m, prompt, maxTokens, timeoutMs);
+      lastAiVia = 'blaze';
+      circuit.openUntil = 0;
+      circuit.reason = '';
+      aiCircuitOpenUntil = 0;
+      aiCircuitReason = '';
+      workingBlazeModel = m;
+      return result;
+    } catch (error) {
+      const msg = String(error?.message || error || '');
+      const isGatewayError = /502|503|gateway|upstream|retrying|sentinel|unavailable/i.test(msg);
+      lastError = error;
+
+      if (isGatewayError) {
+        console.warn(`[aiPlanner] BlazeAI model "${m}" failed: ${describeAIError(error)} — trying next model`);
+      } else {
+        console.error(`[aiPlanner] BlazeAI model "${m}" non-retryable error: ${describeAIError(error)}`);
+        break;
+      }
+    }
+  }
+
+  // Last resort: try through FastAPI service (Render) — may have different config
   try {
-    const result = await Promise.any(
-      models.map((m) => callOpenAICompatible(baseURL, apiKey, m, prompt, maxTokens, timeoutMs))
-    );
+    console.warn(`[aiPlanner] All BlazeAI models failed, trying FastAPI fallback...`);
+    const result = await callFastAPICompatible(prompt, maxTokens, 120_000);
     lastAiVia = 'blaze';
     circuit.openUntil = 0;
     circuit.reason = '';
     aiCircuitOpenUntil = 0;
     aiCircuitReason = '';
     return result;
-  } catch (error) {
-    const allErrors = error?.errors || [error];
-    const gatewayErrors = allErrors.filter(e => {
-      const msg = String(e?.message || e || '');
-      return /gateway|sentinel|retrying|simplified prompt|upstream/i.test(msg);
-    });
-    if (gatewayErrors.length === allErrors.length && gatewayErrors.length > 0) {
-      console.error('[aiPlanner] All models returned gateway errors - upstream API issues');
-      throw new Error('AI service temporarily unavailable. The upstream models are experiencing issues. Please try again in a moment.');
-    }
-    if (!hasExplicitModelSelection && shouldTripCircuit(error)) {
-      const limits = PROVIDER_LIMITS.blaze;
-      circuit.openUntil = Date.now() + limits.cooldown;
-      circuit.reason = describeAIError(error);
-      aiCircuitOpenUntil = circuit.openUntil;
-      aiCircuitReason = circuit.reason;
-    }
-    throw new Error(`All Blaze AI models unavailable: ${describeAIError(error)}`);
+  } catch (fastapiError) {
+    console.error(`[aiPlanner] FastAPI fallback also failed: ${describeAIError(fastapiError)}`);
+    lastError = fastapiError;
   }
+
+  if (!hasExplicitModelSelection && shouldTripCircuit(lastError)) {
+    const limits = PROVIDER_LIMITS.blaze;
+    circuit.openUntil = Date.now() + limits.cooldown;
+    circuit.reason = describeAIError(lastError);
+    aiCircuitOpenUntil = circuit.openUntil;
+    aiCircuitReason = circuit.reason;
+  }
+  throw new Error(`BlazeAI unavailable: ${describeAIError(lastError)}`);
 }
 
-async function callBlazeAPI(prompt, maxTokens, timeoutMs, model, hasExplicitModelSelection, circuit) {
-  const cfg = getBlazeAPIConfig();
-  if (!cfg.apiKey) throw new Error('BLAZEAPI_API_KEY not set');
-
-  const models = [model || cfg.defaultModel];
-  console.log(`[aiPlanner] BlazeAPI → ${models.join(' | ')} (max_tokens=${maxTokens}, timeout=${timeoutMs}ms)`);
-
+/** Primary AI provider: route all calls through the Render-hosted FastAPI service. */
+async function callFastAPI(prompt, maxTokens, timeoutMs, circuit) {
+  console.log(`[aiPlanner] FastAPI → (max_tokens=${maxTokens}, timeout=${timeoutMs}ms)`);
   try {
-    const result = await Promise.any(
-      models.map((m) => callOpenAICompatible(cfg.baseURL, cfg.apiKey, m, prompt, maxTokens, timeoutMs))
-    );
-    lastAiVia = 'blazeapi';
+    const result = await callFastAPICompatible(prompt, maxTokens, timeoutMs);
+    lastAiVia = 'fastapi';
     circuit.openUntil = 0;
     circuit.reason = '';
     aiCircuitOpenUntil = 0;
     aiCircuitReason = '';
     return result;
   } catch (error) {
-    if (!hasExplicitModelSelection && shouldTripCircuit(error)) {
-      const limits = PROVIDER_LIMITS.blazeapi;
-      circuit.openUntil = Date.now() + limits.cooldown;
-      circuit.reason = describeAIError(error);
-      aiCircuitOpenUntil = circuit.openUntil;
-      aiCircuitReason = circuit.reason;
+    const limits = PROVIDER_LIMITS.blaze;
+    circuit.openUntil = Date.now() + limits.cooldown;
+    circuit.reason = describeAIError(error);
+    aiCircuitOpenUntil = circuit.openUntil;
+    aiCircuitReason = circuit.reason;
+    throw new Error(`FastAPI unavailable: ${describeAIError(error)}`);
+  }
+}
+
+/** Primary AI provider: route all calls through OpenRouter (OpenAI-compatible). */
+async function callOpenRouter(prompt, maxTokens, timeoutMs, model, hasExplicitModelSelection, circuit) {
+  const cfg = getOpenRouterConfig();
+  if (!cfg.apiKey) throw new Error('OPENROUTER_API_KEY not set');
+
+  const preferred = workingOpenRouterModel || model || OPENROUTER_DEFAULT_MODEL;
+  const modelsToTry = [...new Set([preferred, OPENROUTER_DEFAULT_MODEL].filter(Boolean))];
+
+  console.log(`[aiPlanner] OpenRouter → ${modelsToTry.join(' → ')} (max_tokens=${maxTokens}, timeout=${timeoutMs}ms)`);
+
+  let lastError;
+  for (const m of modelsToTry) {
+    try {
+      const result = await callOpenAICompatible(cfg.baseURL, cfg.apiKey, m, prompt, maxTokens, timeoutMs);
+      lastAiVia = 'openrouter';
+      circuit.openUntil = 0;
+      circuit.reason = '';
+      aiCircuitOpenUntil = 0;
+      aiCircuitReason = '';
+      workingOpenRouterModel = m;
+      return result;
+    } catch (error) {
+      const msg = String(error?.message || error || '');
+      const isGatewayError = /502|503|gateway|upstream|retrying|sentinel|unavailable|429/i.test(msg);
+      lastError = error;
+
+      if (isGatewayError) {
+        console.warn(`[aiPlanner] OpenRouter model "${m}" failed: ${describeAIError(error)} — trying next`);
+      } else {
+        console.error(`[aiPlanner] OpenRouter model "${m}" non-retryable error: ${describeAIError(error)}`);
+        break;
+      }
     }
-    throw new Error(`BlazeAPI unavailable: ${describeAIError(error)}`);
+  }
+
+  if (!hasExplicitModelSelection && shouldTripCircuit(lastError)) {
+    const limits = PROVIDER_LIMITS.blazeapi;
+    circuit.openUntil = Date.now() + limits.cooldown;
+    circuit.reason = describeAIError(lastError);
+    aiCircuitOpenUntil = circuit.openUntil;
+    aiCircuitReason = circuit.reason;
+  }
+  throw new Error(`OpenRouter unavailable: ${describeAIError(lastError)}`);
+}
+
+async function callBlazeAPI(prompt, maxTokens, timeoutMs, model, hasExplicitModelSelection, circuit) {
+  const cfg = getBlazeAPIConfig();
+  if (!cfg.apiKey) throw new Error('BLAZEAPI_API_KEY not set');
+
+  // Build the try-order: cached working model first, then requested model, then fallback chain
+  const preferred = workingBlazeAPIModel || model || cfg.defaultModel;
+  const modelsToTry = buildBlazeAPIModelChain(preferred);
+
+  console.log(`[aiPlanner] BlazeAPI → ${modelsToTry.join(' → ')} (max_tokens=${maxTokens}, timeout=${timeoutMs}ms)`);
+
+  let lastError;
+  for (const m of modelsToTry) {
+    try {
+      const result = await callOpenAICompatible(cfg.baseURL, cfg.apiKey, m, prompt, maxTokens, timeoutMs);
+      // Success — reset circuit, cache model, return
+      lastAiVia = 'blazeapi';
+      circuit.openUntil = 0;
+      circuit.reason = '';
+      aiCircuitOpenUntil = 0;
+      aiCircuitReason = '';
+      workingBlazeAPIModel = m;
+      return result;
+    } catch (error) {
+      const msg = String(error?.message || error || '');
+      const isGatewayError = /502|503|gateway|upstream|retrying|sentinel|unavailable/i.test(msg);
+      lastError = error;
+
+      if (isGatewayError) {
+        console.warn(`[aiPlanner] BlazeAPI model "${m}" failed: ${describeAIError(error)} — trying next model`);
+      } else {
+        console.error(`[aiPlanner] BlazeAPI model "${m}" non-retryable error: ${describeAIError(error)}`);
+        break;
+      }
+    }
+  }
+
+  // Last resort: try through FastAPI service (Render) — may have different config
+  try {
+    console.warn(`[aiPlanner] All BlazeAPI models failed, trying FastAPI fallback...`);
+    const result = await callFastAPICompatible(prompt, maxTokens, 120_000);
+    lastAiVia = 'blazeapi';
+    circuit.openUntil = 0;
+    circuit.reason = '';
+    aiCircuitOpenUntil = 0;
+    aiCircuitReason = '';
+    return result;
+  } catch (fastapiError) {
+    console.error(`[aiPlanner] FastAPI fallback also failed: ${describeAIError(fastapiError)}`);
+    lastError = fastapiError;
+  }
+
+  if (!hasExplicitModelSelection && shouldTripCircuit(lastError)) {
+    const limits = PROVIDER_LIMITS.blazeapi;
+    circuit.openUntil = Date.now() + limits.cooldown;
+    circuit.reason = describeAIError(lastError);
+    aiCircuitOpenUntil = circuit.openUntil;
+    aiCircuitReason = circuit.reason;
+  }
+  throw new Error(`BlazeAPI unavailable: ${describeAIError(lastError)}`);
+}
+
+/** Last-resort AI fallback: route through the FastAPI service (Render). */
+async function callFastAPICompatible(prompt, maxTokens, timeoutMs) {
+  const baseURL = (process.env.FASTAPI_BASE_URL || 'https://the-teacher.onrender.com').replace(/\/+$/, '');
+  const url = `${baseURL}/ai/completions`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  const systemPrompt = `You are an expert curriculum designer producing accurate educational content.
+
+ABSOLUTE RULES:
+1. ACCURACY: Only use facts from the source material. NEVER invent information.
+2. NO REPETITION: Never repeat the same sentence or idea twice.
+3. VARIED LANGUAGE: Use diverse vocabulary.
+4. COMPLETENESS: Cover every concept from the source thoroughly.
+5. Return raw valid JSON only. No markdown fences, no explanation outside the JSON.`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt,
+        system_prompt: systemPrompt,
+        max_tokens: maxTokens,
+        temperature: 0.5,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      throw new Error(`FastAPI ${response.status}: ${errText.slice(0, 200)}`);
+    }
+
+    const data = await response.json();
+    const content = data.content;
+    if (!content) throw new Error('FastAPI returned empty response');
+
+    // FastAPI returns raw content, not wrapped in chat.completion format
+    const sentinel = detectGatewaySentinel(content);
+    if (sentinel) throw new Error(`FastAPI gateway sentinel: ${sentinel}`);
+
+    const parsed = parseJSON(content);
+    console.log(`[aiPlanner] <<< OK FastAPI model=${data.model} promptLen=${prompt.length}`);
+    return parsed;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -4622,8 +4803,8 @@ async function callOpenAICompatible(baseURL, apiKey, model, prompt, maxTokens, t
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-  const isDeepSeek = baseURL.includes('deepseek');
-  const isThinkingModel = model.includes('thinking') || model.includes('reasoner');
+  const isDeepSeek = baseURL.includes('deepseek') || model.includes('deepseek');
+  const isThinkingModel = isDeepSeek || model.includes('thinking') || model.includes('reasoner');
 
   const systemPrompt = isDeepSeek
     ? `You are an expert curriculum designer and professional teacher producing accurate educational content.
@@ -4653,22 +4834,24 @@ ABSOLUTE RULES:
 
   const url = `${baseURL.replace(/\/$/, '')}/chat/completions`;
   console.log(`[aiPlanner] -> POST ${url} model=${model} max_tokens=${tokenBudget} promptLen=${prompt.length}`);
-  try {
+
+  async function tryRequest(useSystemMsg) {
+    const msgs = useSystemMsg
+      ? [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt },
+        ]
+      : [
+          { role: 'user', content: `[System Instructions]\n${systemPrompt}\n\n${prompt}` },
+        ];
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: prompt },
-        ],
-        temperature,
-        max_tokens: tokenBudget,
-      }),
+      body: JSON.stringify({ model, messages: msgs, temperature, max_tokens: tokenBudget }),
       signal: controller.signal,
     });
 
@@ -4678,13 +4861,14 @@ ABSOLUTE RULES:
       throw new Error(`HTTP ${response.status}: ${errText.slice(0, 200)}`);
     }
 
-    const data = await readChatCompletion(response);
-    const rawContent = data.choices?.[0]?.message?.content;
-    // Guard: upstream gateways (e.g. Grok proxy) sometimes return a plain-English
-    // STATUS string as the message content when the real model failed upstream
-    // — e.g. "...is retrying with a simplified prompt after an upstream failure".
-    // That text must NEVER reach the lesson. Treat it as a hard failure so the
-    // race/retry logic falls through to a different model.
+    return readChatCompletion(response);
+  }
+
+  let data;
+  let rawContent;
+  try {
+    data = await tryRequest(true);
+    rawContent = data.choices?.[0]?.message?.content;
     const sentinel = detectGatewaySentinel(rawContent);
     if (sentinel) {
       console.error(`[aiPlanner] gateway sentinel from ${model}: "${sentinel}"`);
@@ -4693,6 +4877,19 @@ ABSOLUTE RULES:
     const parsed = parseJSON(rawContent);
     console.log(`[aiPlanner] <<< OK ${model} finish=${data.choices?.[0]?.finish_reason} usage=${JSON.stringify(data.usage || {})}`);
     return parsed;
+  } catch (err) {
+    if (err.message.includes('Something answered that wasn') && !err._retried) {
+      console.log(`[aiPlanner] Model ${model} rejected system message, retrying without...`);
+      err._retried = true;
+      data = await tryRequest(false);
+      rawContent = data.choices?.[0]?.message?.content;
+      const sentinel = detectGatewaySentinel(rawContent);
+      if (sentinel) throw new Error(`Upstream gateway error (model=${model}): ${sentinel}`);
+      const parsed = parseJSON(rawContent);
+      console.log(`[aiPlanner] <<< OK ${model} finish=${data.choices?.[0]?.finish_reason} usage=${JSON.stringify(data.usage || {})}`);
+      return parsed;
+    }
+    throw err;
   } finally {
     clearTimeout(timer);
   }
