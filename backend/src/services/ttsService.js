@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { SpeechifyClient } from '@speechify/api';
 
 /**
  * Synthesize narration text to audio bytes.
@@ -10,21 +11,187 @@ import axios from 'axios';
 export async function synthesize(text, partId) {
   const provider = process.env.TTS_PROVIDER || 'none';
 
+  // Enhance the narration for speech before passing to any TTS provider
+  const enhanced = enhanceNarrationForSpeech(text);
+
+  // Truncate to TTS character limit (Speechify max ~2000, others similar)
+  const tts = truncateToLimit(enhanced, 2000);
+  if (tts.length < enhanced.length) {
+    console.warn(`[tts] Narration truncated from ${enhanced.length} to ${tts.length} chars for TTS`);
+  }
+
+  if (provider === 'speechify' && process.env.SPEECHIFY_API_KEY) {
+    return synthesizeSpeechify(tts);
+  }
   if (provider === 'elevenlabs' && process.env.ELEVENLABS_API_KEY) {
-    return synthesizeElevenLabs(text);
+    return synthesizeElevenLabs(tts);
   }
   if (provider === 'azure' && process.env.AZURE_SPEECH_KEY) {
-    return synthesizeAzure(text);
+    return synthesizeAzure(tts);
   }
   return null;
 }
 
+/**
+ * Truncate text to fit within a character limit, breaking at the last
+ * sentence boundary ( . ! ? ) within the limit so speech doesn't cut off
+ * mid-sentence. If no sentence boundary is found, breaks at last space.
+ */
+function truncateToLimit(text, limit) {
+  if (!text || text.length <= limit) return text || '';
+  const sliced = text.slice(0, limit);
+  // Try to find the last sentence-ending punctuation within the slice
+  const lastSentenceEnd = Math.max(
+    sliced.lastIndexOf('. '),
+    sliced.lastIndexOf('! '),
+    sliced.lastIndexOf('? '),
+    sliced.lastIndexOf('.\n'),
+    sliced.lastIndexOf('!\n'),
+    sliced.lastIndexOf('?\n'),
+    // Also catch punctuation at the very end of the slice boundary
+    sliced.endsWith('.') ? limit - 1 : -1,
+    sliced.endsWith('!') ? limit - 1 : -1,
+    sliced.endsWith('?') ? limit - 1 : -1,
+  );
+  if (lastSentenceEnd > limit * 0.5) {
+    return sliced.slice(0, lastSentenceEnd + 1);
+  }
+  // Fallback: break at the last space
+  const lastSpace = sliced.lastIndexOf(' ');
+  if (lastSpace > limit * 0.5) {
+    return sliced.slice(0, lastSpace) + '...';
+  }
+  // Last resort: hard break
+  return sliced + '...';
+}
+
+/**
+ * Enhance narration text for spoken delivery — adds teacher-like conversational
+ * framing so the TTS output sounds like a real teacher explaining, not a text
+ * block being read verbatim.
+ *
+ * Transformations applied (rule-based — no extra AI call):
+ *   - Conversational openers if the text starts cold
+ *   - Expand bullet-list / colon-delineated patterns into flowing prose
+ *   - Insert natural transition phrases between sentences
+ *   - Expand common abbreviations for better speech clarity
+ *
+ * @param {string} text - The original narration / caption text
+ * @param {object} [ctx] - Optional context { topic, segment, isFirstBoard }
+ * @returns {string} Enhanced narration suitable for TTS
+ */
+export function enhanceNarrationForSpeech(text, ctx = {}) {
+  if (!text || typeof text !== 'string') return text || '';
+
+  let t = text.trim();
+  if (!t) return t;
+
+  const { topic } = ctx;
+
+  // ── 1. Expand common abbreviations ───────────────────────────────────────────
+  const ABBREVIATIONS = {
+    'e\\.g\\.': 'for example',
+    'i\\.e\\.': 'in other words',
+    'etc\\.?': 'and so on',
+    'vs\\.?': 'versus',
+    'w\\/': 'with',
+    'w\\/o': 'without',
+    'aka ': 'also known as ',
+    'a\\.k\\.a\\.': 'also known as',
+  };
+  for (const [pattern, replacement] of Object.entries(ABBREVIATIONS)) {
+    t = t.replace(new RegExp(pattern, 'gi'), replacement);
+  }
+
+  // ── 2. Turn "Key: value" / "Term: definition" patterns into spoken sentences
+  //     e.g. "Inheritance: a mechanism…" → "Inheritance is a mechanism…"
+  t = t.replace(/^([A-Z][a-zA-Z]+(?: [A-Z][a-zA-Z]+)?):\s+/gm, '$1 is ');
+
+  // ── 3. Convert numbered / bullet lists into flowing prose
+  //     "1. First step. 2. Second step." → "First, first step. Second, second step."
+  if (/^\d+\.\s/m.test(t)) {
+    t = t.replace(/^(\d+)\.\s+/gm, (_m, n) => {
+      const words = ['First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh', 'Eighth', 'Ninth', 'Tenth'];
+      const idx = parseInt(n, 10) - 1;
+      return idx < words.length ? `${words[idx]}, ` : `Next, `;
+    });
+  }
+
+  // ── 4. Convert dash/asterisk bullet lists into flowing prose
+  t = t.replace(/^[-*]\s+/gm, '• ');
+
+  // ── 5. Add conversational opener if text starts cold (no greeting/transition)
+  //     Openers ending with sentence punctuation (. ! ?) keep the original
+  //     capitalisation — a new sentence starts. Openers ending with a comma /
+  //     colon / dash flow into the clause, so the first letter is lowercased.
+  if (!startsConversationally(t)) {
+    const openers = [
+      topic ? `Let me explain ${topic}. ` : null,
+      'Here\'s what you need to know. ',
+      'Let me break this down. ',
+      'So here\'s the key idea. ',
+    ].filter(Boolean);
+    const lead = openers[Math.abs(hashStr(t)) % openers.length];
+    if (/[.!?]$/.test(lead.trim())) {
+      t = lead + t.charAt(0).toUpperCase() + t.slice(1);
+    } else {
+      t = lead + t.charAt(0).toLowerCase() + t.slice(1);
+    }
+  }
+
+  // ── 6. Ensure text ends with sentence-ending punctuation for natural pause
+  if (!/[.!?]/.test(t.charAt(t.length - 1))) {
+    t += '.';
+  }
+
+  return t;
+}
+
+function startsConversationally(s) {
+  return /^(first|okay|ok\\b|so\\b|now\\b|let'?s|let’s|here'?s|here’s|think|imagine|notice|remember|to (recap|wrap|sum)|next\\b|finally|alright|right,|well,|picture|consider|say\\b|suppose|let me|i\'?ll|what|how|why|in this)/i.test(
+    String(s || '').trim()
+  );
+}
+
+function hashStr(s) {
+  let h = 0;
+  const str = String(s || '');
+  for (let i = 0; i < str.length; i++) { h = ((h << 5) - h + str.charCodeAt(i)) | 0; }
+  return Math.abs(h);
+}
+
+// ── Speechify TTS ─────────────────────────────────────────────────────────────
+async function synthesizeSpeechify(text) {
+  const apiKey = process.env.SPEECHIFY_API_KEY;
+  const voiceId = process.env.SPEECHIFY_VOICE_ID || 'henry';
+  const model = process.env.SPEECHIFY_MODEL || 'simba-english';
+  const audioFormat = process.env.SPEECHIFY_AUDIO_FORMAT || 'mp3';
+
+  // Use the Speechify SDK
+  const client = new SpeechifyClient({ token: apiKey });
+
+  const response = await client.audio.speech({
+    input: text,
+    voice_id: voiceId,
+    model: model,
+    audio_format: audioFormat,
+  });
+
+  // The SDK returns base64-encoded audio_data; decode to Buffer
+  return Buffer.from(response.audio_data, 'base64');
+}
+
+// ── ElevenLabs TTS (unchanged) ────────────────────────────────────────────────
 async function synthesizeElevenLabs(text) {
   const voiceId = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM';
   const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
   const response = await axios.post(
     url,
-    { text, model_id: 'eleven_monolingual_v1', voice_settings: { stability: 0.5, similarity_boost: 0.75 } },
+    {
+      text,
+      model_id: 'eleven_monolingual_v1',
+      voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+    },
     {
       headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
       responseType: 'arraybuffer',
@@ -34,6 +201,7 @@ async function synthesizeElevenLabs(text) {
   return Buffer.from(response.data);
 }
 
+// ── Azure TTS (unchanged) ─────────────────────────────────────────────────────
 async function synthesizeAzure(text) {
   const region = process.env.AZURE_SPEECH_REGION || 'eastus';
   const tokenUrl = `https://${region}.api.cognitive.microsoft.com/sts/v1.0/issueToken`;

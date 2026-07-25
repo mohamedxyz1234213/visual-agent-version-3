@@ -5,7 +5,11 @@ import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { connectDB } from './db.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ── Existing Whiteboard Routes ────────────────────────────────────────────────
 import uploadRouter from './routes/upload.js';
@@ -43,6 +47,10 @@ const PORT = process.env.PORT || 8000;
 if (process.env.TRUST_PROXY === 'true') {
   app.set('trust proxy', 1);
 }
+
+// ── Serve local audio files (TTS fallback when S3/R2 is not configured) ─────
+const publicDir = path.resolve(__dirname, '..', 'public');
+app.use('/audio', express.static(path.join(publicDir, 'audio')));
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:3001,http://localhost:3002')

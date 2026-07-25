@@ -139,6 +139,8 @@ export default function Whiteboard({
   width = 800,
   height = 500,
   zoom = 1,
+  onSandboxOpen,
+  onSandboxResult,
 }: WhiteboardProps) {
   const [visible, setVisible] = useState<RenderedEl[]>([]);
   const [camera, setCamera] = useState<CameraState>({ zoom: 1, offsetX: 0, offsetY: 0, transition: 'none' });

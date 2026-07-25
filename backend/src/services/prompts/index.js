@@ -31,12 +31,49 @@ recap            | Key takeaways the student must remember.
 Script tone: conversational, warm, contractions, rhetorical questions. Sound like a tutor — never a textbook.
 Never open with "Today we will learn..." or a bare definition.
 
-EXPLANATION ↔ VISUAL LOCK:
-- Every sentence in "say" must justify a specific drawn element appearing on the board.
-- Every drawn element must correspond to a phrase you are saying as it appears.
-- If you say "arrow," the relationship is being drawn while you say it.
+SPOKEN NARRATION (critical for TTS audio):
+Every "say" line will be read aloud by a text-to-speech voice. Write for the ear, not
+the eye. Use natural pauses, varied sentence length, and teacher-like interjections
+("right?", "here's the thing", "think about this", "so here's what happens").
+Avoid dense clauses, stacked modifiers, and anything that sounds like a Wikipedia
+summary read cold. If a student heard it with eyes closed, they should feel like a
+real teacher is in the room explaining just to them.
+
+EXPLANATION ↔ VISUAL LOCK (THIS IS THE MOST CRITICAL RULE):
+Every sentence you write in "say" must DIRECTLY describe something being drawn on the
+board at that exact moment. The student sees AND hears the same idea simultaneously.
+
+SENTENCE-BY-SENTENCE COUPLING — write your "say" like this:
+  Sentence 1: "Here's the key part — the chloroplast."         → Board draws: CHLOROPLAST icon/label appears
+  Sentence 2: "It's where sunlight gets captured."              → Board draws: SUNLIGHT arrow pointing to chloroplast
+  Sentence 3: "The energy splits water molecules apart."       → Board draws: H2O molecule breaking into H+ and O2
+
+Every sentence maps to ONE visual action. NEVER write three sentences of narration
+while only one thing draws — the student sees nothing new for 6 seconds and the
+screen feels frozen. ALTERNATE: say a phrase, something draws, say the next phrase,
+something new draws.
+
+RULES:
+- Each "say" sentence = one drawn element appearing. Pair them 1:1.
+- Every drawn element (box, arrow, label, diagram part) must be mentioned in "say"
+  at the moment it appears. Nothing draws silently.
+- If you say "arrow," the arrow is being drawn right then. Not before. Not after.
+- If you say "compare," two items are side by side on the board right then.
+- The board NEVER shows text you haven't just said, and you NEVER say text that
+  isn't appearing on the board.
 - Keywords on the board; full teaching lives in "say" (captions the student reads).
 - Max 5 unrelated concepts visible on one board. Clear between major shifts.
+
+BEFORE writing each board_scene, PLAN the coupling:
+  say[1]: "Let me show you the mitochondrion."
+    → draw: mitochondrion icon appears
+  say[2]: "This is where the cell makes its energy."
+    → draw: label "Powerhouse" attaches to the icon
+  say[3]: "It burns glucose to create ATP."
+    → draw: glucose arrow → mitochondrion, ATP exits
+
+If a say sentence has no corresponding visual, DELETE IT or merge it into another
+sentence. Every spoken word justifies a mark on the board.
 
 EQUATIONS & STEP-BY-STEP (math, chemistry, physics — first-class):
 - One board_scene PER transformation — never skip algebra or combine two operations.
@@ -214,8 +251,23 @@ You receive:
 
 YOUR TASK — edit the visuals while composing:
 1. Fix every issue listed under ISSUES DETECTED
-2. Rewrite each board_scene's "say" to 2-4 rich sentences (35-90 words) that TEACH:
-   explain the concept, give a concrete example, and say why it matters
+2. Rewrite each board_scene's "say" to 2-5 rich spoken sentences (40-120 words) that TEACH:
+   explain the concept, give a concrete example, and say why it matters.
+   Write these for TTS delivery: conversational tone, contractions, rhetorical questions,
+   and natural transitions between sentences. Each beat's "say" should bridge smoothly
+   into the next beat's "say" so the full lesson narration flows like one continuous
+   teacher explanation rather than disconnected paragraphs. Read the "say" aloud to
+   check it sounds natural when spoken.
+
+   CRITICAL — SAY-TO-VISUAL COUPLING IN THIS PASS:
+   While rewriting "say", also update the scene's drawn slot data so every sentence
+   in "say" has a matching visual element in the slots:
+     - say mentions "nucleus" → labels[] or headline or points[] must include "nucleus"
+     - say walks through 3 steps → steps[] must have 3 entries in the same order
+     - say compares two things → columns[] or pros/cons must have both items
+   The drawn slots are what the template renders as visible boxes/text on the board.
+   If "say" talks about it but no slot carries it, the student HEARS it but never
+   SEES it — that's a broken coupling. Fix both together.
 3. Vary intents across beats — NEVER use the same define→process→recap pattern as other
    parts. Mix: map, cause, timeline, formula, data, cycle, cluster, compare, example
 4. For science/biology/chemistry/physics/medical topics: include at least one "map"
@@ -262,6 +314,13 @@ YOUR TASK — edit the visuals while composing:
      give a concrete example → contrast or common mistake → recap.
    Each beat builds on the previous one; the recap should reference the terms you
    introduced. Don't front-load everything on board 1; reveal one idea per beat.
+
+8d. SIMPLE EXPLANATIONS: teach every concept as if explaining to someone who has
+    never heard of it. Define each new term in plain language the first time it
+    appears. Use an everyday analogy or comparison in at least one beat per part.
+    "Jargon Definition Rule": every technical term that appears in a drawn slot
+    must be defined in plain language in the "say" of the same beat or the one
+    immediately before it.
 9. Create 5-7 board_scenes per part. First beat = hook + objective. Last = recap.
 10. Optionally set "template" to steer layout when you know the best fit:
     labeled_science_diagram | figure_with_facts | icon_pipeline | distributed_arrow_flow |
@@ -291,6 +350,7 @@ ANTI-PATTERNS TO ELIMINATE:
 - Same intent sequence as prior parts in this lesson
 - define used for every beat
 - Missing diagram when the topic is visual (anatomy, structure, mechanism, equation)
+- Textbook-like narration that sounds read rather than spoken
 
 Return ONLY valid JSON:
 {
@@ -298,7 +358,7 @@ Return ONLY valid JSON:
     {
       "intent": "define|compare|process|hierarchy|timeline|cause|data|cluster|cycle|example|recap|formula|map|sandbox",
       "goal": "what this board teaches",
-      "say": "2-4 rich spoken sentences — REQUIRED",
+      "say": "2-5 rich spoken sentences — REQUIRED",
       "template": "optional template id",
       "add": [{ "kind": "callout", "text": "optional extra block", "region": "right" }],
       "remove": ["optional category e.g. decoration"],
@@ -367,6 +427,8 @@ QUALITY BAR
 - Every visual element must improve understanding of the specific concept being taught.
 - The student should feel progressive "aha" moments, not information overload.
 - Narration should sound like a teacher TALKING, not reading from a textbook.
+- Does each "say" beat transition naturally into the next when read consecutively?
+- Would the narration still make sense and sound engaging if heard without the visuals?
 
 WHITEBOARD SCENE GENERATION (CRITICAL - THIS IS HOW YOU CREATE VISUALS)
 Instead of using visual_logic, you MUST use the board_scenes array to create whiteboard visuals.
@@ -503,7 +565,76 @@ THE "say" FIELD IS THE MOST IMPORTANT PART — READ CAREFULLY:
 - The part's narration is every board's "say" joined in order, so the audio and
   the drawing advance together: board N is drawn exactly while its "say" is
   spoken. Make each "say" flow naturally into the next so it reads as one lesson.
-- Make "say" accurate, specific to THIS concept, and free of filler. 1-3 sentences.
+- Make "say" accurate, specific to THIS concept, and free of filler. 2-5 sentences.
+
+SAY-TO-VISUAL COUPLING — HOW TO WRITE "say" SO THE BOARD MATCHES PERFECTLY:
+Each sentence in "say" IS what appears on the board at that moment. The student
+sees the visual appear WHILE you speak the sentence that describes it.
+
+  ✓ Sentence 1 names the main element → provide "headline" or "center" field
+  ✓ Sentence 2 explains its role → provide "definition" or "detail" text
+  ✓ Sentence 3 gives the mechanism → provide "steps" or "points" list
+  ✓ Sentence 4 gives a concrete example → provide an "example" or "outcome"
+  ✓ Sentence 5 summarizes/reinforces → provide "recap" or "takeaway" text
+
+For a "process" beat, write say that walks through each step IN ORDER:
+  say[1]: "First, the CPU fetches the instruction from memory." → steps[0] = "Fetch"
+  say[2]: "Then it decodes that instruction to understand what to do." → steps[1] = "Decode"
+  say[3]: "Finally, it executes the instruction and writes the result." → steps[2] = "Execute"
+
+For a "map" beat with a labeled diagram:
+  say[1]: "Here's the animal cell. The nucleus is the control center." → diagram + labels[0]
+  say[2]: "Mitochondria float in the cytoplasm and produce energy." → labels[1]
+  say[3]: "The ribosomes are tiny dots that build proteins." → labels[2]
+
+Your drawn slot data MUST contain the exact nouns your "say" sentences describe.
+If "say" talks about "mitochondria", then "labels" MUST include "Mitochondria".
+If "say" walks through "Step 1", then "steps" MUST have a matching step.
+The drawn text and the spoken text must reference the SAME things in the SAME order.
+
+WRITE IN THIS ORDER (do this mentally before generating JSON):
+  1. Decide what 3-5 things will APPEAR on the board
+  2. Write the slot data (headline, points, steps, labels) that makes those appear
+  3. Write the "say" narration that describes each thing AS it appears
+  4. Verify every slot item has a "say" sentence mentioning it
+  5. Verify every "say" sentence references at least one slot item
+
+TTS-OPTIMIZED SPEECH (do this for every "say"):
+Every "say" line will be read aloud by a speech engine. Write it for spoken delivery
+— not a textbook page. Each sentence should sound like a real teacher explaining to
+a student sitting next to them.
+
+  ✓ Use contractions (don't, it's, here's, let's, that'll, you've)
+  ✓ Lead each beat with a hook, rhetorical question, or curiosity builder
+  ✓ Include a concrete example or analogy woven into the narration
+  ✓ Use natural transitions within and between sentences ("so…", "here's what that
+    means…", "and the key is…", "now here's where it gets interesting…")
+  ✓ Vary sentence length: short for emphasis, longer for explanation
+  ✓ End each scene's "say" with a forward-looking bridge to the next beat
+    ("now that we have that down, let's see what happens when…")
+  ✗ Avoid dense clauses, stacked modifiers, nested lists, or complex punctuation
+  ✗ Avoid language that sounds like a reference entry ("X is defined as…")
+  ✗ Don't start every sentence the same way — mix openings
+  ✗ No academic deadwood ("it should be noted that", "it is important to
+    understand that", "in order to", "due to the fact that")
+  ✗ Never use "we will learn about" or "in this section" or "this lesson covers"
+
+The speech output uses Speechify TTS, so think "teacher talking out loud to one
+student who needs to get this" — warm, patient, and crystal clear.
+
+HOW "say" CONNECTS ACROSS BEATS (for seamless TTS continuity):
+The part's narration = every board's "say" joined in order. When listened to as a
+continuous audio track, the scenes should feel like one flowing lesson — not
+disconnected paragraphs. Each beat's "say" should end with a brief hook into the
+next beat's opening so the audio never sounds chopped up.
+
+  Beat 1 (hook): "Have you ever noticed how X works? Let me show you."
+  Beat 2 (core):  "So here's the basic idea. X works by…"
+  Beat 3 (mechanism): "Now let's see how that actually plays out…"
+  Beat 4 (recap):  "So to bring it all together, remember that…"
+
+Read your "say" sentences aloud to yourself before finalizing. If they don't sound
+natural when spoken, rewrite them until they do.
 
 EXAMPLE - Teaching "Photosynthesis" (note how "say" carries the teaching and the
 drawn slots stay short, and how the beats open with a hook+objective and close
@@ -550,8 +681,10 @@ board_scenes: [
 CRITICAL RULES FOR board_scenes:
 1. Create 5-7 board_scenes per content part (one per teaching beat) — never fewer than 4
 2. EVERY board_scene MUST include a "say" — the spoken teacher line for that beat
-3. Each "say" MUST be 2-4 full sentences (35-90 words) with real explanation, examples,
-   and "why it matters" — NOT one-liners. The student reads captions derived from "say".
+3. Each "say" MUST be 2-5 full sentences (40-120 words) with real explanation, concrete
+   examples, and "why it matters" — NOT one-liners. Write each sentence conversationally
+   so it flows naturally when spoken aloud by TTS. Read it aloud to yourself — if it
+   sounds stiff or textbook-like, rewrite it.
 4. TEACHING ARC: the FIRST beat opens with a hook + learning objective; the LAST is recap
 5. Each scene teaches ONE focused idea with a concrete example or analogy
 6. Vary the intents — never use define→process→recap for every part
@@ -568,6 +701,12 @@ CRITICAL RULES FOR board_scenes:
 13. For programming/coding topics, include at least one sandbox_question scene per
     part where students write real code. Set intent="sandbox" and provide a "sandbox"
     object with title, instructions, language, starterCode, and 2-4 testCases.
+14. SIMPLE, CLEAR EXPLANATIONS: teach like you're explaining to a 12-year-old.
+    Define every jargon term the first time it appears. Use analogies from everyday
+    life ("think of it like a post office — letters go in, letters come out").
+    Never assume prior knowledge. If a concept needs 3 sentences to click, write 3.
+    Simple ≠ dumb. Simple means the student never has to re-read a sentence to
+    understand it. Each "say" sentence = one idea, clearly stated, in spoken language.
 
 OUTPUT CONTRACT
 Return ONLY valid JSON with this schema:
@@ -590,7 +729,7 @@ Return ONLY valid JSON with this schema:
           "segment": "hook|prerequisite|core|mechanism|example|reinforcement|recap",
           "intent": "define|compare|process|hierarchy|timeline|cause|data|cluster|cycle|example|recap|formula|map|sandbox",
           "goal": "what this board teaches",
-          "say": "2-4 spoken sentences for this beat — REQUIRED",
+          "say": "2-5 spoken sentences for this beat — REQUIRED",
           "headline": "main concept",
           "points": ["short keyword anchor", "short keyword anchor", "short keyword anchor"],
           "focus": "optional zoom target"
@@ -637,12 +776,18 @@ Return ONLY valid JSON with this schema:
 
 Before finalizing, internally verify (quality gates):
 - First board_scene segment=hook (not define)?
-- Every "say" drives a visual; every visual has matching "say"?
+- Every "say" sentence maps to one drawn element (sentence-by-sentence coupling)?
+- Every drawn visual on this board is mentioned in "say" at its appear moment?
 - Segment arc complete: hook → core → mechanism → example → recap?
 - Visual variety between parts?
 - STEM: diagram before derivation, one beat per step?
+- Every "say" written for TTS (conversational and read-aloud natural)?
+- Narration arc flows smoothly from one beat to the next?
+- If a student closed their eyes and only listened, would this sound like a real teacher?
+- Does a 12-year-old understand every sentence without re-reading?
+- Is every jargon term defined before it's used in a later sentence?
 
-If not, improve it before returning the JSON.`; 
+If any check fails, improve the output before returning the JSON.`; 
 
 export const TOPIC_SCAFFOLD_PROMPT = `You are preparing a lesson for a direct topic request. Use accurate mainstream educational knowledge and return raw JSON only.
 

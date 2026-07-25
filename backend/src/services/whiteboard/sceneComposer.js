@@ -169,26 +169,46 @@ function enrichData(intent, data, ctx) {
     if (!d[k]) d[k] = anchorVal;
   }
 
-  // BACKFILL only a SINGLE primary content panel from the beat's narration so a
-  // template's main definition/takeaway region isn't empty. We deliberately do
-  // NOT spray narration across many slots or into list-item details: the board
-  // shows keyword ANCHORS, the full teaching lives in the spoken `say`. Reusing
-  // sentences across slots is what produced the "super duplicated, no meaning"
-  // on-board text — so each sentence is consumed at most once and we stop as
-  // soon as we run out.
+  // BACKFILL multiple primary content panels from the beat's narration so the
+  // board actually shows what's being said. Each sentence from `say` populates
+  // one missing slot, consumed in order, so the drawn text mirrors the spoken
+  // explanation beat by beat — the first say sentence becomes the definition,
+  // the second becomes the takeaway, the third becomes the outcome, etc.
+  // Sentences under 18 chars are too short to be meaningful drawn text and are
+  // skipped (they're transitions like "Now let's see" that don't carry content).
+  // This replaces the earlier "one sentence only" approach that left boards
+  // empty when the AI wrote rich narration but thin slot data.
   const sentences = String(ctx.say || '')
     .split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter((s) => s.length > 18);
   if (sentences.length) {
     let si = 0;
     const next = () => (si < sentences.length ? sentences[si++] : undefined);
-    // Fill at most one genuinely-empty primary slot, in priority order. Once a
-    // sentence is placed, later slots stay empty (templates prune them).
+    // Fill empty primary slots in order — each slot gets the next unused
+    // sentence from the narration. This ensures the board's drawn content
+    // mirrors the spoken explanation: first sentence → definition, second →
+    // takeaway, third → outcome/answer/example/sub, building a visual
+    // narrative that matches the narration.
     for (const slot of ['definition', 'takeaway', 'outcome', 'answer', 'example', 'problem', 'sub']) {
       if (!d[slot]) {
         const s = next();
         if (s) d[slot] = s;
-        break;
       }
+    }
+    // If any say sentences are left unused, extract short keyword-anchor
+    // phrases (≤8 words) from them and add as points, so the board shows
+    // scannable keyword anchors that also mirror the narration.
+    let remaining = 0;
+    for (let i = si; i < sentences.length; i++) remaining++;
+    if (remaining && (!Array.isArray(d.points) || !d.points.length)) {
+      const extras = [];
+      while (si < sentences.length) {
+        const s = sentences[si++];
+        const words = s.split(/\s+/).filter(Boolean);
+        if (words.length <= 8) { extras.push(s.replace(/[.!?,;:]+$/, '').trim()); }
+        else { extras.push(words.slice(0, 6).join(' ') + '…'); }
+        if (extras.length >= 3) break;
+      }
+      if (extras.length) d.points = extras;
     }
   }
 

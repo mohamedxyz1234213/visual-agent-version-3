@@ -125,7 +125,7 @@ export async function getExamAnalytics(examId: string): Promise<ExamAnalytics> {
   return request(`/teacher/exams/${examId}/analytics`);
 }
 
-export async function generateAILesson(topic: string, subjectId?: string, difficulty?: string, duration?: number, style?: string): Promise<{ lesson: any }> {
+export async function generateAILesson(topic: string, subjectId?: string, difficulty?: string, duration?: number, style?: string): Promise<{ id: string; series_id: string; topic: string; status: string; parts_count: number }> {
   return request("/ai/generate-lesson", { method: "POST", body: JSON.stringify({ topic, subjectId, difficulty, duration, style }) });
 }
 

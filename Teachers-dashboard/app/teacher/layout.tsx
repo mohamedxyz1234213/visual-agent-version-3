@@ -14,7 +14,6 @@ const teacherNavItems = [
   { label: "Add Students", href: "/teacher/registration-requests", icon: "users" },
   { label: "Lesson Paths", href: "/teacher/lesson-paths", icon: "book" },
   { label: "AI Lessons", href: "/teacher/ai-lessons", icon: "robot" },
-  { label: "Lessons", href: "/teacher/lessons", icon: "file-text" },
   { label: "Exercises", href: "/teacher/exercises", icon: "code" },
   { label: "Exams", href: "/teacher/exams", icon: "clipboard" },
   { label: "Challenges", href: "/teacher/challenges", icon: "trophy" },

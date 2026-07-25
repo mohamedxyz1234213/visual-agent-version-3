@@ -35,6 +35,18 @@ import type { DashboardLesson } from "@/lib/types";
 
 export default function StudentDashboard() {
   const { data, loading } = useStudentDashboard();
+
+  // ── Hooks MUST be before any early return (React hook rule) ──────────────
+  const [wbLessons, setWbLessons] = useState<DashboardLesson[]>([]);
+  const [wbLoading, setWbLoading] = useState(true);
+
+  useEffect(() => {
+    fetchDashboard({ page: 1, limit: 4, sort: "recent" })
+      .then((res) => setWbLessons(res.lessons))
+      .catch(() => {})
+      .finally(() => setWbLoading(false));
+  }, []);
+
   const s = data?.student || {
     id: '',
     studentCode: '',
@@ -91,16 +103,6 @@ export default function StudentDashboard() {
   const todayIdx = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
 
   // ── Recent Whiteboard Lessons ──────────────────────────────────────────────
-  const [wbLessons, setWbLessons] = useState<DashboardLesson[]>([]);
-  const [wbLoading, setWbLoading] = useState(true);
-
-  useEffect(() => {
-    fetchDashboard({ page: 1, limit: 4, sort: "recent" })
-      .then((res) => setWbLessons(res.lessons))
-      .catch(() => {})
-      .finally(() => setWbLoading(false));
-  }, []);
-
   return (
     <div className="space-y-4">
       {/* Student ID Banner */}
