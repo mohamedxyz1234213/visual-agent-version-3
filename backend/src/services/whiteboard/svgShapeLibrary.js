@@ -1,4 +1,9 @@
 import { registerProgrammingShapes } from './programmingShapeLibrary.js';
+import { ARROW_CONNECTOR_SHAPES, ARROW_CONNECTOR_ALIASES } from './arrowConnectorLibrary.js';
+import { ARCHITECTURE_SHAPES, ARCHITECTURE_ALIASES } from './programmingArchitectureLibrary.js';
+import { CREATIVE_SHAPES, CREATIVE_ALIASES } from './creativeShapeLibrary.js';
+import { THEMATIC_SHAPES, THEMATIC_ALIASES } from './thematicShapeLibrary.js';
+import { EXPANDED_SHAPES, EXPANDED_ALIASES } from './expandedShapeLibrary.js';
 
 // =============================================================================
 // MASSIVE SVG Shape Library — 500+ educational shapes for whiteboard rendering
@@ -2167,6 +2172,26 @@ if (typeof registerProgrammingShapes === 'function') {
   registerProgrammingShapes(SHAPE_REGISTRY, SHAPE_ALIASES);
 }
 
+// Register arrow/connector shapes (100+)
+Object.assign(SHAPE_REGISTRY, ARROW_CONNECTOR_SHAPES);
+Object.assign(SHAPE_ALIASES, ARROW_CONNECTOR_ALIASES);
+
+// Register architecture shapes (60+)
+Object.assign(SHAPE_REGISTRY, ARCHITECTURE_SHAPES);
+Object.assign(SHAPE_ALIASES, ARCHITECTURE_ALIASES);
+
+// Register creative 3D/artistic shapes (50+)
+Object.assign(SHAPE_REGISTRY, CREATIVE_SHAPES);
+Object.assign(SHAPE_ALIASES, CREATIVE_ALIASES);
+
+// Register thematic scene shapes (45+)
+Object.assign(SHAPE_REGISTRY, THEMATIC_SHAPES);
+Object.assign(SHAPE_ALIASES, THEMATIC_ALIASES);
+
+// Register expanded shape library (200+)
+Object.assign(SHAPE_REGISTRY, EXPANDED_SHAPES);
+Object.assign(SHAPE_ALIASES, EXPANDED_ALIASES);
+
 // =============================================================================
 // RESOLVE — find shape by name with alias support
 // =============================================================================
@@ -2220,13 +2245,16 @@ export function searchShapes(query) {
  */
 export function getShapeCategories() {
   const progShapes = ['flowchart_process','flowchart_decision','flowchart_start','flowchart_end','flowchart_io','server_icon','database_icon','cloud_service','api_box','cache_box','queue_box','firewall','lock_icon','key_icon','shield_icon','stack_icon','linked_list','tree_node','hash_table','http_request','http_response','json_block'];
+  const premiumShapes = ['bst_premium','hashmap_premium','merge_sort_visual','graph_traversal','lru_cache_premium','dp_table_visual','big_o_cheatsheet'];
+  const mlShapes = ['neural_network','decision_tree_ml','svm_diagram','kmeans_clustering','transformer_arch'];
+  const advancedSdShapes = ['event_sourcing','saga_pattern','data_pipeline','two_phase_commit'];
   const dsShapes = ['array_linear','array_2d','linked_list_single','linked_list_double','stack_diagram','queue_diagram','priority_queue','binary_tree','bst_diagram','avl_tree','heap_min','heap_max','trie_diagram','graph_undirected','graph_directed','graph_weighted','adjacency_matrix','bloom_filter','lru_cache','disjoint_set','skip_list'];
   const algoShapes = ['binary_search','linear_search','bubble_sort','selection_sort','insertion_sort','merge_sort','quick_sort','heap_sort','counting_sort','bfs_graph','dfs_graph','dijkstra','recursion_tree','dp_table','sliding_window','two_pointer','knapsack'];
   const codeShapes = ['code_block','function_declaration','variable_declaration','if_else_diagram','for_loop_diagram','while_loop','try_catch','class_diagram','arrow_function','async_function','promise_chain','destructuring','spread_operator','import_statement','switch_case','array_method_chain','interface_diagram'];
   const webShapes = ['client_server','rest_api','browser_diagram','dom_tree','url_components','jwt_diagram','oauth_flow','middleware_chain','graphql_diagram','websocket','http_request_diagram','http_response_diagram','cookie_session','ssr_diagram','csr_diagram'];
-  const sdShapes = ['load_balancer','message_queue','pub_sub','api_gateway','microservices','monolithic','event_driven','cap_theorem','cdn_diagram','database_shard','cqrs_pattern','circuit_breaker','rate_limiter','reverse_proxy'];
+  const sdShapes = ['load_balancer','message_queue','pub_sub','api_gateway','microservices','monolithic','event_driven','cap_theorem','cdn_diagram','database_shard','cqrs_pattern','circuit_breaker','rate_limiter','reverse_proxy', ...advancedSdShapes];
   const devopsShapes = ['git_branch','git_merge','docker_container','ci_cd_pipeline','docker_compose','kubernetes_pod','github_actions','terraform','monitoring','helm_chart','service_mesh'];
-  const allProg = [...progShapes, ...dsShapes, ...algoShapes, ...codeShapes, ...webShapes, ...sdShapes, ...devopsShapes];
+  const allProg = [...progShapes, ...dsShapes, ...algoShapes, ...codeShapes, ...webShapes, ...sdShapes, ...devopsShapes, ...premiumShapes, ...mlShapes];
   return {
     science_biology: Object.keys(SHAPE_REGISTRY).filter(k => ['dna_advanced','cell_animal','cell_bacteria','mitochondria','chloroplast','endoplasmic_reticulum','ribosome','golgi_apparatus','nucleus_detailed','virus','antibody','stem_cell','white_blood_cell','red_blood_cell','platelet','neuron_detailed','synapse','heart_organ','lung','brain','kidney','liver','stomach','leaf_detailed','tree_detailed','flower','mushroom','spider','butterfly','fish','bird','pollen_grain','ecosystem','sun','moon','cloud','rain_cloud','snowflake','lightning','tornado','volcano','mountain','wave_nature','rock_cycle','water_cycle','carbon_cycle','food_chain'].includes(k)),
     mathematics: Object.keys(SHAPE_REGISTRY).filter(k => ['coordinate_plane','number_line','fraction_bar','pie_chart','bar_chart','line_graph','pyramid','set_venn','triangle','square','pentagon','hexagon','octagon','star_shape','circle_shape','oval','parallelogram','trapezoid','diamond','cube','sphere','cylinder','cone','prism'].includes(k)),
@@ -2240,6 +2268,8 @@ export function getShapeCategories() {
     web_api: Object.keys(SHAPE_REGISTRY).filter(k => webShapes.includes(k)),
     system_design: Object.keys(SHAPE_REGISTRY).filter(k => sdShapes.includes(k)),
     devops_tools: Object.keys(SHAPE_REGISTRY).filter(k => devopsShapes.includes(k)),
+    ml_ai: Object.keys(SHAPE_REGISTRY).filter(k => mlShapes.includes(k)),
+    advanced_algorithms: Object.keys(SHAPE_REGISTRY).filter(k => premiumShapes.includes(k)),
     business_general: Object.keys(SHAPE_REGISTRY).filter(k => ['funnel','org_chart','timeline_bar','swot_matrix','gauge_meter','progress_ring','donut_chart','kpi','target_icon','bulb_icon','rocket_icon','flag_icon','star_badge','warning_triangle','check_circle','cross_circle','arrow_up','arrow_down','hourglass','compass'].includes(k)),
   };
 }

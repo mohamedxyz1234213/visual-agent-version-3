@@ -357,6 +357,121 @@ export default function Whiteboard({
             <stop offset="0%" stopColor="#0f172a" stopOpacity="1" />
             <stop offset="100%" stopColor="#1e293b" stopOpacity="1" />
           </linearGradient>
+
+          {/* ── Rich color gradients for shapes ── */}
+          <linearGradient id="grad-blue" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#3b82f6" /> <stop offset="100%" stopColor="#1d4ed8" />
+          </linearGradient>
+          <linearGradient id="grad-blue-light" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#60a5fa" /> <stop offset="100%" stopColor="#2563eb" />
+          </linearGradient>
+          <linearGradient id="grad-green" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#22c55e" /> <stop offset="100%" stopColor="#15803d" />
+          </linearGradient>
+          <linearGradient id="grad-green-light" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#4ade80" /> <stop offset="100%" stopColor="#16a34a" />
+          </linearGradient>
+          <linearGradient id="grad-red" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#f87171" /> <stop offset="100%" stopColor="#dc2626" />
+          </linearGradient>
+          <linearGradient id="grad-purple" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#a855f7" /> <stop offset="100%" stopColor="#7c3aed" />
+          </linearGradient>
+          <linearGradient id="grad-purple-light" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#c084fc" /> <stop offset="100%" stopColor="#8b5cf6" />
+          </linearGradient>
+          <linearGradient id="grad-amber" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#fbbf24" /> <stop offset="100%" stopColor="#d97706" />
+          </linearGradient>
+          <linearGradient id="grad-orange" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#fb923c" /> <stop offset="100%" stopColor="#ea580c" />
+          </linearGradient>
+          <linearGradient id="grad-teal" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#2dd4bf" /> <stop offset="100%" stopColor="#0d9488" />
+          </linearGradient>
+          <linearGradient id="grad-pink" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#f472b6" /> <stop offset="100%" stopColor="#db2777" />
+          </linearGradient>
+          <linearGradient id="grad-indigo" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#818cf8" /> <stop offset="100%" stopColor="#4f46e5" />
+          </linearGradient>
+          <linearGradient id="grad-slate" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#64748b" /> <stop offset="100%" stopColor="#334155" />
+          </linearGradient>
+          <linearGradient id="grad-cyan" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#22d3ee" /> <stop offset="100%" stopColor="#0891b2" />
+          </linearGradient>
+          <linearGradient id="grad-emerald" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#34d399" /> <stop offset="100%" stopColor="#059669" />
+          </linearGradient>
+          <linearGradient id="grad-rose" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#fb7185" /> <stop offset="100%" stopColor="#e11d48" />
+          </linearGradient>
+          <linearGradient id="grad-sky" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#38bdf8" /> <stop offset="100%" stopColor="#0284c7" />
+          </linearGradient>
+          <linearGradient id="grad-lime" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#a3e635" /> <stop offset="100%" stopColor="#65a30d" />
+          </linearGradient>
+          <linearGradient id="grad-violet" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#8b5cf6" /> <stop offset="100%" stopColor="#6d28d9" />
+          </linearGradient>
+
+          {/* Radial gradients for 3D / glow effects */}
+          <radialGradient id="radial-blue" cx="40%" cy="35%" r="60%">
+            <stop offset="0%" stopColor="#93c5fd" /> <stop offset="100%" stopColor="#1d4ed8" />
+          </radialGradient>
+          <radialGradient id="radial-green" cx="40%" cy="35%" r="60%">
+            <stop offset="0%" stopColor="#86efac" /> <stop offset="100%" stopColor="#15803d" />
+          </radialGradient>
+          <radialGradient id="radial-purple" cx="40%" cy="35%" r="60%">
+            <stop offset="0%" stopColor="#d8b4fe" /> <stop offset="100%" stopColor="#6d28d9" />
+          </radialGradient>
+          <radialGradient id="radial-amber" cx="40%" cy="35%" r="60%">
+            <stop offset="0%" stopColor="#fde68a" /> <stop offset="100%" stopColor="#b45309" />
+          </radialGradient>
+          <radialGradient id="radial-slate" cx="40%" cy="35%" r="60%">
+            <stop offset="0%" stopColor="#cbd5e1" /> <stop offset="100%" stopColor="#334155" />
+          </radialGradient>
+
+          {/* 3D bevel highlight for inset effect */}
+          <filter id="bevel-inset">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="1" result="blur" />
+            <feSpecularLighting in="blur" surfaceScale="3" specularConstant="0.5" specularExponent="15" result="spec">
+              <fePointLight x="150" y="80" z="200" />
+            </feSpecularLighting>
+            <feComposite in="spec" in2="SourceAlpha" operator="in" result="spec-in" />
+            <feComposite in="SourceGraphic" in2="spec-in" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" />
+          </filter>
+
+          {/* Soft drop shadow with depth */}
+          <filter id="shadow-depth" x="-10%" y="-10%" width="130%" height="130%">
+            <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#0f172a" floodOpacity="0.18" />
+            <feDropShadow dx="0" dy="1" stdDeviation="2" floodColor="#0f172a" floodOpacity="0.1" />
+          </filter>
+
+          {/* Colored neon glow */}
+          <filter id="glow-neon-blue" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur" />
+            <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.15 0 0 0 0 0.4 0 0 0 0 0.95 0 0 0 1 0" result="glow" />
+            <feMerge><feMergeNode in="glow" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+
+          {/* Gradient text fill (mask approach — works on modern SVG renderers) */}
+          <linearGradient id="grad-text-blue" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#2563eb" /> <stop offset="100%" stopColor="#7c3aed" />
+          </linearGradient>
+          <linearGradient id="grad-text-green" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#16a34a" /> <stop offset="100%" stopColor="#0891b2" />
+          </linearGradient>
+
+          {/* Pattern: diagonal stripes for fill emphasis */}
+          <pattern id="stripes-blue" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="4" height="8" fill="#3b82f6" fillOpacity="0.15" />
+          </pattern>
+          <pattern id="dots-grid" width="12" height="12" patternUnits="userSpaceOnUse">
+            <circle cx="2" cy="2" r="1.5" fill="#2563eb" fillOpacity="0.08" />
+          </pattern>
         </defs>
 
         {/* Background grid */}

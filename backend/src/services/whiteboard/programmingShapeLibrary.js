@@ -14,14 +14,43 @@ function _rect(x, y, w, h, fill = '#ffffff', stroke = '#475569', sw = 2, rx = 8)
 function _text(content, x, y, opts = {}) {
   return { type: 'draw_text', content, position: [x, y], style: { fontSize: opts.fs ?? 14, color: opts.color ?? '#1e293b', fontWeight: opts.fw ?? '600', textAnchor: opts.anchor ?? 'middle' } };
 }
-function _line(x1, y1, x2, y2, color = '#475569', sw = 2) {
-  return { type: 'draw_line', from: [x1, y1], to: [x2, y2], style: { color, strokeWidth: sw } };
+function _line(x1, y1, x2, y2, color = '#475569', sw = 2, dashed = false) {
+  const style = { color, strokeWidth: sw };
+  if (dashed) style.strokeDasharray = '8,5';
+  return { type: 'draw_line', from: [x1, y1], to: [x2, y2], style };
 }
-function _arrow(x1, y1, x2, y2, color = '#475569', sw = 2) {
-  return { type: 'draw_arrow', from: [x1, y1], to: [x2, y2], style: { color, strokeWidth: sw } };
+function _arrow(x1, y1, x2, y2, color = '#475569', sw = 2, dashed = false) {
+  const style = { color, strokeWidth: sw };
+  if (dashed) style.strokeDasharray = '8,5';
+  return { type: 'draw_arrow', from: [x1, y1], to: [x2, y2], style };
 }
 function _path(d, stroke = '#475569', fill = 'none', sw = 2) {
   return { type: 'draw_path', d, style: { stroke, fill, strokeWidth: sw } };
+}
+
+// =============================================================================
+// PREMIUM HELPERS — gradient, shadow, layered rendering
+// =============================================================================
+function _gradRect(x, y, w, h, gradId, stroke = '#475569', sw = 1.5, rx = 8) {
+  return { type: 'draw_rect', x, y, width: w, height: h, style: { fill: `url(#${gradId})`, stroke, strokeWidth: sw, rx } };
+}
+function _gradCircle(cx, cy, r, gradId, stroke = '#475569', sw = 1.5) {
+  return { type: 'draw_circle', center: [cx, cy], radius: r, style: { fill: `url(#${gradId})`, stroke, strokeWidth: sw } };
+}
+function _shadowRect(x, y, w, h, fill = '#ffffff', stroke = '#475569', sw = 1.5, rx = 10) {
+  return { type: 'draw_rect', x, y, width: w, height: h, style: { fill, stroke, strokeWidth: sw, rx, filter: 'url(#shadow-depth)' } };
+}
+function _depthBox(x, y, w, h, gradId) {
+  const segs = [];
+  segs.push({ type: 'draw_rect', x, y, width: w, height: h, style: { fill: `url(#${gradId})`, rx: 10, filter: 'url(#shadow-depth)' } });
+  segs.push({ type: 'draw_rect', x: x + 4, y: y + 4, width: w - 8, height: h - 8, style: { fill: 'none', stroke: 'rgba(255,255,255,0.25)', strokeWidth: 1.5, rx: 8 } });
+  return segs;
+}
+function _badge(content, x, y, bg = '#3b82f6', color = '#ffffff') {
+  return { type: 'draw_badge', content, position: [x, y], style: { bg, color, fontSize: 10 } };
+}
+function _callout(content, x, y, w = 120, bg = '#f8fafc', stroke = '#94a3b8') {
+  return { type: 'draw_callout', content, position: [x, y], width: w, style: { bg, stroke, color: '#1e293b' } };
 }
 
 // =============================================================================
@@ -1369,6 +1398,915 @@ function shapeServiceMesh(x, y, w, h) {
 }
 
 // =============================================================================
+// PREMIUM ENHANCED SHAPES — gradient, 3D depth, rich visuals
+// =============================================================================
+
+function shapePremiumBinaryTree(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Binary Search Tree', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const nodes = [
+    { x: cx, y: y + h * 0.18, v: '15' },
+    { x: cx - w * 0.2, y: y + h * 0.38, v: '8' },
+    { x: cx + w * 0.2, y: y + h * 0.38, v: '22' },
+    { x: cx - w * 0.35, y: y + h * 0.58, v: '4' },
+    { x: cx - w * 0.1, y: y + h * 0.58, v: '12' },
+    { x: cx + w * 0.1, y: y + h * 0.58, v: '18' },
+    { x: cx + w * 0.35, y: y + h * 0.58, v: '28' },
+  ];
+  const edges = [[0, 1], [0, 2], [1, 3], [1, 4], [2, 5], [2, 6]];
+  edges.forEach(([a, b]) => segs.push(_line(nodes[a].x, nodes[a].y + 16, nodes[b].x, nodes[b].y - 16, '#94a3b8', 2)));
+  nodes.forEach(n => {
+    segs.push(_gradCircle(n.x, n.y, 18, 'grad-blue', '#1d4ed8', 2));
+    segs.push(_circle(n.x, n.y, 14, '#ffffff', 'none', 0));
+    segs.push(_text(n.v, n.x, n.y + 5, { fs: 13, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  });
+  segs.push(_text('Each node: left < parent < right   |   O(log n) search', cx, y + h * 0.85, { fs: 11, color: '#64748b', anchor: 'middle' }));
+  return segs;
+}
+
+function shapePremiumHashMap(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Hash Map / Hash Table', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const keys = ['name', 'age', 'city', 'email'];
+  const vals = ['Alice', '28', 'NYC', 'alice@x.com'];
+  const buckets = [0, 1, 2, 3, 2, 0, 1];
+  const bw = 56; const bh = 26; const gap = 4; const sx = x + w * 0.08;
+  for (let i = 0; i < 7; i++) {
+    const bx = sx + i * (bw + gap);
+    segs.push(_gradRect(bx, y + h * 0.18, bw, bh, i < 5 ? 'grad-blue-light' : 'grad-amber'));
+    segs.push(_text(String(i), bx + bw / 2, y + h * 0.18 + 17, { fs: 10, color: '#ffffff', anchor: 'middle', fw: '700' }));
+  }
+  keys.forEach((k, i) => {
+    const bi = buckets[i]; const bx = sx + bi * (bw + gap);
+    const ty = y + h * 0.35 + i * (bh + 4);
+    segs.push(_gradRect(bx, ty, bw * 0.9, bh, 'grad-slate'));
+    segs.push(_text(`${k}: ${vals[i]}`, bx + bw * 0.45, ty + 17, { fs: 9, color: '#ffffff', anchor: 'middle', fw: '600' }));
+    segs.push(_arrow(x + w * 0.72, y + h * 0.3 + i * 24, bx + 4, ty + bh / 2, '#94a3b8', 1.5));
+  });
+  segs.push(_text('hash(key) → bucket index | O(1) average lookup', cx, y + h * 0.88, { fs: 11, color: '#64748b', anchor: 'middle' }));
+  return segs;
+}
+
+function shapePremiumMergeSort(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Merge Sort — Divide & Conquer', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const levels = [
+    [{ v: '38, 27, 43, 3, 9, 82, 10', cols: 1 }],
+    [{ v: '38, 27, 43, 3', cols: 1 }, { v: '9, 82, 10', cols: 1 }],
+    [{ v: '38, 27', cols: 1 }, { v: '43, 3', cols: 1 }, { v: '9, 82', cols: 1 }, { v: '10', cols: 1 }],
+    [{ v: '38', cols: 1 }, { v: '27', cols: 1 }, { v: '43', cols: 1 }, { v: '3', cols: 1 }, { v: '9', cols: 1 }, { v: '82', cols: 1 }, { v: '10', cols: 1 }],
+  ];
+  const ly = [0.14, 0.32, 0.50, 0.68];
+  levels.forEach((lvl, li) => {
+    const lw = w * 0.85; const startX = x + (w - lw) / 2;
+    lvl.forEach((item, ii) => {
+      const iw = lw / lvl.length - 4; const ix = startX + ii * (lw / lvl.length);
+      const color = li < 2 ? 'grad-blue-light' : li < 3 ? 'grad-purple-light' : 'grad-green-light';
+      segs.push(_gradRect(ix, y + h * ly[li], iw, 22, color));
+      segs.push(_text(item.v, ix + iw / 2, y + h * ly[li] + 15, { fs: 9, color: '#ffffff', anchor: 'middle', fw: '700' }));
+      if (li > 0) segs.push(_line(x + w / 2, y + h * (ly[li - 1] + 0.06), ix + iw / 2, y + h * ly[li], '#94a3b8', 1));
+    });
+  });
+  segs.push(_text('Split → recursively sort → merge | O(n log n)', cx, y + h * 0.88, { fs: 11, color: '#64748b', anchor: 'middle' }));
+  return segs;
+}
+
+function shapePremiumGraphTraversal(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Graph Traversal — BFS vs DFS', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const nodes = [
+    { x: cx, y: y + h * 0.2, v: 'A', g: 'grad-blue' },
+    { x: cx - w * 0.25, y: y + h * 0.42, v: 'B', g: 'grad-green-light' },
+    { x: cx + w * 0.25, y: y + h * 0.42, v: 'C', g: 'grad-purple-light' },
+    { x: cx - w * 0.4, y: y + h * 0.65, v: 'D', g: 'grad-amber' },
+    { x: cx - w * 0.1, y: y + h * 0.65, v: 'E', g: 'grad-pink' },
+    { x: cx + w * 0.3, y: y + h * 0.65, v: 'F', g: 'grad-teal' },
+  ];
+  const edges = [[0, 1], [0, 2], [1, 3], [1, 4], [2, 5], [4, 5]];
+  edges.forEach(([a, b]) => segs.push(_line(nodes[a].x, nodes[a].y + 16, nodes[b].x, nodes[b].y - 16, '#94a3b8', 2)));
+  nodes.forEach(n => {
+    segs.push(_gradCircle(n.x, n.y, 22, n.g));
+    segs.push(_circle(n.x, n.y, 17, 'rgba(255,255,255,0.25)', 'none', 0));
+    segs.push(_text(n.v, n.x, n.y + 6, { fs: 15, color: '#ffffff', anchor: 'middle', fw: '800' }));
+  });
+  segs.push(_text('BFS: Queue → level order   |   DFS: Stack → depth-first', cx, y + h * 0.88, { fs: 11, color: '#64748b', anchor: 'middle' }));
+  return segs;
+}
+
+// =============================================================================
+// MACHINE LEARNING & AI (15 shapes)
+// =============================================================================
+
+function shapeNeuralNetwork(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Neural Network', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const layers = [
+    { count: 3, label: 'Input', cy: y + h * 0.45, color: 'grad-blue-light' },
+    { count: 5, label: 'Hidden 1', cy: y + h * 0.45, color: 'grad-purple-light' },
+    { count: 4, label: 'Hidden 2', cy: y + h * 0.45, color: 'grad-purple-light' },
+    { count: 2, label: 'Output', cy: y + h * 0.45, color: 'grad-green-light' },
+  ];
+  const lx = layers.map((_, i) => x + w * (0.08 + i * 0.28));
+  layers.forEach((layer, li) => {
+    const nodes = Array.from({ length: layer.count }, (_, ni) => ({
+      x: lx[li], y: layer.cy + (ni - (layer.count - 1) / 2) * 28,
+    }));
+    nodes.forEach(n => segs.push(_gradCircle(n.x, n.y, 8, layer.color)));
+    if (li > 0) {
+      const prevNodes = Array.from({ length: layers[li - 1].count }, (_, ni) => ({
+        x: lx[li - 1], y: layers[li - 1].cy + (ni - (layers[li - 1].count - 1) / 2) * 28,
+      }));
+      nodes.forEach(n => prevNodes.forEach(p => segs.push(_line(p.x + 8, p.y, n.x - 8, n.y, '#cbd5e1', 1))));
+    }
+    segs.push(_text(layer.label, lx[li], y + h * 0.82, { fs: 10, color: '#64748b', anchor: 'middle', fw: '700' }));
+  });
+  segs.push(_text('Layers of interconnected neurons | Weights & biases learned via backpropagation', cx, y + h * 0.94, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+function shapeDecisionTree(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Decision Tree (ML)', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const root = { x: cx, y: y + h * 0.18, v: 'X > 5?' };
+  const l1 = [{ x: cx - w * 0.2, y: y + h * 0.38, v: 'Y > 3?' }, { x: cx + w * 0.2, y: y + h * 0.38, v: 'Z > 7?' }];
+  const leaves = [
+    { x: cx - w * 0.35, y: y + h * 0.6, v: 'Class A', g: 'grad-green-light' },
+    { x: cx - w * 0.1, y: y + h * 0.6, v: 'Class B', g: 'grad-amber' },
+    { x: cx + w * 0.15, y: y + h * 0.6, v: 'Class C', g: 'grad-red' },
+    { x: cx + w * 0.35, y: y + h * 0.6, v: 'Class D', g: 'grad-purple-light' },
+  ];
+  segs.push(_gradCircle(root.x, root.y, 20, 'grad-blue'));
+  segs.push(_text(root.v, root.x, root.y + 5, { fs: 11, color: '#ffffff', anchor: 'middle', fw: '700' }));
+  l1.forEach(n => {
+    segs.push(_line(root.x, root.y + 20, n.x, n.y - 18, '#94a3b8', 2));
+    segs.push(_gradCircle(n.x, n.y, 18, 'grad-indigo'));
+    segs.push(_text(n.v, n.x, n.y + 5, { fs: 9, color: '#ffffff', anchor: 'middle', fw: '700' }));
+  });
+  leaves.forEach((l, i) => {
+    const parent = l1[Math.floor(i / 2)];
+    segs.push(_line(parent.x, parent.y + 18, l.x, l.y - 16, '#cbd5e1', 1.5));
+    segs.push(_gradRect(l.x - 32, l.y - 12, 64, 24, l.g));
+    segs.push(_text(l.v, l.x, l.y + 5, { fs: 9, color: '#ffffff', anchor: 'middle', fw: '700' }));
+  });
+  segs.push(_text('Splits data by feature thresholds | Used for classification & regression', cx, y + h * 0.88, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+function shapeSVMMargin(x, y, w, h) {
+  const segs = []; const cx = x + w / 2; const cy = y + h / 2;
+  segs.push(_text('SVM — Support Vector Machine', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const leftPts = [[-0.3, -0.15], [-0.25, 0.2], [-0.4, 0.05], [-0.2, -0.3], [-0.35, -0.25]];
+  const rightPts = [[0.3, 0.15], [0.25, -0.2], [0.4, -0.05], [0.2, 0.3], [0.35, 0.25]];
+  const toSvg = ([px, py]) => ({ x: cx + px * w, y: cy + py * h });
+  leftPts.forEach(p => { const s = toSvg(p); segs.push(_gradCircle(s.x, s.y, 10, 'grad-blue')); });
+  rightPts.forEach(p => { const s = toSvg(p); segs.push(_gradCircle(s.x, s.y, 10, 'grad-red')); });
+  segs.push(_line(cx - w * 0.35, cy + h * 0.25, cx + w * 0.35, cy - h * 0.25, '#2563eb', 3));
+  segs.push(_line(cx - w * 0.3, cy + h * 0.3, cx + w * 0.4, cy - h * 0.2, '#93c5fd', 2, true));
+  segs.push(_line(cx - w * 0.4, cy + h * 0.2, cx + w * 0.3, cy - h * 0.3, '#93c5fd', 2, true));
+  segs.push(_text('Maximum margin hyperplane', cx + w * 0.3, cy - h * 0.28, { fs: 9, color: '#2563eb', anchor: 'start' }));
+  segs.push(_text('Separates classes with largest margin', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+function shapeKMeans(x, y, w, h) {
+  const segs = []; const cx = x + w / 2; const cy = y + h / 2;
+  segs.push(_text('K-Means Clustering', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const clusters = [
+    { pts: [[-0.25, -0.2], [-0.15, -0.1], [-0.3, -0.05], [-0.2, -0.25]], cx: -0.22, cy: -0.15, color: 'grad-blue' },
+    { pts: [[0.15, -0.1], [0.25, -0.2], [0.2, 0.0], [0.1, -0.15]], cx: 0.18, cy: -0.12, color: 'grad-green-light' },
+    { pts: [[-0.1, 0.2], [0.0, 0.15], [-0.2, 0.25], [0.05, 0.1]], cx: -0.06, cy: 0.18, color: 'grad-purple-light' },
+  ];
+  clusters.forEach(c => {
+    c.pts.forEach(p => { const s = { x: cx + p[0] * w, y: cy + p[1] * h }; segs.push(_gradCircle(s.x, s.y, 8, c.color)); });
+    const center = { x: cx + c.cx * w, y: cy + c.cy * h };
+    segs.push({ type: 'draw_circle', center: [center.x, center.y], radius: 50, style: { fill: 'none', stroke: c.color.split('-')[1] === 'blue' ? '#3b82f6' : c.color.split('-')[1] === 'green' ? '#22c55e' : '#a855f7', strokeWidth: 2, strokeDasharray: '6,4' } });
+  });
+  segs.push(_text('Groups unlabeled data into K clusters based on feature similarity', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+function shapeTransformer(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Transformer Architecture', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const blocks = ['Input Embed', 'Positional\nEncoding', 'Multi-Head\nAttention', 'Add & Norm', 'Feed\nForward', 'Add & Norm', 'Output'];
+  const bw = 80; const bh = 50; const gap = 8; const sx = cx - ((blocks.length * (bw + gap) - gap) / 2);
+  blocks.forEach((b, i) => {
+    const bx = sx + i * (bw + gap);
+    const g = i === 2 ? 'grad-purple-light' : i === 4 ? 'grad-blue-light' : 'grad-slate';
+    segs.push(_gradRect(bx, y + h * 0.25, bw, bh, g));
+    const lines = b.split('\n');
+    lines.forEach((l, li) => segs.push(_text(l, bx + bw / 2, y + h * 0.25 + 16 + li * 16, { fs: 8, color: '#ffffff', anchor: 'middle', fw: '700' })));
+    if (i < blocks.length - 1) segs.push(_arrow(bx + bw, y + h * 0.5, bx + bw + gap, y + h * 0.5, '#94a3b8', 1.5));
+  });
+  segs.push(_text('The "Attention Is All You Need" architecture — foundation of LLMs like GPT', cx, y + h * 0.88, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+// =============================================================================
+// ADVANCED SYSTEM DESIGN (10 shapes)
+// =============================================================================
+
+function shapeEventSourcing(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Event Sourcing', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const events = [
+    { t: 'User Created', c: 'grad-green-light' },
+    { t: 'Email Changed', c: 'grad-blue-light' },
+    { t: 'Order Placed', c: 'grad-amber' },
+    { t: 'Payment Received', c: 'grad-purple-light' },
+  ];
+  events.forEach((e, i) => {
+    const ex = x + w * 0.08 + i * (w * 0.21);
+    segs.push(_gradRect(ex, y + h * 0.3, w * 0.18, 40, e.c));
+    segs.push(_text(e.t, ex + w * 0.09, y + h * 0.3 + 24, { fs: 9, color: '#ffffff', anchor: 'middle', fw: '700' }));
+    segs.push(_text(`t${i + 1}`, ex + w * 0.09, y + h * 0.27, { fs: 8, color: '#94a3b8', anchor: 'middle' }));
+    if (i < events.length - 1) segs.push(_arrow(ex + w * 0.18, y + h * 0.5, ex + w * 0.21, y + h * 0.5, '#94a3b8', 1.5));
+  });
+  segs.push(_rect(x + w * 0.35, y + h * 0.62, w * 0.3, 34, '#fef3c7', '#f59e0b', 2, 8));
+  segs.push(_text('Event Store (append-only log)', cx, y + h * 0.62 + 22, { fs: 10, color: '#92400e', anchor: 'middle', fw: '700' }));
+  events.forEach((_, i) => {
+    const ex = x + w * 0.08 + i * (w * 0.21);
+    segs.push(_arrow(ex + w * 0.09, y + h * 0.3 + 40, cx, y + h * 0.62, '#f59e0b', 1));
+  });
+  segs.push(_text('State = replayed sequence of events | audit log, time travel, CQRS', cx, y + h * 0.9, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+function shapeSagaPattern(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Saga Pattern — Distributed Transactions', cx, y + h * 0.06, { fs: 15, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const steps = ['Order\nCreated', 'Payment\nTaken', 'Inventory\nReserved', 'Shipping\nScheduled', 'Complete'];
+  const sw = 90; const gap = 10; const sx = cx - ((steps.length * (sw + gap) - gap) / 2);
+  steps.forEach((s, i) => {
+    const bx = sx + i * (sw + gap);
+    const g = i === steps.length - 1 ? 'grad-green-light' : i % 2 === 0 ? 'grad-blue-light' : 'grad-purple-light';
+    segs.push(_gradRect(bx, y + h * 0.28, sw, 50, g));
+    const lines = s.split('\n');
+    lines.forEach((l, li) => segs.push(_text(l, bx + sw / 2, y + h * 0.28 + 18 + li * 16, { fs: 9, color: '#ffffff', anchor: 'middle', fw: '700' })));
+    if (i < steps.length - 1) segs.push(_arrow(bx + sw, y + h * 0.53, bx + sw + gap, y + h * 0.53, '#94a3b8', 1.5));
+    if (i < steps.length - 1 && i > 0) segs.push(_arrow(bx + sw + gap, y + h * 0.4, bx + sw, y + h * 0.4, '#f87171', 1, true));
+  });
+  segs.push(_text('Compensating transactions roll back on failure (dashed = rollback)', cx, y + h * 0.88, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+function shapeDataPipeline(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Data Pipeline — ETL', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const stages = [
+    { l: 'Extract', src: 'APIs, DBs\nFiles', c: 'grad-blue-light' },
+    { l: 'Transform', src: 'Clean, Join\nAggregate', c: 'grad-purple-light' },
+    { l: 'Load', src: 'Warehouse\nData Lake', c: 'grad-green-light' },
+  ];
+  stages.forEach((s, i) => {
+    const sx = x + w * (0.05 + i * 0.32);
+    segs.push(_gradRect(sx, y + h * 0.2, w * 0.28, 60, s.c));
+    segs.push(_text(s.l, sx + w * 0.14, y + h * 0.2 + 22, { fs: 13, color: '#ffffff', anchor: 'middle', fw: '800' }));
+    const lines = s.src.split('\n');
+    lines.forEach((l, li) => segs.push(_text(l, sx + w * 0.14, y + h * 0.2 + 42 + li * 14, { fs: 8, color: 'rgba(255,255,255,0.8)', anchor: 'middle' })));
+    if (i < stages.length - 1) segs.push(_arrow(sx + w * 0.28, y + h * 0.5, sx + w * 0.32, y + h * 0.5, '#94a3b8', 2.5));
+  });
+  segs.push(_text('Extract → Transform → Load | Batch & streaming data processing', cx, y + h * 0.88, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+function shapeTwoPhaseCommit(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Two-Phase Commit (2PC)', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  segs.push(_gradRect(x + w * 0.35, y + h * 0.15, w * 0.3, 36, 'grad-blue'));
+  segs.push(_text('Coordinator', cx, y + h * 0.15 + 24, { fs: 12, color: '#ffffff', anchor: 'middle', fw: '800' }));
+  const parts = ['Shard A', 'Shard B', 'Shard C'];
+  parts.forEach((p, i) => {
+    const py = y + h * 0.55 + i * 36;
+    segs.push(_gradRect(x + w * 0.35, py, w * 0.3, 30, 'grad-slate'));
+    segs.push(_text(p, cx, py + 20, { fs: 10, color: '#ffffff', anchor: 'middle', fw: '700' }));
+    segs.push(_arrow(cx, y + h * 0.15 + 36, cx, py, '#94a3b8', 1.5));
+    segs.push(_arrow(cx, py + 30, cx, y + h * 0.15 + 36, '#22c55e', 1.5, true));
+  });
+  segs.push(_text('Phase 1: Prepare (can you commit?) → Phase 2: Commit (yes/no) | Atomic', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+// =============================================================================
+// ADVANCED ALGORITHMS (6 shapes)
+// =============================================================================
+
+function shapeDynamicProgramming(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Dynamic Programming — DP Table', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const rows = 5; const cols = 6; const cw = 52; const ch = 28; const sx = cx - (cols * cw) / 2;
+  const vals = [
+    [0, 0, 0, 0, 0, 0],
+    [0, 2, 2, 2, 2, 2],
+    [0, 2, 3, 5, 5, 5],
+    [0, 2, 3, 5, 7, 7],
+    [0, 2, 3, 5, 7, 9],
+  ];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const isLast = r === rows - 1 && c === cols - 1;
+      const g = isLast ? 'grad-green-light' : r === 0 || c === 0 ? 'grad-slate' : 'grad-blue-light';
+      segs.push(_gradRect(sx + c * cw, y + h * 0.2 + r * ch, cw - 2, ch - 2, g));
+      segs.push(_text(String(vals[r][c]), sx + c * cw + cw / 2, y + h * 0.2 + r * ch + 18, { fs: 12, color: '#ffffff', anchor: 'middle', fw: '700' }));
+    }
+  }
+  segs.push(_text('Optimal substructure + overlapping subproblems | Memoization table', cx, y + h * 0.88, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+function shapeLRUCachePremium(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('LRU Cache — Eviction Policy', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const items = [
+    { k: 'A', v: 'val_1', recent: true },
+    { k: 'B', v: 'val_2', recent: false },
+    { k: 'C', v: 'val_3', recent: false },
+    { k: 'D', v: 'val_4', recent: false },
+  ];
+  const bw = 80; const sx = cx - ((items.length * (bw + 8) - 8) / 2);
+  items.forEach((item, i) => {
+    const bx = sx + i * (bw + 8);
+    segs.push(_depthBox(bx, y + h * 0.2, bw, 48, item.recent ? 'grad-green-light' : 'grad-blue-light'));
+    segs.push(_text(item.k, bx + 12, y + h * 0.2 + 20, { fs: 14, color: '#ffffff', anchor: 'start', fw: '800' }));
+    segs.push(_text(item.v, bx + bw - 12, y + h * 0.2 + 20, { fs: 10, color: 'rgba(255,255,255,0.8)', anchor: 'end' }));
+    if (i < items.length - 1) segs.push(_arrow(bx + bw, y + h * 0.44, bx + bw + 8, y + h * 0.44, '#94a3b8', 1.5));
+  });
+  segs.push(_text('Most Recently Used ← → Least Recently Used (evicted when full)', cx, y + h * 0.68, { fs: 10, color: '#64748b', anchor: 'middle' }));
+  segs.push(_gradRect(cx - 60, y + h * 0.74, 120, 26, 'grad-amber'));
+  segs.push(_text('Evict: D (least recently used)', cx, y + h * 0.74 + 18, { fs: 9, color: '#ffffff', anchor: 'middle', fw: '700' }));
+  segs.push(_arrow(sx + 3 * (bw + 8) + bw / 2, y + h * 0.2 + 48, cx, y + h * 0.74, '#f59e0b', 1.5));
+  segs.push(_text('HashMap + Doubly-Linked List | O(1) get / put', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+function shapeBigONotation(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Big O Complexity Cheat Sheet', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const data = [
+    ['O(1)', 'Constant', 'Array access', 'grad-green-light'],
+    ['O(log n)', 'Logarithmic', 'Binary search', 'grad-teal'],
+    ['O(n)', 'Linear', 'Array iteration', 'grad-blue-light'],
+    ['O(n log n)', 'Linearithmic', 'Merge sort', 'grad-amber'],
+    ['O(n²)', 'Quadratic', 'Bubble sort', 'grad-orange'],
+    ['O(2ⁿ)', 'Exponential', 'Fibonacci naive', 'grad-red'],
+  ];
+  data.forEach((d, i) => {
+    const ry = y + h * 0.18 + i * 34;
+    segs.push(_gradRect(x + w * 0.05, ry, 90, 28, d[3]));
+    segs.push(_rect(x + w * 0.05 + 94, ry, w * 0.55, 28, '#ffffff', '#e2e8f0', 1, 6));
+    segs.push(_text(d[1], x + w * 0.05 + 94 + 8, ry + 18, { fs: 11, color: '#1e293b', anchor: 'start', fw: '700' }));
+    segs.push(_text(d[2], x + w * 0.55, ry + 18, { fs: 10, color: '#64748b', anchor: 'start' }));
+    segs.push(_text(d[0], x + w * 0.05 + 45, ry + 18, { fs: 11, color: '#ffffff', anchor: 'middle', fw: '800' }));
+  });
+  segs.push(_text('Choose the right algorithm — understand your input size constraints', cx, y + h * 0.94, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+// =============================================================================
+// TEACHING ICONS — visual icons referenced by templates (12 shapes)
+// =============================================================================
+
+function shapePerson(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_gradCircle(cx, y + h * 0.22, 16, 'grad-blue'));
+  segs.push(_path(`M ${cx - 22} ${y + h * 0.72} Q ${cx} ${y + h * 0.45} ${cx + 22} ${y + h * 0.72}`, '#64748b', 'none', 2));
+  segs.push(_path(`M ${cx - 16} ${y + h * 0.72} Q ${cx} ${y + h * 0.7} ${cx + 16} ${y + h * 0.72}`, '#94a3b8', 'none', 1.5));
+  segs.push(_text('User', cx, y + h * 0.9, { fs: 11, color: '#64748b', anchor: 'middle', fw: '700' }));
+  return segs;
+}
+function shapeFolder(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_path(`M ${x + w * 0.15} ${y + h * 0.35} L ${x + w * 0.35} ${y + h * 0.35} L ${x + w * 0.42} ${y + h * 0.22} L ${x + w * 0.75} ${y + h * 0.22} L ${x + w * 0.85} ${y + h * 0.35} L ${x + w * 0.85} ${y + h * 0.75} L ${x + w * 0.15} ${y + h * 0.75} Z`, '#f59e0b', '#fef3c7', 2));
+  segs.push(_text('Folder', cx, y + h * 0.9, { fs: 11, color: '#64748b', anchor: 'middle' }));
+  return segs;
+}
+function shapeBug(x, y, w, h) {
+  const segs = []; const cx = x + w / 2; const cy = y + h * 0.45;
+  segs.push(_gradCircle(cx - 12, cy - 8, 6, 'grad-red'));
+  segs.push(_gradCircle(cx + 12, cy - 8, 6, 'grad-red'));
+  segs.push(_path(`M ${cx - 18} ${cy + 5} Q ${cx} ${cy - 5} ${cx + 18} ${cy + 5}`, '#dc2626', 'none', 2.5));
+  segs.push(_path(`M ${cx - 14} ${cy + 10} L ${cx - 24} ${cy + 18}`, '#dc2626', 'none', 2));
+  segs.push(_path(`M ${cx + 14} ${cy + 10} L ${cx + 24} ${cy + 18}`, '#dc2626', 'none', 2));
+  segs.push(_text('Bug', cx, y + h * 0.88, { fs: 11, color: '#64748b', anchor: 'middle', fw: '700' }));
+  return segs;
+}
+function shapeGearIcon(x, y, w, h) {
+  const segs = []; const cx = x + w / 2; const cy = y + h * 0.45; const r = 18;
+  segs.push(_gradCircle(cx, cy, r, 'grad-slate'));
+  segs.push(_circle(cx, cy, 8, '#ffffff', 'none'));
+  for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; segs.push(_rect(cx + Math.cos(a) * (r + 3) - 3, cy + Math.sin(a) * (r + 3) - 3, 6, 6, '#64748b', '#475569', 1, 2)); }
+  segs.push(_text('Settings', cx, y + h * 0.88, { fs: 11, color: '#64748b', anchor: 'middle', fw: '700' }));
+  return segs;
+}
+function shapeChatBubble(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_gradRect(x + w * 0.1, y + h * 0.2, w * 0.8, h * 0.4, 'grad-blue-light', '#2563eb', 1.5, 16));
+  segs.push(_path(`M ${x + w * 0.2} ${y + h * 0.6} L ${x + w * 0.3} ${y + h * 0.6} L ${x + w * 0.25} ${y + h * 0.78} Z`, '#2563eb', 'none', 1.5));
+  segs.push(_text('Hello!', cx, y + h * 0.42, { fs: 14, color: '#ffffff', anchor: 'middle', fw: '700' }));
+  segs.push(_text('Chat', cx, y + h * 0.9, { fs: 11, color: '#64748b', anchor: 'middle' }));
+  return segs;
+}
+function shapeTrash(x, y, w, h) {
+  const segs = []; const cx = x + w / 2; const cy = y + h * 0.4;
+  segs.push(_rect(cx - 18, cy - 16, 36, 8, '#f87171', '#dc2626', 1.5, 2));
+  segs.push(_rect(cx - 14, cy - 8, 28, 32, '#fef2f2', '#dc2626', 1.5, 4));
+  segs.push(_line(cx - 6, cy + 2, cx - 6, cy + 20, '#dc2626', 1.5));
+  segs.push(_line(cx, cy + 2, cx, cy + 20, '#dc2626', 1.5));
+  segs.push(_line(cx + 6, cy + 2, cx + 6, cy + 20, '#dc2626', 1.5));
+  segs.push(_text('Delete', cx, y + h * 0.88, { fs: 11, color: '#64748b', anchor: 'middle', fw: '700' }));
+  return segs;
+}
+function shapeDownload(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_rect(cx - 18, y + h * 0.15, 36, 28, '#dbeafe', '#2563eb', 2, 4));
+  segs.push(_line(cx - 16, y + h * 0.15, cx - 16, y + h * 0.15, '#2563eb', 0));
+  segs.push(_arrow(cx, y + h * 0.35, cx, y + h * 0.65, '#2563eb', 2.5));
+  segs.push(_line(cx - 14, y + h * 0.65, cx + 14, y + h * 0.65, '#2563eb', 2.5));
+  segs.push(_text('Download', cx, y + h * 0.9, { fs: 11, color: '#64748b', anchor: 'middle', fw: '700' }));
+  return segs;
+}
+function shapeRefresh(x, y, w, h) {
+  const segs = []; const cx = x + w / 2; const cy = y + h * 0.45; const r = 18;
+  segs.push(_path(`M ${cx + r} ${cy} A ${r} ${r} 0 1 1 ${cx - r * 0.5} ${cy - r * 0.87}`, '#64748b', 'none', 2.5));
+  segs.push(_polygon(cx - r * 0.5 - 8, cy - r * 0.87 - 5, cx - r * 0.5 + 6, cy - r * 0.87, cx - r * 0.5 - 8, cy - r * 0.87 + 5, '#64748b'));
+  segs.push(_text('Refresh', cx, y + h * 0.88, { fs: 11, color: '#64748b', anchor: 'middle', fw: '700' }));
+  return segs;
+}
+function shapeTreeIcon(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('{...}', cxs + 2, y + h * 0.24, { fs: 22, color: '#16a34a', anchor: 'middle', fw: '800' }));
+  segs.push(_line(cx, y + h * 0.3, cx, y + h * 0.42, '#16a34a', 2));
+  segs.push(_line(cx, y + h * 0.36, cx - 16, y + h * 0.42, '#16a34a', 2));
+  segs.push(_line(cx, y + h * 0.36, cx + 16, y + h * 0.42, '#16a34a', 2));
+  segs.push(_gradCircle(cx, y + h * 0.18, 10, 'grad-green-light'));
+  segs.push(_gradCircle(cx - 16, y + h * 0.46, 8, 'grad-green-light'));
+  segs.push(_gradCircle(cx + 16, y + h * 0.46, 8, 'grad-green-light'));
+  segs.push(_text('Tree', cx, y + h * 0.88, { fs: 11, color: '#64748b', anchor: 'middle', fw: '700' }));
+  return segs;
+}
+
+// =============================================================================
+// PROGRAMMING PARADIGMS (6 shapes)
+// =============================================================================
+
+function shapeOOPConcepts(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('OOP — 4 Pillars', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const pillars = [
+    { t: 'Encapsulation', d: 'Bundle data + methods\nHide internal state', c: 'grad-blue-light' },
+    { t: 'Inheritance', d: 'Parent → child\nReuse behavior', c: 'grad-green-light' },
+    { t: 'Polymorphism', d: 'One interface\nmany implementations', c: 'grad-purple-light' },
+    { t: 'Abstraction', d: 'Hide complexity\nShow essentials', c: 'grad-amber' },
+  ];
+  pillars.forEach((p, i) => {
+    const px = x + w * (0.04 + i * 0.24);
+    segs.push(_depthBox(px, y + h * 0.18, w * 0.21, h * 0.6, p.c));
+    segs.push(_text(p.t, px + w * 0.105, y + h * 0.24, { fs: 12, color: '#ffffff', anchor: 'middle', fw: '800' }));
+    const lines = p.d.split('\n');
+    lines.forEach((l, li) => segs.push(_text(l, px + w * 0.105, y + h * 0.38 + li * 18, { fs: 9, color: 'rgba(255,255,255,0.85)', anchor: 'middle' })));
+  });
+  segs.push(_text('Four pillars of object-oriented programming', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeFunctionalProgramming(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Functional Programming', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const concepts = [
+    { t: 'Pure\nFunctions', d: 'Same input →\nsame output' },
+    { t: 'Immutability', d: 'Data never\nchanged in place' },
+    { t: 'Higher-Order\nFunctions', d: 'Functions as\narguments/return' },
+    { t: 'Declarative', d: 'What, not\nhow' },
+  ];
+  concepts.forEach((c, i) => {
+    const px = x + w * (0.04 + i * 0.24);
+    segs.push(_gradRect(px, y + h * 0.2, w * 0.21, h * 0.45, 'grad-teal'));
+    const lines = c.t.split('\n');
+    lines.forEach((l, li) => segs.push(_text(l, px + w * 0.105, y + h * 0.24 + li * 18, { fs: 10, color: '#ffffff', anchor: 'middle', fw: '800' })));
+    const dlines = c.d.split('\n');
+    dlines.forEach((l, li) => segs.push(_text(l, px + w * 0.105, y + h * 0.44 + li * 16, { fs: 8, color: 'rgba(255,255,255,0.8)', anchor: 'middle' })));
+  });
+  segs.push(_text('map, filter, reduce — no side effects, composable functions', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeReactiveProgramming(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Reactive Programming', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  segs.push(_arrow(x + w * 0.1, y + h * 0.45, x + w * 0.3, y + h * 0.45, '#94a3b8', 2));
+  segs.push(_gradCircle(x + w * 0.1, y + h * 0.45, 10, 'grad-blue-light'));
+  segs.push(_text('Event', x + w * 0.1, y + h * 0.62, { fs: 10, color: '#64748b', anchor: 'middle' }));
+  segs.push(_gradRect(x + w * 0.3, y + h * 0.3, w * 0.15, h * 0.3, 'grad-purple-light'));
+  segs.push(_text('Observable', x + w * 0.375, y + h * 0.4, { fs: 9, color: '#ffffff', anchor: 'middle', fw: '700' }));
+  segs.push(_text('Stream', x + w * 0.375, y + h * 0.5, { fs: 8, color: 'rgba(255,255,255,0.8)', anchor: 'middle' }));
+  segs.push(_arrow(x + w * 0.45, y + h * 0.45, x + w * 0.6, y + h * 0.45, '#94a3b8', 2));
+  const ops = ['map', 'filter', 'debounce'];
+  ops.forEach((o, i) => { segs.push(_gradRect(x + w * 0.6 + i * 60, y + h * 0.34, 50, 24, 'grad-amber')); segs.push(_text(o, x + w * 0.6 + i * 60 + 25, y + h * 0.34 + 16, { fs: 8, color: '#ffffff', anchor: 'middle', fw: '700' })); });
+  segs.push(_arrow(x + w * 0.6 + 150, y + h * 0.45, x + w * 0.8, y + h * 0.45, '#94a3b8', 2));
+  segs.push(_gradCircle(x + w * 0.8, y + h * 0.45, 10, 'grad-green-light'));
+  segs.push(_text('Result', x + w * 0.8, y + h * 0.62, { fs: 10, color: '#64748b', anchor: 'middle' }));
+  segs.push(_text('Data streams + functional operators | RxJS, Reactors', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+// =============================================================================
+// TESTING & QUALITY (6 shapes)
+// =============================================================================
+
+function shapeTestPyramid(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Test Pyramid', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const layers = [
+    { l: 'E2E Tests', w: 0.25, c: 'grad-red', y: 0.42 },
+    { l: 'Integration Tests', w: 0.45, c: 'grad-amber', y: 0.56 },
+    { l: 'Unit Tests', w: 0.7, c: 'grad-green-light', y: 0.70 },
+  ];
+  layers.forEach(l => {
+    const lx = cx - l.w * w / 2;
+    segs.push(_gradRect(lx, y + h * l.y, l.w * w, h * 0.12, l.c));
+    segs.push(_text(l.l, cx, y + h * l.y + h * 0.06 + 4, { fs: 12, color: '#ffffff', anchor: 'middle', fw: '800' }));
+  });
+  segs.push(_text('Fewer E2E, many unit tests | Fast, reliable, maintainable', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeTDDCycle(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('TDD — Test Driven Development', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const steps = [
+    { l: 'Write\nTest', c: 'grad-red' },
+    { l: 'Write\nCode', c: 'grad-green-light' },
+    { l: 'Refactor', c: 'grad-blue-light' },
+    { l: 'Pass', c: 'grad-amber' },
+  ];
+  const r = Math.min(w, h) * 0.15; const cy = y + h * 0.48;
+  steps.forEach((s, i) => {
+    const a = (i / 4) * Math.PI * 2 - Math.PI / 2;
+    const sx = cx + Math.cos(a) * r * 2.2; const sy = cy + Math.sin(a) * r * 2.2;
+    segs.push(_gradCircle(sx, sy, 30, s.c));
+    const lines = s.l.split('\n');
+    lines.forEach((l, li) => segs.push(_text(l, sx, sy - 5 + li * 16, { fs: 10, color: '#ffffff', anchor: 'middle', fw: '700' })));
+    if (i < steps.length - 1) segs.push(_arrow(cx + Math.cos(a) * r * 2.2 + Math.cos(a + 0.5) * 30, cy + Math.sin(a) * r * 2.2 + Math.sin(a + 0.5) * 30, cx + Math.cos((i + 1) / 4 * Math.PI * 2 - Math.PI / 2) * r * 2.2 - Math.cos((i + 1) / 4 * Math.PI * 2 - Math.PI / 2 + 0.5) * 30, cy + Math.sin((i + 1) / 4 * Math.PI * 2 - Math.PI / 2) * r * 2.2 - Math.sin((i + 1) / 4 * Math.PI * 2 - Math.PI / 2 + 0.5) * 30, '#94a3b8', 2));
+  });
+  segs.push(_text('Red → Green → Refactor | Tests drive the design', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeCodeReview(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Code Review Process', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const steps = ['Author\nWrites PR', 'Reviewer\nChecks', 'Feedback\nGiven', 'Changes\nMade', 'Approved\n& Merged'];
+  const sw = 90; const sx = cx - ((steps.length * (sw + 8) - 8) / 2);
+  steps.forEach((s, i) => {
+    const bx = sx + i * (sw + 8);
+    const g = i === steps.length - 1 ? 'grad-green-light' : 'grad-blue-light';
+    segs.push(_gradRect(bx, y + h * 0.28, sw, 48, g));
+    const lines = s.split('\n');
+    lines.forEach((l, li) => segs.push(_text(l, bx + sw / 2, y + h * 0.28 + 16 + li * 16, { fs: 10, color: '#ffffff', anchor: 'middle', fw: '700' })));
+    if (i < steps.length - 1) segs.push(_arrow(bx + sw, y + h * 0.52, bx + sw + 8, y + h * 0.52, '#94a3b8', 1.5));
+  });
+  segs.push(_text('Collaborative quality assurance | Best practices, knowledge sharing', cx, y + h * 0.88, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+// =============================================================================
+// DATABASE CONCEPTS (6 shapes)
+// =============================================================================
+
+function shapeACIDProperties(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('ACID — Database Transactions', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const props = [
+    { t: 'A', l: 'Atomicity', d: 'All or nothing\nNo partial updates', c: 'grad-blue-light' },
+    { t: 'C', l: 'Consistency', d: 'Valid state before\nand after', c: 'grad-green-light' },
+    { t: 'I', l: 'Isolation', d: 'Concurrent txns\ndon\'t interfere', c: 'grad-purple-light' },
+    { t: 'D', l: 'Durability', d: 'Committed data\nsurvives crashes', c: 'grad-amber' },
+  ];
+  props.forEach((p, i) => {
+    const px = x + w * (0.04 + i * 0.24);
+    segs.push(_depthBox(px, y + h * 0.18, w * 0.21, h * 0.6, p.c));
+    segs.push(_text(p.t, px + w * 0.105, y + h * 0.24, { fs: 22, color: '#ffffff', anchor: 'middle', fw: '900' }));
+    segs.push(_text(p.l, px + w * 0.105, y + h * 0.36, { fs: 11, color: '#ffffff', anchor: 'middle', fw: '700' }));
+    const lines = p.d.split('\n');
+    lines.forEach((l, li) => segs.push(_text(l, px + w * 0.105, y + h * 0.48 + li * 18, { fs: 9, color: 'rgba(255,255,255,0.85)', anchor: 'middle' })));
+  });
+  segs.push(_text('Guarantees for reliable database transactions', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeSQLJoins(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('SQL JOIN Types', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const joins = [
+    { t: 'INNER JOIN', l: 'A ∩ B', c: 'grad-blue-light' },
+    { t: 'LEFT JOIN', l: 'A ∪ (A∩B)', c: 'grad-green-light' },
+    { t: 'RIGHT JOIN', l: '(A∩B) ∪ B', c: 'grad-purple-light' },
+    { t: 'FULL JOIN', l: 'A ∪ B', c: 'grad-amber' },
+  ];
+  joins.forEach((j, i) => {
+    const px = x + w * (0.04 + i * 0.24);
+    segs.push(_gradRect(px, y + h * 0.18, w * 0.21, h * 0.5, j.c));
+    segs.push(_text(j.t, px + w * 0.105, y + h * 0.24, { fs: 10, color: '#ffffff', anchor: 'middle', fw: '800' }));
+    segs.push(_text(j.l, px + w * 0.105, y + h * 0.45, { fs: 14, color: '#ffffff', anchor: 'middle', fw: '800' }));
+  });
+  segs.push(_text('Combine rows from multiple tables based on related columns', cx, y + h * 0.88, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeBTreeIndex(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('B-Tree Indexing', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  segs.push(_gradRect(x + w * 0.32, y + h * 0.14, w * 0.36, 32, 'grad-amber'));
+  segs.push(_text('[50, 100]', cx, y + h * 0.14 + 22, { fs: 11, color: '#ffffff', anchor: 'middle', fw: '800' }));
+  const children = [
+    { v: '[10, 25]', x: cx - w * 0.28, c: 'grad-blue-light' },
+    { v: '[60, 75]', x: cx, c: 'grad-green-light' },
+    { v: '[120, 150]', x: cx + w * 0.28, c: 'grad-purple-light' },
+  ];
+  children.forEach((c, i) => {
+    segs.push(_line(cx, y + h * 0.14 + 32, c.x, y + h * 0.3, '#94a3b8', 1.5));
+    segs.push(_gradRect(c.x - 40, y + h * 0.3, 80, 28, c.c));
+    segs.push(_text(c.v, c.x, y + h * 0.3 + 19, { fs: 9, color: '#ffffff', anchor: 'middle', fw: '700' }));
+  });
+  segs.push(_text('Balanced tree | O(log n) search, insert, delete | Database index structure', cx, y + h * 0.88, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+// =============================================================================
+// SECURITY CONCEPTS (6 shapes)
+// =============================================================================
+
+function shapeXSSAttack(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('XSS — Cross-Site Scripting', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  segs.push(_gradRect(x + w * 0.02, y + h * 0.18, w * 0.28, 34, 'grad-blue-light'));
+  segs.push(_text('Browser', x + w * 0.16, y + h * 0.18 + 22, { fs: 11, color: '#ffffff', anchor: 'middle', fw: '700' }));
+  segs.push(_arrow(x + w * 0.3, y + h * 0.35, x + w * 0.45, y + h * 0.35, '#dc2626', 2));
+  segs.push(_gradRect(x + w * 0.45, y + h * 0.18, w * 0.28, 34, 'grad-red'));
+  segs.push(_text('Malicious Script', x + w * 0.59, y + h * 0.18 + 22, { fs: 10, color: '#ffffff', anchor: 'middle', fw: '700' }));
+  segs.push(_text('<script>fetch(url)?cookie=</script>', cx, y + h * 0.45, { fs: 10, color: '#dc2626', anchor: 'middle', fw: '800' }));
+  segs.push(_rect(x + w * 0.2, y + h * 0.55, w * 0.6, h * 0.2, '#fff7ed', '#f97316', 2, 8));
+  segs.push(_text('Sanitize input | Escape output | Content Security Policy | Never trust user data', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeSQLInjection(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('SQL Injection Attack', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  segs.push(_gradRect(x + w * 0.02, y + h * 0.2, w * 0.28, 36, 'grad-blue-light'));
+  segs.push(_text('Login Form', x + w * 0.16, y + h * 0.2 + 24, { fs: 11, color: '#ffffff', anchor: 'middle', fw: '700' }));
+  segs.push(_text("Username: admin'--", x + w * 0.16, y + h * 0.42, { fs: 9, color: '#dc2626', anchor: 'middle' }));
+  segs.push(_arrow(x + w * 0.3, y + h * 0.34, x + w * 0.42, y + h * 0.34, '#dc2626', 2));
+  segs.push(_gradRect(x + w * 0.42, y + h * 0.18, w * 0.3, 36, 'grad-red'));
+  segs.push(_text('Database', x + w * 0.57, y + h * 0.18 + 24, { fs: 11, color: '#ffffff', anchor: 'middle', fw: '700' }));
+  segs.push(_text("SELECT * FROM users\nWHERE user = 'admin'--'", cx + w * 0.08, y + h * 0.52, { fs: 9, color: '#dc2626', anchor: 'middle' }));
+  segs.push(_text("Use parameterized queries | NEVER concatenate user input into SQL", cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeHTTPSHandshake(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('TLS/SSL Handshake', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  segs.push(_gradRect(x + w * 0.02, y + h * 0.3, w * 0.25, 36, 'grad-blue-light'));
+  segs.push(_text('Client', x + w * 0.145, y + h * 0.3 + 24, { fs: 12, color: '#ffffff', anchor: 'middle', fw: '800' }));
+  segs.push(_gradRect(x + w * 0.73, y + h * 0.3, w * 0.25, 36, 'grad-green-light'));
+  segs.push(_text('Server', x + w * 0.855, y + h * 0.3 + 24, { fs: 12, color: '#ffffff', anchor: 'middle', fw: '800' }));
+  const msgs = ['ClientHello', 'ServerHello + Cert', 'Key Exchange', 'Secure Connection'];
+  const colors = ['#3b82f6', '#22c55e', '#f59e0b', '#16a34a'];
+  msgs.forEach((m, i) => {
+    const my = y + h * 0.42 + i * 22;
+    segs.push(_rect(x + w * 0.05, my, w * 0.22, 18, '#f8fafc', colors[i], 1, 6));
+    segs.push(_text(m, x + w * 0.16, my + 13, { fs: 8, color: colors[i], anchor: 'middle', fw: '700' }));
+    segs.push(_arrow(i % 2 === 0 ? x + w * 0.27 : x + w * 0.73, my + 9, i % 2 === 0 ? x + w * 0.73 : x + w * 0.27, my + 9, colors[i], 1.5));
+  });
+  segs.push(_text('Encrypted data transfer begins after successful handshake', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+// =============================================================================
+// NETWORKING (4 shapes)
+// =============================================================================
+
+function shapeTCPHandshake(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('TCP 3-Way Handshake', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  segs.push(_gradRect(x + w * 0.02, y + h * 0.35, w * 0.28, 36, 'grad-blue-light'));
+  segs.push(_text('Client', x + w * 0.16, y + h * 0.35 + 24, { fs: 12, color: '#ffffff', anchor: 'middle', fw: '800' }));
+  segs.push(_gradRect(x + w * 0.7, y + h * 0.35, w * 0.28, 36, 'grad-green-light'));
+  segs.push(_text('Server', x + w * 0.84, y + h * 0.35 + 24, { fs: 12, color: '#ffffff', anchor: 'middle', fw: '800' }));
+  const msgs = [['SYN', 0, '#3b82f6'], ['SYN-ACK', 1, '#22c55e'], ['ACK', 0, '#f59e0b']];
+  msgs.forEach(([m, dir, clr], i) => {
+    const my = y + h * 0.5 + i * 26;
+    segs.push(_text(m, dir === 0 ? x + w * 0.4 : x + w * 0.6, my, { fs: 10, color: clr, anchor: 'middle', fw: '800' }));
+    segs.push(_arrow(dir === 0 ? x + w * 0.3 : x + w * 0.7, my + 2, dir === 0 ? x + w * 0.7 : x + w * 0.3, my + 2, clr, 2));
+  });
+  segs.push(_text('SYN → SYN-ACK → ACK | Reliable connection-oriented protocol', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeDNSResolution(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('DNS Resolution', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const hosts = ['Browser', 'DNS Cache', 'DNS Server', 'IP Address'];
+  const sw = 100; const sx = cx - ((hosts.length * (sw + 8) - 8) / 2);
+  hosts.forEach((h, i) => {
+    const bx = sx + i * (sw + 8);
+    segs.push(_gradRect(bx, y + h * 0.35, sw, 36, i === hosts.length - 1 ? 'grad-green-light' : 'grad-blue-light'));
+    segs.push(_text(h, bx + sw / 2, y + h * 0.35 + 24, { fs: 10, color: '#ffffff', anchor: 'middle', fw: '700' }));
+    if (i < hosts.length - 1) segs.push(_arrow(bx + sw, y + h * 0.53, bx + sw + 8, y + h * 0.53, '#94a3b8', 1.5));
+  });
+  segs.push(_text('Domain Name System — converts domain names to IP addresses', cx, y + h * 0.88, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+// =============================================================================
+// MORE DATA STRUCTURES (6 shapes)
+// =============================================================================
+
+function shapeRingBuffer(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Ring Buffer (Circular Buffer)', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const n = 8; const r = 65; const cy = y + h * 0.48;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 - Math.PI / 2;
+    const bx = cx + Math.cos(a) * r; const by = cy + Math.sin(a) * r;
+    segs.push(_gradRect(bx - 17, by - 14, 34, 28, i < 5 ? 'grad-blue-light' : 'grad-slate'));
+    segs.push(_text(String(i), bx, by + 5, { fs: 10, color: '#ffffff', anchor: 'middle', fw: '700' }));
+  }
+  segs.push(_arrow(cx + Math.cos(0) * (r + 34), cy + Math.sin(0) * (r + 34), cx + Math.cos(0) * (r + 20), cy + Math.sin(0) * (r + 20), '#22c55e', 2));
+  segs.push(_text('Write', cx + Math.cos(0) * (r + 34), cy + Math.sin(0) * (r + 34) + 14, { fs: 8, color: '#22c55e', anchor: 'middle', fw: '700' }));
+  segs.push(_arrow(cx + Math.cos(Math.PI) * (r + 34), cy + Math.sin(Math.PI) * (r + 34), cx + Math.cos(Math.PI) * (r + 20), cy + Math.sin(Math.PI) * (r + 20), '#f59e0b', 2));
+  segs.push(_text('Read', cx + Math.cos(Math.PI) * (r + 34), cy + Math.sin(Math.PI) * (r + 34) + 14, { fs: 8, color: '#f59e0b', anchor: 'middle', fw: '700' }));
+  segs.push(_text('FIFO buffer with fixed size | Overwrites oldest when full', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeDeque(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Deque — Double-Ended Queue', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const items = ['←', 'A', 'B', 'C', 'D', '→'];
+  const bw = 48; const sx = cx - ((items.length * (bw + 4) - 4) / 2);
+  items.forEach((it, i) => {
+    const bx = sx + i * (bw + 4);
+    if (it === '←') { segs.push(_gradRect(bx, y + h * 0.35, 36, 36, 'grad-green-light')); segs.push(_text(it, bx + 18, y + h * 0.35 + 24, { fs: 16, color: '#ffffff', anchor: 'middle', fw: '800' })); }
+    else if (it === '→') { segs.push(_gradRect(bx, y + h * 0.35, 36, 36, 'grad-red')); segs.push(_text(it, bx + 18, y + h * 0.35 + 24, { fs: 16, color: '#ffffff', anchor: 'middle', fw: '800' })); }
+    else { segs.push(_gradRect(bx, y + h * 0.35, bw, 36, 'grad-blue-light')); segs.push(_text(it, bx + bw / 2, y + h * 0.35 + 24, { fs: 14, color: '#ffffff', anchor: 'middle', fw: '700' })); }
+  });
+  segs.push(_text('pushFront / pushBack / popFront / popBack | O(1) operations', cx, y + h * 0.88, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeSegmentTree(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Segment Tree — Range Queries', cx, y + h * 0.06, { fs: 15, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const nodes = [
+    { v: 'A[0..7]', x: cx, y: y + h * 0.16, c: 'grad-blue-light' },
+    { v: 'A[0..3]', x: cx - w * 0.25, y: y + h * 0.32, c: 'grad-green-light' },
+    { v: 'A[4..7]', x: cx + w * 0.25, y: y + h * 0.32, c: 'grad-purple-light' },
+    { v: 'A[0..1]', x: cx - w * 0.38, y: y + h * 0.48, c: 'grad-amber' },
+    { v: 'A[2..3]', x: cx - w * 0.12, y: y + h * 0.48, c: 'grad-amber' },
+    { v: 'A[4..5]', x: cx + w * 0.12, y: y + h * 0.48, c: 'grad-teal' },
+    { v: 'A[6..7]', x: cx + w * 0.38, y: y + h * 0.48, c: 'grad-teal' },
+  ];
+  const treeEdges = [[0, 1], [0, 2], [1, 3], [1, 4], [2, 5], [2, 6]];
+  treeEdges.forEach(([a, b]) => segs.push(_line(nodes[a].x, nodes[a].y + 18, nodes[b].x, nodes[b].y - 12, '#94a3b8', 1.5)));
+  nodes.forEach(n => { segs.push(_gradRect(n.x - 40, n.y - 12, 80, 24, n.c)); segs.push(_text(n.v, n.x, n.y + 5, { fs: 8, color: '#ffffff', anchor: 'middle', fw: '700' })); });
+  segs.push(_text('Query sum/min/max over [L, R] in O(log n) | Update in O(log n)', cx, y + h * 0.88, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+// =============================================================================
+// MORE ALGORITHMS (6 shapes)
+// =============================================================================
+
+function shapeAStarPath(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('A* Pathfinding Algorithm', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const grid = []; const gs = Math.floor(w / 14); const gy = y + h * 0.14;
+  for (let r = 0; r < 6; r++) for (let c = 0; c < 10; c++) grid.push({ x: x + c * gs + 20, y: gy + r * gs, wall: (r === 2 && c > 1 && c < 8) || (r === 4 && c > 1 && c < 6) });
+  grid.forEach(g => { segs.push(_rect(g.x, g.y, gs - 2, gs - 2, g.wall ? '#64748b' : '#ffffff', g.wall ? '#475569' : '#e2e8f0', 1, 2)); if (!g.wall) segs.push(_text('.', g.x + gs / 2 - 4, g.y + gs / 2 + 3, { fs: 8, color: '#cbd5e1', anchor: 'middle' })); });
+  const path = [{ r: 0, c: 0 }, { r: 1, c: 1 }, { r: 2, c: 2 }, { r: 3, c: 3 }, { r: 3, c: 4 }, { r: 3, c: 5 }, { r: 3, c: 6 }, { r: 3, c: 7 }, { r: 4, c: 8 }, { r: 5, c: 9 }];
+  path.forEach((p, i) => {
+    const px = x + p.c * gs + 20 + gs / 2; const py = gy + p.r * gs + gs / 2;
+    segs.push(_gradCircle(px, py, 5, i === 0 ? 'grad-green-light' : i === path.length - 1 ? 'grad-red' : 'grad-amber'));
+    if (i > 0) { const prev = path[i - 1]; segs.push(_line(x + prev.c * gs + 20 + gs / 2, gy + prev.r * gs + gs / 2, px, py, '#22c55e', 2)); }
+  });
+  segs.push(_text('S', x + 20 + gs / 2, gy + gs / 2 + 3, { fs: 8, color: '#ffffff', anchor: 'middle', fw: '800' }));
+  segs.push(_text('G', x + 9 * gs + 20 + gs / 2, gy + 5 * gs + gs / 2 + 3, { fs: 8, color: '#ffffff', anchor: 'middle', fw: '800' }));
+  segs.push(_text('f(n) = g(n) + h(n) | Shortest path with heuristic', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeTopologicalSort(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Topological Sort — DAG', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const nodes = ['S', 'A', 'B', 'C', 'D', 'T'];
+  const edges = [[0, 1], [0, 2], [1, 3], [2, 3], [2, 4], [3, 5], [4, 5]];
+  const pos = [{ x: cx - w * 0.35, y: y + h * 0.25 }, { x: cx - w * 0.35, y: y + h * 0.55 }, { x: cx, y: y + h * 0.25 }, { x: cx, y: y + h * 0.55 }, { x: cx + w * 0.35, y: y + h * 0.25 }, { x: cx + w * 0.35, y: y + h * 0.55 }];
+  edges.forEach(([a, b]) => segs.push(_arrow(pos[a].x, pos[a].y + 12, pos[b].x, pos[b].y - 12, '#94a3b8', 1.5)));
+  nodes.forEach((n, i) => { segs.push(_gradCircle(pos[i].x, pos[i].y, 18, 'grad-blue-light')); segs.push(_text(n, pos[i].x, pos[i].y + 5, { fs: 14, color: '#ffffff', anchor: 'middle', fw: '800' })); });
+  segs.push(_text('Linear ordering of DAG vertices | Prerequisite scheduling', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+// =============================================================================
+// DESIGN PATTERNS (6 shapes)
+// =============================================================================
+
+function shapeSingletonPattern(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Singleton Pattern', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  segs.push(_depthBox(cx - 60, y + h * 0.2, 120, 100, 'grad-blue-light'));
+  segs.push(_text('Singleton', cx, y + h * 0.28, { fs: 14, color: '#ffffff', anchor: 'middle', fw: '800' }));
+  segs.push(_line(cx - 45, y + h * 0.34, cx + 45, y + h * 0.34, 'rgba(255,255,255,0.3)', 1));
+  segs.push(_text('- instance', cx, y + h * 0.40, { fs: 10, color: 'rgba(255,255,255,0.8)', anchor: 'middle' }));
+  segs.push(_text('+ getInstance()', cx, y + h * 0.50, { fs: 10, color: 'rgba(255,255,255,0.9)', anchor: 'middle', fw: '700' }));
+  segs.push(_arrow(cx - 60, y + h * 0.5, cx - 100, y + h * 0.5, '#3b82f6', 1.5));
+  segs.push(_text('Global access point', cx - 100, y + h * 0.45, { fs: 8, color: '#3b82f6', anchor: 'end' }));
+  segs.push(_text('One instance per JVM | Used for logging, config, connection pools', cx, y + h * 0.88, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeObserverPattern(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Observer Pattern', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  segs.push(_depthBox(cx - 45, y + h * 0.2, 90, 50, 'grad-purple-light'));
+  segs.push(_text('Subject', cx, y + h * 0.32, { fs: 13, color: '#ffffff', anchor: 'middle', fw: '800' }));
+  const obs = ['Observer A', 'Observer B', 'Observer C'];
+  obs.forEach((o, i) => {
+    const ox = cx - w * 0.3 + i * w * 0.3;
+    segs.push(_gradRect(ox - 40, y + h * 0.55, 80, 28, 'grad-blue-light'));
+    segs.push(_text(o, ox, y + h * 0.55 + 19, { fs: 8, color: '#ffffff', anchor: 'middle', fw: '700' }));
+    segs.push(_arrow(cx, y + h * 0.2 + 50, ox, y + h * 0.55, '#94a3b8', 1.5));
+  });
+  segs.push(_text('Publish-subscribe | One-to-many dependency notification', cx, y + h * 0.88, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeFactoryPattern(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Factory Pattern', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  segs.push(_depthBox(cx - 50, y + h * 0.2, 100, 50, 'grad-amber'));
+  segs.push(_text('Factory', cx, y + h * 0.32, { fs: 13, color: '#ffffff', anchor: 'middle', fw: '800' }));
+  const prods = ['Product A', 'Product B', 'Product C'];
+  prods.forEach((p, i) => {
+    const px = cx - w * 0.3 + i * w * 0.3;
+    segs.push(_gradRect(px - 35, y + h * 0.58, 70, 26, 'grad-green-light'));
+    segs.push(_text(p, px, y + h * 0.58 + 18, { fs: 8, color: '#ffffff', anchor: 'middle', fw: '700' }));
+    segs.push(_arrow(cx, y + h * 0.2 + 50, px, y + h * 0.58, '#94a3b8', 1.5));
+  });
+  segs.push(_text('Encapsulates object creation | Loose coupling, single responsibility', cx, y + h * 0.88, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeStrategyPattern(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Strategy Pattern', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  segs.push(_depthBox(cx - 45, y + h * 0.18, 90, 40, 'grad-blue-light'));
+  segs.push(_text('Context', cx, y + h * 0.18 + 26, { fs: 12, color: '#ffffff', anchor: 'middle', fw: '800' }));
+  const strats = ['Strategy A', 'Strategy B', 'Strategy C'];
+  strats.forEach((s, i) => {
+    const sx = cx - w * 0.3 + i * w * 0.3;
+    segs.push(_gradRect(sx - 40, y + h * 0.55, 80, 28, 'grad-purple-light'));
+    segs.push(_text(s, sx, y + h * 0.55 + 19, { fs: 9, color: '#ffffff', anchor: 'middle', fw: '700' }));
+    segs.push(_arrow(cx, y + h * 0.18 + 40, sx, y + h * 0.55, '#94a3b8', 1.5, true));
+  });
+  segs.push(_text('Interchangeable algorithms | Composition over inheritance', cx, y + h * 0.88, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+// =============================================================================
+// MORE SYSTEM DESIGN (4 shapes)
+// =============================================================================
+
+function shapeBlueGreenDeploy(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Blue-Green Deployment', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  segs.push(_gradRect(x + w * 0.02, y + h * 0.18, w * 0.25, 50, 'grad-blue-light'));
+  segs.push(_text('Load Balancer', x + w * 0.145, y + h * 0.2 + 26, { fs: 10, color: '#ffffff', anchor: 'middle', fw: '700' }));
+  segs.push(_checkCircle(x + w * 0.12, y + h * 0.18 + 25, 8, '#22c55e'));
+  segs.push(_arrow(x + w * 0.27, y + h * 0.3, x + w * 0.35, y + h * 0.3, '#22c55e', 3));
+  segs.push(_depthBox(x + w * 0.35, y + h * 0.18, w * 0.25, h * 0.5, 'grad-blue'));
+  segs.push(_text('Blue\n(Live)', x + w * 0.475, y + h * 0.35, { fs: 14, color: '#ffffff', anchor: 'middle', fw: '800' }));
+  segs.push(_text('v2.0', x + w * 0.475, y + h * 0.5, { fs: 10, color: 'rgba(255,255,255,0.8)', anchor: 'middle' }));
+  segs.push(_depthBox(x + w * 0.68, y + h * 0.18, w * 0.25, h * 0.5, 'grad-green-light'));
+  segs.push(_text('Green\n(Staging)', x + w * 0.805, y + h * 0.35, { fs: 14, color: '#ffffff', anchor: 'middle', fw: '800' }));
+  segs.push(_text('v2.1', x + w * 0.805, y + h * 0.5, { fs: 10, color: 'rgba(255,255,255,0.8)', anchor: 'middle' }));
+  segs.push(_text('Route switch: Blue → Green | Zero-downtime deployment', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeConsistentHash(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Consistent Hashing', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const cy = y + h * 0.48;
+  segs.push(_path(`M ${cx - 150} ${cy} A 150 120 0 1 1 ${cx + 150} ${cy} A 150 120 0 0 1 ${cx - 150} ${cy}`, '#cbd5e1', 'none', 2));
+  const nodes = [
+    { x: cx, y: cy - 90, l: 'N1', c: 'grad-blue-light' },
+    { x: cx + 85, y: cy - 40, l: 'N2', c: 'grad-green-light' },
+    { x: cx + 90, y: cy + 45, l: 'N3', c: 'grad-purple-light' },
+    { x: cx + 10, y: cy + 85, l: 'N4', c: 'grad-amber' },
+    { x: cx - 80, y: cy + 45, l: 'N5', c: 'grad-red' },
+    { x: cx - 90, y: cy - 35, l: 'N6', c: 'grad-teal' },
+  ];
+  const keys = [
+    { x: cx + 40, y: cy - 55, l: 'K1' },
+    { x: cx - 30, y: cy - 70, l: 'K2' },
+    { x: cx - 70, y: cy - 20, l: 'K3' },
+    { x: cx - 50, y: cy + 50, l: 'K4' },
+    { x: cx + 60, y: cy + 50, l: 'K5' },
+  ];
+  nodes.forEach(n => { segs.push(_gradCircle(n.x, n.y, 18, n.c)); segs.push(_text(n.l, n.x, n.y + 5, { fs: 9, color: '#ffffff', anchor: 'middle', fw: '700' })); });
+  keys.forEach(k => { segs.push(_circle(k.x, k.y, 5, '#f59e0b', '#f59e0b', 2)); segs.push(_text(k.l, k.x + 12, k.y + 4, { fs: 8, color: '#f59e0b', anchor: 'start', fw: '700' })); });
+  segs.push(_text('Hash ring | Minimal rehashing on node add/remove', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+// =============================================================================
 // REGISTRATION - called to wire all shapes into SHAPE_REGISTRY and SHAPE_ALIASES
 // =============================================================================
 
@@ -1410,6 +2348,15 @@ export function registerProgrammingShapes(registry, aliases) {
     'kubernetes_pod': shapeKubernetesPod, 'github_actions': shapeGitHubActions,
     'terraform': shapeTerraform, 'monitoring': shapeMonitoring, 'helm_chart': shapeHelmChart,
     'service_mesh': shapeServiceMesh,
+    'bst_premium': shapePremiumBinaryTree, 'hashmap_premium': shapePremiumHashMap,
+    'merge_sort_visual': shapePremiumMergeSort, 'graph_traversal': shapePremiumGraphTraversal,
+    'neural_network': shapeNeuralNetwork, 'decision_tree_ml': shapeDecisionTree,
+    'svm_diagram': shapeSVMMargin, 'kmeans_clustering': shapeKMeans,
+    'transformer_arch': shapeTransformer,
+    'event_sourcing': shapeEventSourcing, 'saga_pattern': shapeSagaPattern,
+    'data_pipeline': shapeDataPipeline, 'two_phase_commit': shapeTwoPhaseCommit,
+    'dp_table_visual': shapeDynamicProgramming, 'lru_cache_premium': shapeLRUCachePremium,
+    'big_o_cheatsheet': shapeBigONotation,
   };
 
   const aliasMap = {
@@ -1503,6 +2450,22 @@ export function registerProgrammingShapes(registry, aliases) {
     'monitoring': 'monitoring', 'observability': 'monitoring', 'metrics': 'monitoring',
     'helm': 'helm_chart', 'helm chart': 'helm_chart',
     'service mesh': 'service_mesh', 'istio': 'service_mesh', 'linkerd': 'service_mesh',
+    'premium bst': 'bst_premium', 'bst visual': 'bst_premium',
+    'hashmap': 'hashmap_premium', 'hashmap visual': 'hashmap_premium',
+    'merge sort visual': 'merge_sort_visual', 'merge sort animation': 'merge_sort_visual',
+    'graph traversal': 'graph_traversal', 'bfs dfs visual': 'graph_traversal',
+    'nn': 'neural_network', 'neural net': 'neural_network', 'deep learning': 'neural_network',
+    'decision tree': 'decision_tree_ml', 'ml tree': 'decision_tree_ml',
+    'svm': 'svm_diagram', 'support vector': 'svm_diagram', 'svm margin': 'svm_diagram',
+    'k means': 'kmeans_clustering', 'kmeans': 'kmeans_clustering', 'clustering': 'kmeans_clustering',
+    'transformer': 'transformer_arch', 'attention': 'transformer_arch', 'gpt': 'transformer_arch',
+    'event sourcing': 'event_sourcing', 'event store': 'event_sourcing',
+    'saga': 'saga_pattern', 'saga pattern': 'saga_pattern', 'distributed transaction': 'saga_pattern',
+    'etl': 'data_pipeline', 'data pipeline': 'data_pipeline', 'data processing': 'data_pipeline',
+    '2pc': 'two_phase_commit', 'two phase commit': 'two_phase_commit',
+    'dp visual': 'dp_table_visual', 'dp table visual': 'dp_table_visual',
+    'lru visual': 'lru_cache_premium', 'lru cache visual': 'lru_cache_premium',
+    'big o': 'big_o_cheatsheet', 'complexity': 'big_o_cheatsheet', 'big o notation': 'big_o_cheatsheet',
   };
 
   for (const [key, fn] of Object.entries(shapes)) {

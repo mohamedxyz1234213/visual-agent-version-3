@@ -205,14 +205,18 @@ router.get('/', async (req, res, next) => {
     }
 
     // ── Non-admin: own lessons + admin-created (public) lessons ─────────────
+    //    When ?owner=me is set, only return the current user's own lessons.
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 12));
     const search = (req.query.search || '').trim();
     const statusFilter = (req.query.status || '').trim();
     const sort = (req.query.sort || 'recent').trim();
+    const ownerFilter = (req.query.owner || '').trim();
 
     const adminIds = await getAdminIds();
-    const filterOwnerIds = [...new Set([req.user?._id, ...adminIds])].filter(Boolean);
+    const filterOwnerIds = ownerFilter === 'me'
+      ? [req.user?._id].filter(Boolean)
+      : [...new Set([req.user?._id, ...adminIds])].filter(Boolean);
     const filter = { ownerId: { $in: filterOwnerIds } };
     if (statusFilter && ['processing', 'ready', 'error'].includes(statusFilter)) {
       filter.status = statusFilter;

@@ -212,6 +212,67 @@ function enrichData(intent, data, ctx) {
     }
   }
 
+  // ── VISUAL RICHNESS ENHANCEMENT ──────────────────────────────────────────
+  // Ensure every list-based visual slot has MORE items than what the narration
+  // directly mentions. The visual must be richer than the spoken explanation.
+  // We expand small lists by extracting extra keyword phrases from the combined
+  // narration, so the student sees additional details even if the narrator
+  // only covers the highlights.
+  const listSlots = ['labels', 'points', 'items', 'steps', 'stages', 'phases', 'features', 'notes', 'facts', 'milestones', 'tiles', 'beats'];
+  const minTargets = { 'labels': 4, 'points': 5, 'items': 5, 'steps': 4, 'stages': 4, 'phases': 4, 'features': 4, 'notes': 4, 'facts': 4 };
+  const fullSay = String(ctx.say || '');
+  const allWords = fullSay.replace(/[.,!?;:]/g, '').split(/\s+/).filter(Boolean);
+  // Noun-like keyword extraction: capitalized words, technical terms, concepts
+  const keywords = [];
+  const seen = new Set();
+  for (const word of allWords) {
+    const clean = word.trim();
+    if (clean.length < 4) continue;
+    // Skip common words (extensive list to avoid generic labels on the board)
+    if (/^(this|that|these|those|there|here|what|when|where|which|their|they|them|have|has|had|from|with|about|into|over|very|just|like|then|than|some|more|also|come|came|take|took|make|made|know|been|being|would|could|should|does|done|much|such|each|every|both|same|only|even|well|back|down|right|left|long|thing|think|going|really|actually|still|already|never|ever|after|before|other|while|until|first|last|next|part|way|point|see|say|look|ask|gets|lets|tells|helps|needs|wants|seems|keeps|starts|works|calls|puts|sets|turn|uses|used|show|hope|mean|feel|move|find|give|hold|wait|done|sure|away|here|upon|across|along|among|around|above|below|between|without|through|during|before|inside|outside|under|near|off|far|top|bottom|side|end|few|lot|most|much|enough|whole|half|any|all|both|each|new|old|big|small|high|low|good|bad|best|better|worst|hard|easy|fast|slow|true|real|full|clear|great|little|large|short|long|wide|deep|strong|weak|happy|tired|ready|able|nice|fine|glad|sure|sorry|early|late|close|near|far|away)$/i.test(clean)) continue;
+    // Skip short lowercase words (likely verbs, prepositions, pronouns)
+    if (/^[a-z]/.test(clean) && clean.length < 7) continue;
+    const lower = clean.toLowerCase();
+    if (!seen.has(lower)) {
+      seen.add(lower);
+      keywords.push(clean);
+    }
+  }
+  // For each list slot that exists or is a candidate, ensure it has
+  // enough items — expand with keyword-derived entries when short.
+  for (const slot of listSlots) {
+    const min = minTargets[slot] || 4;
+    if (Array.isArray(d[slot]) && d[slot].length > 0) {
+      // Already has items — pad with keywords if below minimum
+      const existing = d[slot].length;
+      if (existing < min) {
+        const needed = min - existing;
+        const extras = keywords.slice(0, needed).map((k) => {
+          // For steps/stages, wrap as {title, detail} objects
+          if (slot === 'steps' || slot === 'stages' || slot === 'phases' || slot === 'milestones') {
+            return { title: k, detail: '' };
+          }
+          return k;
+        });
+        d[slot] = [...d[slot], ...extras].slice(0, min + 2);
+      }
+    } else if (slot !== 'steps' && slot !== 'stages' && slot !== 'phases' && slot !== 'milestones') {
+      // Slot is empty — create it from keywords (minimum 4 items for visual richness)
+      const newItems = keywords.slice(0, Math.max(4, min)).map((k) => k);
+      if (newItems.length >= 3) {
+        d[slot] = newItems;
+      }
+    }
+  }
+  // For labels specifically: if the scene has labels but fewer than 4,
+  // use keywords to pad (labels is the most common visual anchor)
+  if (Array.isArray(d.labels) && d.labels.length > 0 && d.labels.length < 4) {
+    const needed = Math.min(6 - d.labels.length, keywords.length);
+    for (let i = 0; i < needed; i++) {
+      d.labels.push(keywords[i] || `Detail ${i + 1}`);
+    }
+  }
+
   return d;
 }
 

@@ -41,7 +41,7 @@ export default function StudentDashboard() {
   const [wbLoading, setWbLoading] = useState(true);
 
   useEffect(() => {
-    fetchDashboard({ page: 1, limit: 4, sort: "recent" })
+    fetchDashboard({ page: 1, limit: 4, sort: "recent", owner: "me" })
       .then((res) => setWbLessons(res.lessons))
       .catch(() => {})
       .finally(() => setWbLoading(false));

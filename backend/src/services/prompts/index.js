@@ -268,32 +268,116 @@ YOUR TASK — edit the visuals while composing:
    The drawn slots are what the template renders as visible boxes/text on the board.
    If "say" talks about it but no slot carries it, the student HEARS it but never
    SEES it — that's a broken coupling. Fix both together.
+
+   VISUALS ARE RICHER THAN NARRATION — THE CORE PRINCIPLE:
+   The whiteboard visual must contain FAR MORE detail than what the narration
+   describes. The narration is a GUIDED TOUR through the visual — it points to
+   key landmarks, explains what they mean, and connects them. But the visual
+   itself should be dense with labels, annotations, icons, arrows, and extra
+   information that the curious student discovers by looking.
+
+   Think of it like a museum tour: the guide (narration) points out the most
+   important exhibits and explains their significance, but the gallery walls
+   (visual) are covered in paintings, labels, and details the student can
+   explore on their own.
+
+   HOW THIS WORKS IN PRACTICE:
+   - If you're showing a cell diagram, the narration says "Here's the nucleus
+     — it's the control center" but the visual also labels mitochondria,
+     ribosomes, ER, Golgi, cell membrane, and more.
+   - If you're showing a process flow, the narration walks through steps 1-3
+     while the visual shows all 6 steps with icons, arrows, and annotations.
+   - If you're explaining an equation, the narration explains the key transformation
+     while the visual shows the full derivation with all terms labeled.
+   - If you're showing a comparison, the narration highlights 2-3 key differences
+     while the visual shows a full comparison table with 5+ criteria.
+
+   EVERY drawn slot must carry MORE items than the narration explicitly mentions.
+   Labels, points, steps, and annotations are EXTRA VISUAL CONTENT — not just
+   what the narrator says. The narration is a subset of what's visible.
+
+   RULES FOR VISUAL RICHNESS:
+   - labels[]: minimum 4 items even if narration only mentions 2-3
+   - points/items: minimum 5 items even if narration covers 3
+   - steps: minimum 4 steps even if narration walks through 2-3
+   - diagram + labels: always include sub-structures and related parts
+   - Every scene should have 2-3 drawn elements that the narration never
+     mentions — these are "discovery details" the student finds by looking
 3. Vary intents across beats — NEVER use the same define→process→recap pattern as other
    parts. Mix: map, cause, timeline, formula, data, cycle, cluster, compare, example
 4. For science/biology/chemistry/physics/medical topics: include at least one "map"
    beat with "diagram" naming a shape from the 200+ SHAPE LIBRARY and "labels"
    naming the key parts — this renders a real SVG figure on the board.
-   Choose the most specific shape for your concept:
-   BIOLOGY: dna_advanced, cell_animal, cell_bacteria, mitochondria, chloroplast,
+   Choose the most specific shape for your concept (the library now has 1000+ shapes):
+   BIOLOGY & MEDICINE: dna_advanced, cell_animal, cell_bacteria, mitochondria, chloroplast,
      endoplasmic_reticulum, ribosome, golgi_apparatus, nucleus_detailed,
      neuron_detailed, synapse, heart_organ, lung, brain, kidney, liver, stomach,
      virus, antibody, stem_cell, red_blood_cell, white_blood_cell, platelet,
-     leaf_detailed, tree_detailed, flower, mushroom, spider, butterfly, fish,
-     bird, pollen_grain, ecosystem, food_chain, water_cycle, carbon_cycle
+     leaf_detailed, tree_detailed, flower, mushroom, spider, butterfly, fish, bird,
+     pollen_grain, ecosystem, food_chain, water_cycle, carbon_cycle, skeleton,
+     eye_diagram, ear_diagram, tooth, stethoscope, syringe, pill, bandage, dna_vial
    MATH: coordinate_plane, number_line, fraction_bar, pie_chart, bar_chart,
-     line_graph, pyramid, set_venn, cube, sphere, cylinder, cone, prism
+     line_graph, pyramid, set_venn, cube, sphere, cylinder, cone, prism,
+     trig_circle, sine_wave, parabola, hyperbola, integral_area, matrix,
+     vector_arrow, complex_plane, graph_nodes, derivative_graph, fibonacci
    PHYSICS: spring, pendulum, inclined_plane, pulley, free_body_diagram,
-     force_vector, electric_circuit, lens, mirror, magnet_shape, electric_field,
-     wave_pulse, standing_wave, energy_bar, lever, ramp
+     force_vector, electric_circuit, lens, concave_lens, mirror,
+     magnet_shape, electric_field, gravitational_field, wave_pulse,
+     standing_wave, energy_bar, lever, wheel_axle, screw, wedge, ramp,
+     molecule_3d, electron_shell, fission, fusion, wave_interference,
+     lens_diagram, prism, seismic_wave, magnetic_field
    CHEMISTRY: beaker, flask, test_tube, molecule_water, molecule_co2, methane,
-     benzene_ring, electron_config, phase_diagram, periodic_cell, bond_single,
-     bond_double, bond_triple, ph_scale
-   ENGINEERING: gear_detailed, motor, generator, transformer, arduino, sensor
-   PROGRAMMING: flowchart_process, flowchart_decision, server_icon, database_icon,
-     cloud_service, api_box, firewall, linked_list, tree_node, hash_table, json_block
-   BUSINESS: funnel, org_chart, swot_matrix, gauge_meter, donut_chart, kpi
+     reaction_arrow, equilibrium_arrow, benzene_ring, electron_config,
+     phase_diagram, periodic_cell, bond_single, bond_double, bond_triple,
+     ph_scale, molecule_3d, thermometer, barometer, centrifuge, pipette
+   ENGINEERING & TECH: gear_detailed, bolt, nut, valve, pipe, heat_exchanger,
+     motor, generator, transformer, breadboard, arduino, raspberry_pi, sensor,
+     antenna, circuit_board, drone, robot, ai_chip, smartwatch, vr_headset,
+     printer, router, gaming_console, qr_code, barcode, solar_panel
+   PROGRAMMING & CS: flowchart_process, flowchart_decision, flowchart_start,
+     flowchart_end, flowchart_io, server_icon, database_icon, cloud_service,
+     api_box, cache_box, queue_box, firewall, lock_icon, key_icon, shield_icon,
+     stack_icon, linked_list, tree_node, hash_table, http_request,
+     http_response, json_block, neural_network, cloud_computing, blockchain,
+     cyber_shield, encryption, data_flow
+   BUSINESS & GENERAL: funnel, org_chart, timeline_bar, swot_matrix, gauge_meter,
+     progress_ring, donut_chart, kpi_card, target_icon, bulb_icon, rocket_icon,
+     flag_icon, star_badge, warning_triangle, check_circle, cross_circle,
+     arrow_up, arrow_down, hourglass, compass, mandala, kaleidoscope,
+     tessellation, mobius_strip, rosette, yin_yang, infinity, tree_of_life
+   WEATHER & NATURE: sun, moon, cloud, rain_cloud, snowflake, lightning, tornado,
+     volcano, mountain, wave_nature, rock_cycle, water_cycle, carbon_cycle,
+     food_chain, thunderstorm, aurora, rainbow, tornado_cloud, wind_pattern,
+     desert, river, waterfall, forest, island, iceberg, geyser
+   CREATIVE 3D & ART: 3d_cube, 3d_sphere, 3d_cylinder, 3d_cone, 3d_pyramid,
+     3d_torus, crystal, geode, globe, planet_saturn, constellation, nebula,
+     color_wheel, perspective_grid, flow_field, voronoi
+   SPACE & ASTRONOMY: rocket, telescope, satellite, milky_way, astronaut, black_hole,
+     planet_saturn, constellation, nebula
+   OCEAN & MARINE: wave_ocean, whale, shark, coral_reef, submarine, jellyfish,
+     dolphin, octopus, starfish, seahorse
+   ARCHITECTURE & LANDMARKS: castle, bridge, lighthouse, house, skyscraper,
+     pagoda, colosseum, windmill, dam, obelisk
+   ANIMALS: cat, dog, horse, elephant, lion, tiger, bear, wolf, fox, rabbit,
+     turtle, frog, snake, eagle, owl, penguin, squirrel, monkey, panda,
+     kangaroo, koala, giraffe, bee, ladybug, spider
+   PLANTS & NATURE: cactus, palm_tree, fern, bamboo, rose, tulip, sunflower,
+     carnivorous_plant, vine, aloe, bonsai, succulent, fern
+   MUSIC & SOUND: piano_keys, music_notes, speaker, headphones, guitar,
+     violin, drum_set, trumpet, saxophone, microphone, vinyl_record, harp
+   SPORTS & ACTIVITY: soccer_ball, basketball_hoop, trophy, medal, running_figure,
+     tennis_racket, baseball_bat, bicycle, archery, weightlifting, gymnastics_rings
+   VEHICLES & TRANSPORT: car, train, airplane, rocket, submarine, bicycle
+   FANTASY & MYTHOLOGY: dragon, phoenix, unicorn, wizard, knight, treasure_chest,
+     mermaid, griffin, pegasus, thor_hammer, ankh, om_symbol, lotus, peace_symbol
+   FOOD & COOKING: pizza, burger, cake, ice_cream, coffee, tea, apple, orange,
+     bread, cheese, french_fries, taco, hot_dog, cooking_pot
+   MEDICAL: stethoscope, syringe, pill, bandage, dna_vial, skeleton,
+     eye_diagram, ear_diagram, tooth
+   SCIENCE TOOLS: thermometer, barometer, microscope, microscope_side, pipette,
+     centrifuge, dna_vial
    Synonyms are resolved automatically (e.g. "heart" → heart_organ, "brain" → brain,
-   "DNA" → dna_advanced, "circuit" → electric_circuit).
+   "DNA" → dna_advanced, "circuit" → electric_circuit, "cat" → cat, "planet" → planet_saturn).
 5. For processes/systems: use "process" or "cause" with "steps" or "items" as named
    nodes ({title, detail}) — these render as icon-and-arrow flow diagrams
 6. For math: use "formula" beats with "formula" + "terms", and separate "process"
@@ -455,60 +539,133 @@ Available intents (choose the right one for each teaching moment):
     "labels": ["Nucleus", "Mitochondria", "Ribosome"] }.
   Only use "diagram" when the figure genuinely fits the concept.
 
-  SHAPE LIBRARY (by domain — use the exact name or any natural synonym):
+  SHAPE LIBRARY (by domain — the library now has 1000+ shapes across all subjects):
   
-  BIOLOGY & MEDICINE (45+ shapes):
+  BIOLOGY & MEDICINE (65+ shapes):
     dna_advanced, cell_animal, cell_bacteria, mitochondria, chloroplast,
     endoplasmic_reticulum, ribosome, golgi_apparatus, nucleus_detailed,
     virus, antibody, stem_cell, white_blood_cell, red_blood_cell, platelet,
     neuron_detailed, synapse, heart_organ, lung, brain, kidney, liver,
     stomach, leaf_detailed, tree_detailed, flower, mushroom, spider,
-    butterfly, fish, bird, pollen_grain, ecosystem
+    butterfly, fish, bird, pollen_grain, ecosystem, food_chain,
+    water_cycle, carbon_cycle, skeleton, eye_diagram, ear_diagram, tooth,
+    stethoscope, syringe, pill, bandage, dna_vial
   
-  MATHEMATICS & GEOMETRY (25+ shapes):
+  MATHEMATICS & GEOMETRY (35+ shapes):
     coordinate_plane, number_line, fraction_bar, pie_chart, bar_chart,
     line_graph, pyramid, set_venn, triangle, square, pentagon, hexagon,
     octagon, star_shape, circle_shape, oval, parallelogram, trapezoid,
-    diamond, cube, sphere, cylinder, cone, prism
+    diamond, cube, sphere, cylinder, cone, prism,
+    trig_circle, sine_wave, parabola, hyperbola, integral_area, matrix,
+    vector_arrow, complex_plane, graph_nodes, derivative_graph, fibonacci
   
-  PHYSICS (25+ shapes):
+  PHYSICS (40+ shapes):
     spring, pendulum, inclined_plane, pulley, free_body_diagram,
     force_vector, electric_circuit, lens, concave_lens, mirror,
     magnet_shape, electric_field, gravitational_field, wave_pulse,
     standing_wave, energy_bar, velocity_arrow, acceleration_arrow,
     friction_arrow, normal_force, gravity_arrow, lever, wheel_axle,
-    screw, wedge, ramp
+    screw, wedge, ramp,
+    molecule_3d, electron_shell, fission, fusion, wave_interference,
+    lens_diagram, prism, seismic_wave, magnetic_field
   
-  CHEMISTRY (16 shapes):
+  CHEMISTRY (20+ shapes):
     beaker, flask, test_tube, molecule_water, molecule_co2, methane,
     reaction_arrow, equilibrium_arrow, benzene_ring, electron_config,
     phase_diagram, periodic_cell, bond_single, bond_double, bond_triple,
-    ph_scale
+    ph_scale, molecule_3d, thermometer, barometer, centrifuge, pipette
   
-  ENGINEERING & TECH (14 shapes):
+  ENGINEERING & TECH (30+ shapes):
     gear_detailed, bolt, nut, valve, pipe, heat_exchanger, motor,
     generator, transformer, breadboard, arduino, raspberry_pi, sensor,
-    antenna
+    antenna, circuit_board, drone, robot, ai_chip, smartwatch,
+    vr_headset, printer, router, gaming_console, qr_code, barcode,
+    solar_panel, microscope_side
   
-  PROGRAMMING & CS (22 shapes):
+  PROGRAMMING & CS (30+ shapes):
     flowchart_process, flowchart_decision, flowchart_start, flowchart_end,
     flowchart_io, server_icon, database_icon, cloud_service, api_box,
     cache_box, queue_box, firewall, lock_icon, key_icon, shield_icon,
     stack_icon, linked_list, tree_node, hash_table, http_request,
-    http_response, json_block
+    http_response, json_block, neural_network, cloud_computing,
+    blockchain, cyber_shield, encryption, data_flow
   
-  BUSINESS & GENERAL (20 shapes):
+  BUSINESS & GENERAL (30+ shapes):
     funnel, org_chart, timeline_bar, swot_matrix, gauge_meter,
-    progress_ring, donut_chart, kpi, target_icon, bulb_icon, rocket_icon,
-    flag_icon, star_badge, warning_triangle, check_circle, cross_circle,
-    arrow_up, arrow_down, hourglass, compass   WEATHER & NATURE (14 shapes):
+    progress_ring, donut_chart, kpi_card, target_icon, bulb_icon,
+    rocket_icon, flag_icon, star_badge, warning_triangle, check_circle,
+    cross_circle, arrow_up, arrow_down, hourglass, compass,
+    mandala, kaleidoscope, tessellation, mobius_strip, rosette,
+    yin_yang, infinity, tree_of_life, color_wheel, perspective_grid
+  
+  WEATHER & NATURE (20+ shapes):
     sun, moon, cloud, rain_cloud, snowflake, lightning, tornado,
     volcano, mountain, wave_nature, rock_cycle, water_cycle,
-    carbon_cycle, food_chain
+    carbon_cycle, food_chain, thunderstorm, aurora, rainbow,
+    tornado_cloud, wind_pattern, desert, river, waterfall, forest,
+    island, iceberg, geyser
+  
+  SPACE & ASTRONOMY (15+ shapes):
+    rocket, telescope, satellite, milky_way, astronaut, black_hole,
+    planet_saturn, constellation, nebula, solar_panel, globe
+  
+  OCEAN & MARINE (15+ shapes):
+    wave_ocean, whale, shark, coral_reef, submarine, jellyfish,
+    dolphin, octopus, starfish, seahorse
+  
+  ANIMALS (30+ shapes):
+    cat, dog, horse, elephant, lion, tiger, bear, wolf, fox, rabbit,
+    turtle, frog, snake, eagle, owl, penguin, squirrel, monkey, panda,
+    kangaroo, koala, giraffe, bee, ladybug
+  
+  PLANTS & NATURE (20+ shapes):
+    cactus, palm_tree, fern, bamboo, rose, tulip, sunflower,
+    carnivorous_plant, vine, aloe, bonsai, succulent
+  
+  MUSIC & SOUND (15+ shapes):
+    piano_keys, music_notes, speaker, headphones, guitar,
+    violin, drum_set, trumpet, saxophone, microphone, vinyl_record, harp
+  
+  SPORTS & ACTIVITY (15+ shapes):
+    soccer_ball, basketball_hoop, trophy, medal, running_figure,
+    tennis_racket, baseball_bat, bicycle, archery, weightlifting,
+    gymnastics_rings
+  
+  ARCHITECTURE & LANDMARKS (15+ shapes):
+    castle, bridge, lighthouse, house, skyscraper,
+    pagoda, colosseum, windmill, dam, obelisk
+  
+  FANTASY & MYTHOLOGY (20+ shapes):
+    dragon, phoenix, unicorn, wizard, knight, treasure_chest,
+    mermaid, griffin, pegasus, thor_hammer, ankh, om_symbol,
+    lotus, peace_symbol
+  
+  FOOD & COOKING (15+ shapes):
+    pizza, burger, cake, ice_cream, coffee, tea, apple, orange,
+    bread, cheese, french_fries, taco, hot_dog, cooking_pot
+  
+  VEHICLES & TRANSPORT (5+ shapes):
+    car, train, airplane, rocket, submarine, bicycle
+  
+  CREATIVE 3D & DATA (15+ shapes):
+    3d_cube, 3d_sphere, 3d_cylinder, 3d_cone, 3d_pyramid, 3d_torus,
+    3d_bar_chart, 3d_pie_chart, funnel_3d, crystal, geode, globe,
+    dna_3d, heatmap_grid, flow_field, voronoi
+  
+  ARROWS & CONNECTORS (100+ shapes):
+    standard arrows, dashed arrows, curved arrows, connector lines,
+    flowchart connectors, data flow arrows, ER relationship arrows,
+    progress arrows, timeline arrows, callback arrows, branching arrows
+  
+  ARCHITECTURE DIAGRAMS (60+ shapes):
+    microservices, api_gateway, load_balancer, message_queue,
+    cache_box, database_shard, docker_container, k8s_pod,
+    aws_service, firewall, vpn_gateway, cqrs, circuit_breaker
 
   You may also use natural language synonyms — the renderer resolves fuzzy
   matches (e.g. "heart" → heart_organ, "brain" → brain, "DNA" → dna_advanced,
-  "circuit" → electric_circuit, "server" → server_icon, "database" → database_icon).
+  "circuit" → electric_circuit, "server" → server_icon, "database" → database_icon,
+  "heart" → heart_organ, "cat" → cat, "planet" → planet_saturn).
   CHOOSE SHAPES DYNAMICALLY based on what teaches THIS specific concept best.
   Don't default to generic boxes when a specialized shape exists.
 
@@ -566,6 +723,33 @@ THE "say" FIELD IS THE MOST IMPORTANT PART — READ CAREFULLY:
   the drawing advance together: board N is drawn exactly while its "say" is
   spoken. Make each "say" flow naturally into the next so it reads as one lesson.
 - Make "say" accurate, specific to THIS concept, and free of filler. 2-5 sentences.
+
+VISUALS ARE RICHER THAN NARRATION — THIS IS THE CORE PRINCIPLE:
+The whiteboard visual must contain FAR MORE detail than what the narration
+describes. The narration is a GUIDED TOUR through the visual — it points to
+key landmarks, explains what they mean, and connects them. But the visual
+itself should be dense with labels, annotations, icons, arrows, and extra
+information that the curious student discovers by looking.
+
+Think of it like a museum tour guide: the guide (narration) points out the
+most important exhibits and explains their significance, but the gallery walls
+(visual) are covered in paintings, labels, and details the student can explore
+on their own. The visual is the complete picture; the narration is the
+highlight reel.
+
+HOW THIS WORKS IN YOUR OUTPUT:
+- labels[] must have more items than the "say" sentences mention.
+  If say mentions "nucleus" and "mitochondria", labels must also include
+  "ribosome", "ER", "Golgi", "cell membrane", etc.
+- points[] must have more points than the narration covers.
+  If say explains 3 key ideas, points must have 5-6 items.
+- steps[] must show all steps, even if the narration only walks through the
+  first 3-4 in detail.
+- Every scene should have 2-3 drawn elements that the narration never mentions
+  — these are "discovery details" that reward the curious student.
+- Captions scroll as the board draws, showing the student what to look at
+  right now. The visual stays filled with extra information they explore
+  during the pause between beats or when the board is complete.
 
 SAY-TO-VISUAL COUPLING — HOW TO WRITE "say" SO THE BOARD MATCHES PERFECTLY:
 Each sentence in "say" IS what appears on the board at that moment. The student

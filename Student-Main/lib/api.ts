@@ -163,6 +163,7 @@ export interface DashboardParams {
   search?: string;
   status?: string;
   sort?: "recent" | "oldest" | "title";
+  owner?: string;
 }
 
 export async function fetchDashboard(
@@ -174,6 +175,7 @@ export async function fetchDashboard(
   if (params.search) qs.set("search", params.search);
   if (params.status) qs.set("status", params.status);
   if (params.sort) qs.set("sort", params.sort);
+  if (params.owner) qs.set("owner", params.owner);
   const query = qs.toString();
   return request<DashboardResponse>(`/dashboard/${query ? `?${query}` : ""}`);
 }
