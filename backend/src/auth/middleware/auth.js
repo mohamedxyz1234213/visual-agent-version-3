@@ -6,11 +6,11 @@ export const SESSION_COOKIE = 'wb_session';
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 export function setSessionCookie(res, token) {
-  // Lax so top-level navigations from email links work
+  const isProd = process.env.NODE_ENV === 'production';
   res.cookie(SESSION_COOKIE, token, {
     httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    sameSite: isProd ? 'none' : 'lax',
+    secure: isProd,
     maxAge: SESSION_TTL_MS,
     path: '/',
   });
