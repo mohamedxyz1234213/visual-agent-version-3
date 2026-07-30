@@ -17,7 +17,13 @@ export function setSessionCookie(res, token) {
 }
 
 export function clearSessionCookie(res) {
-  res.clearCookie(SESSION_COOKIE, { path: '/' });
+  const isProd = process.env.NODE_ENV === 'production';
+  res.clearCookie(SESSION_COOKIE, {
+    path: '/',
+    httpOnly: true,
+    sameSite: isProd ? 'none' : 'lax',
+    secure: isProd,
+  });
 }
 
 // ── loadUser (idempotent, never blocks) ───────────────────────────────────────

@@ -98,17 +98,7 @@ function resolveAnalysisModel(aiProvider, fromBody) {
   return resolveBlazeModel(fromBody, defaultDeepModel);
 }
 
-function scheduleBackgroundTask(label, task) {
-  setImmediate(() => {
-    Promise.resolve()
-      .then(task)
-      .catch((err) => {
-        console.error(`[upload] Background task failed: ${label}`, err);
-      });
-  });
-}
-
-// GET /api/v1/upload/providers
+import { scheduleBackgroundTask } from '../utils/backgroundTask.js';
 router.get('/providers', (_req, res) => {
   res.json({ providers: AI_PROVIDERS });
 });

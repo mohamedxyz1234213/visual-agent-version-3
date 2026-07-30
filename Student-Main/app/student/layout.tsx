@@ -23,7 +23,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
   const { user, initialized, refresh } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [onboardingCheckDone, setOnboardingCheckDone] = useState(false);
 
   useEffect(() => { if (!initialized) refresh(); }, [initialized, refresh]);
@@ -57,7 +57,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
   return (
     <div className="min-h-screen bg-[#EDEDED]">
       <Sidebar items={studentNavItems} title="CodeBuddy" subtitle={user.username} isCollapsed={!sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
-      <main className={`min-h-screen p-5 transition-all duration-300 ease-in-out ${sidebarOpen ? 'ml-[244px]' : 'ml-[96px]'}`}>
+      <main className={`min-h-screen p-3 sm:p-5 transition-all duration-300 ease-in-out ${sidebarOpen ? 'lg:ml-[244px]' : 'lg:ml-[96px]'}`}>
         <Header title="Dashboard" subtitle="Take control of your learning journey" username={user.username} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
         {children}
       </main>

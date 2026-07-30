@@ -1,0 +1,6 @@
+scripts/
+.env
+.env.*
+!.env.example
+preview/
+public/audio/

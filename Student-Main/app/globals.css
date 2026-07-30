@@ -681,3 +681,73 @@ html, body {
     text-wrap: balance;
   }
 }
+
+/* ── Mobile Responsive Utilities ───────────────────────────────────────── */
+
+/* Sidebar: on mobile it slides in as a drawer over content */
+@media (max-width: 1023px) {
+  /* When sidebar is open on mobile, prevent body scroll */
+  body:has(aside.translate-x-0) {
+    overflow: hidden;
+  }
+}
+
+/* Whiteboard: scale down on small screens */
+.wb-responsive-container {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 640px) {
+  .flux-stat-number,
+  .flux-stat-number-dark {
+    font-size: 28px;
+  }
+
+  .flux-card,
+  .flux-card-dark {
+    padding: 16px;
+  }
+
+  /* Navigation controls stack on mobile */
+  .nav-controls-mobile {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+/* Touch-friendly tap targets */
+@media (hover: none) and (pointer: coarse) {
+  .flux-btn-primary,
+  .flux-btn-lime,
+  .flux-btn-outline {
+    min-height: 44px;
+    padding: 12px 20px;
+  }
+
+  a, button {
+    min-height: 44px;
+  }
+}
+
+/* Rounded pill utility used in sidebar */
+.rounded-pill {
+  border-radius: 999px;
+}
+
+/* App surface used in lesson page */
+.app-surface {
+  background: white;
+  box-shadow: 0 2px 4px 0 rgba(0,0,0,0.06);
+}
+
+/* App display font */
+.app-display {
+  letter-spacing: -0.03em;
+}
+
+/* Shadow card */
+.shadow-card {
+  box-shadow: 0 4px 24px 0 rgba(0,0,0,0.08);
+}

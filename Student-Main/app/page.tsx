@@ -146,7 +146,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-[#EDEDED] text-[#0F0F0F] overflow-x-hidden">
       {/* ── Navigation ──────────────────────────────────────────────── */}
-      <nav className="flex items-center justify-between px-8 py-5 bg-white border-b border-[#E5E5E5]">
+      <nav className="flex items-center justify-between px-4 sm:px-8 py-4 sm:py-5 bg-white border-b border-[#E5E5E5]">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 flex items-center justify-center">
             <AnimatedLogo size={55} className="text-[#D6F63E]" />
@@ -155,7 +155,7 @@ export default function HomePage() {
             CodeBuddy
           </span>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
           <Link href="/search" className="text-sm font-medium text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors hidden sm:inline-flex items-center gap-1.5">
             <IconSearch className="w-4 h-4" />
             Search
@@ -195,20 +195,20 @@ export default function HomePage() {
       </nav>
 
       {/* ── Hero ────────────────────────────────────────────────────── */}
-      <section className="max-w-6xl mx-auto px-8 pt-20 pb-28 text-center">
+      <section className="max-w-6xl mx-auto px-4 sm:px-8 pt-12 sm:pt-20 pb-16 sm:pb-28 text-center">
         <div className="inline-block px-4 py-1.5 bg-[#D6F63E]/20 rounded-full text-[13px] font-semibold mb-6 text-[#0F0F0F]">
           AI-Powered Learning Platform
         </div>
-        <h1 className="text-5xl md:text-6xl font-bold tracking-tight leading-tight mb-6 text-[#0F0F0F]">
+        <h1 className="text-3xl sm:text-5xl md:text-6xl font-bold tracking-tight leading-tight mb-6 text-[#0F0F0F]">
           Learn to Code with
           <br />
           <span className="text-[#171717]">AI Teachers</span>
         </h1>
-        <p className="text-lg text-[#6B6B6B] max-w-2xl mx-auto mb-10 leading-relaxed">
+        <p className="text-base sm:text-lg text-[#6B6B6B] max-w-2xl mx-auto mb-8 sm:mb-10 leading-relaxed px-2">
           Interactive coding lessons, AI avatar teachers with voice, gamified
           progress, and a complete classroom management system for schools.
         </p>
-        <div className="flex items-center justify-center gap-4">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
           <Link
             href="/login"
             className="flux-btn-lime text-base px-8 py-4 flex items-center gap-2 hover:scale-105 transition-transform"
@@ -233,12 +233,12 @@ export default function HomePage() {
       </section>
 
       {/* ── Features Grid ───────────────────────────────────────────── */}
-      <section className="bg-white py-24">
-        <div className="max-w-6xl mx-auto px-8">
-        <h2 className="text-3xl font-bold text-center mb-14 text-[#0F0F0F]">
+      <section className="bg-white py-16 sm:py-24">
+        <div className="max-w-6xl mx-auto px-4 sm:px-8">
+        <h2 className="text-2xl sm:text-3xl font-bold text-center mb-10 sm:mb-14 text-[#0F0F0F]">
           Everything You Need to Learn
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
           {[
             {
               icon: <IconRobot className="w-6 h-6 text-[#0F0F0F]" />,
@@ -289,8 +289,8 @@ export default function HomePage() {
       </section>
 
       {/* ── Roles Section ───────────────────────────────────────────── */}
-      <section ref={rolesRef} className="bg-gradient-to-br from-[#F8F5FF] to-[#EDEDED] py-24">
-        <div className="max-w-6xl mx-auto px-8">
+      <section ref={rolesRef} className="bg-gradient-to-br from-[#F8F5FF] to-[#EDEDED] py-16 sm:py-24">
+        <div className="max-w-6xl mx-auto px-4 sm:px-8">
           <div
             className={`inline-flex items-center gap-2 px-4 py-1.5 bg-[#C4B5F5]/20 rounded-full text-[13px] font-semibold mb-4 mx-auto w-fit text-[#7C3AED] transition-all duration-700 ease-out ${
               rolesVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
@@ -300,13 +300,13 @@ export default function HomePage() {
             Who We Serve
           </div>
           <h2
-            className={`text-3xl font-bold text-center mb-14 text-[#0F0F0F] transition-all duration-700 ease-out delay-100 ${
+            className={`text-2xl sm:text-3xl font-bold text-center mb-10 sm:mb-14 text-[#0F0F0F] transition-all duration-700 ease-out delay-100 ${
               rolesVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
             }`}
           >
             Built for Everyone
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 sm:gap-6">
             {[
               {
                 role: "Students",
@@ -368,8 +368,8 @@ export default function HomePage() {
       </section>
 
       {/* ── CTA ─────────────────────────────────────────────────────── */}
-      <section className="py-24 text-center">
-        <h2 className="text-4xl font-bold mb-4 text-[#0F0F0F]">
+      <section className="py-16 sm:py-24 text-center px-4">
+        <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-[#0F0F0F]">
           Ready to Start Learning?
         </h2>
         <p className="text-[#6B6B6B] mb-8 max-w-lg mx-auto">

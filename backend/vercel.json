@@ -5,9 +5,13 @@
   ],
   "functions": {
     "api/index.js": {
-      "memory": 512,
-      "maxDuration": 30,
+      "memory": 1024,
+      "maxDuration": 60,
       "includeFiles": "public/**"
     }
+  },
+  "env": {
+    "NODE_ENV": "production",
+    "VERCEL": "1"
   }
 }

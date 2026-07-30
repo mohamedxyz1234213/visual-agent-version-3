@@ -8,6 +8,7 @@
     "start": "node src/index.js",
     "dev": "lsof -ti:8000 | xargs kill -9 2>/dev/null; node --watch src/index.js",
     "dev:local": "node dev-start.js",
+    "test:deploy": "node ../scripts/test-deployment.mjs --local",
     "test:whiteboard": "node scripts/test-whiteboard-pipeline.mjs",
     "diagnose:whiteboard": "node scripts/diagnose-whiteboard.mjs",
     "preview:templates": "node scripts/preview-templates.mjs"
@@ -18,6 +19,7 @@
     "@dagrejs/dagre": "^3.0.0",
     "@google/generative-ai": "^0.15.0",
     "@speechify/api": "^3.0.1",
+    "@vercel/functions": "^2.0.0",
     "axios": "^1.7.2",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
@@ -36,5 +38,8 @@
   },
   "devDependencies": {
     "mongodb-memory-server": "^11.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

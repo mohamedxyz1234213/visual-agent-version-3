@@ -16,6 +16,7 @@ import { getBlazeConfig, resolveBlazeModel } from '../../services/blazeConfig.js
 import { resolveBlazeAPIModel } from '../../services/blazeapiConfig.js';
 import { processVoice, submitCode, startSession } from '../../services/fastapiClient.js';
 import { getTemplateForTopic, getAllTopicKeys } from '../../services/whiteboard/programmingLessonTemplates.js';
+import { scheduleBackgroundTask } from '../../utils/backgroundTask.js';
 
 const router = Router();
 
@@ -215,16 +216,6 @@ function selectProvider(preferred) {
   const p = PROVIDERS[providerCounter.index % PROVIDERS.length];
   providerCounter.index += 1;
   return p;
-}
-
-function scheduleBackgroundTask(label, task) {
-  setImmediate(() => {
-    Promise.resolve()
-      .then(task)
-      .catch((err) => {
-        console.error(`[ai.routes] Background task failed: ${label}`, err);
-      });
-  });
 }
 
 // ── POST /api/v1/ai/generate-template ──────────────────────────────────────────

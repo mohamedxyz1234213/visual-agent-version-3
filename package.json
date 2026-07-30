@@ -1,0 +1,12 @@
+{
+  "name": "visual-agent-teacher",
+  "private": true,
+  "scripts": {
+    "verify:env": "node scripts/verify-deployment-env.mjs",
+    "verify:env:vercel": "node scripts/verify-deployment-env.mjs --target vercel",
+    "test:deploy": "node scripts/test-deployment.mjs",
+    "test:deploy:local": "node scripts/test-deployment.mjs --local",
+    "vercel:env": "node scripts/generate-vercel-env.mjs",
+    "build:all": "npm run build --prefix Student-Main && npm run build --prefix Admin && npm run build --prefix Teachers-dashboard"
+  }
+}

@@ -35,17 +35,7 @@ function resolveModel(provider, fromBody) {
   return resolveBlazeModel(fromBody, defaultDeepModel);
 }
 
-function scheduleBackgroundTask(label, task) {
-  setImmediate(() => {
-    Promise.resolve()
-      .then(task)
-      .catch((err) => {
-        console.error(`[explain] Background task failed: ${label}`, err);
-      });
-  });
-}
-
-// POST /api/v1/explain
+import { scheduleBackgroundTask } from '../utils/backgroundTask.js';
 // Body: { text, subject?, user_instructions?, explanation_mode?, ai_provider?, analysis_model? }
 router.post('/', async (req, res, next) => {
   try {

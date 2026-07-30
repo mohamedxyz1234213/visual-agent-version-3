@@ -8,8 +8,12 @@ let _client = null;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-/** Local audio directory — used as fallback when S3/R2 is not configured. */
-const LOCAL_AUDIO_DIR = path.resolve(__dirname, '..', '..', 'public', 'audio');
+const IS_VERCEL = process.env.VERCEL === '1';
+
+/** Local audio directory — /tmp on Vercel (ephemeral), public/audio locally. */
+const LOCAL_AUDIO_DIR = IS_VERCEL
+  ? path.join('/tmp', 'audio')
+  : path.resolve(__dirname, '..', '..', 'public', 'audio');
 
 function getClient() {
   if (_client) return _client;
@@ -53,11 +57,20 @@ export async function uploadFile(buffer, originalFilename, prefix = 'uploads') {
   }
 
   // ── Local fallback ──────────────────────────────────────────────────────
-  const filename = `${prefix}-${randomBytes(12).toString('hex')}${ext}`;
-  const dir = prefix === 'audio' ? LOCAL_AUDIO_DIR : path.resolve(__dirname, '..', '..', 'public', prefix);
-  fs.mkdirSync(dir, { recursive: true });
-  const filePath = path.join(dir, filename);
-  fs.writeFileSync(filePath, buffer);
+  const filename = prefix === 'audio'
+    ? `audio-${randomBytes(12).toString('hex')}${ext}`
+    : `${prefix}-${randomBytes(12).toString('hex')}${ext}`;
+  const dir = prefix === 'audio'
+    ? LOCAL_AUDIO_DIR
+    : (IS_VERCEL ? path.join('/tmp', prefix) : path.resolve(__dirname, '..', '..', 'public', prefix));
+
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, filename), buffer);
+  } catch (err) {
+    console.warn(`[storage] Local write failed (${IS_VERCEL ? 'Vercel' : 'local'}):`, err.message);
+    return null;
+  }
 
   // Construct an absolute URL pointing to the backend (not root-relative),
   // because the frontend runs on a different port and would resolve a

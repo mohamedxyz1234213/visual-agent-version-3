@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { connectDB } from './db.js';
 
@@ -50,6 +51,15 @@ if (process.env.TRUST_PROXY === 'true') {
 
 // ── Serve local audio files (TTS fallback when S3/R2 is not configured) ─────
 const publicDir = path.resolve(__dirname, '..', 'public');
+if (process.env.VERCEL === '1') {
+  // Vercel serverless: ephemeral TTS files live in /tmp/audio
+  app.get('/audio/:filename', (req, res, next) => {
+    const safe = path.basename(req.params.filename);
+    const filePath = path.join('/tmp', 'audio', safe);
+    if (!fs.existsSync(filePath)) return next();
+    return res.sendFile(filePath);
+  });
+}
 app.use('/audio', express.static(path.join(publicDir, 'audio')));
 
 // ── Middleware ────────────────────────────────────────────────────────────────

@@ -61,7 +61,7 @@ async function extractImage(buffer, aiProvider = null, analysisModel = null) {
     return response.choices[0].message.content || '';
   }
 
-  if (activeAI === 'openai' && process.env.OPENAI_API_KEY) {
+  if (requestedAI === 'openai' && process.env.OPENAI_API_KEY) {
     const { default: OpenAI } = await import('openai');
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const response = await client.chat.completions.create({
@@ -83,7 +83,7 @@ async function extractImage(buffer, aiProvider = null, analysisModel = null) {
     return response.choices[0].message.content || '';
   }
 
-  if (activeAI === 'gemini' && process.env.GEMINI_API_KEY) {
+  if (requestedAI === 'gemini' && process.env.GEMINI_API_KEY) {
     const { GoogleGenerativeAI } = await import('@google/generative-ai');
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
