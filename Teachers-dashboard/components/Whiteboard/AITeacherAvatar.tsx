@@ -15,7 +15,7 @@ interface AITeacherAvatarProps {
 export default function AITeacherAvatar({ viewWidth, viewHeight, zoom, isActive }: AITeacherAvatarProps) {
   const pixW = viewWidth * zoom;
   const pixH = viewHeight * zoom;
-  const avatarW = Math.round(pixW * 0.16);
+  const avatarW = Math.round(pixW * 0.20);
   const avatarH = avatarW;
   const pos = useMemo(() => ({ x: pixW - avatarW - 24, y: pixH - avatarH - 24 }), [pixW, pixH, avatarW, avatarH]);
 

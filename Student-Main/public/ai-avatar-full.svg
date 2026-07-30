@@ -53,18 +53,18 @@
 
 	@keyframes mouthTalk{
 		0%   { transform: scaleY(1); }
-		8%   { transform: scaleY(1.12); }
-		16%  { transform: scaleY(1.02); }
-		24%  { transform: scaleY(1.16); }
-		33%  { transform: scaleY(1.04); }
-		40%  { transform: scaleY(1.10); }
+		8%   { transform: scaleY(1.35); }
+		16%  { transform: scaleY(1.08); }
+		24%  { transform: scaleY(1.42); }
+		33%  { transform: scaleY(1.12); }
+		40%  { transform: scaleY(1.30); }
 		48%  { transform: scaleY(1); }
 		54%  { transform: scaleY(1); }
-		62%  { transform: scaleY(1.14); }
-		70%  { transform: scaleY(1.03); }
-		78%  { transform: scaleY(1.18); }
-		86%  { transform: scaleY(1.05); }
-		94%  { transform: scaleY(1.08); }
+		62%  { transform: scaleY(1.38); }
+		70%  { transform: scaleY(1.12); }
+		78%  { transform: scaleY(1.45); }
+		86%  { transform: scaleY(1.15); }
+		94%  { transform: scaleY(1.20); }
 		100% { transform: scaleY(1); }
 	}
 </style>
