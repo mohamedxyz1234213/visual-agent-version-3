@@ -14,11 +14,7 @@ interface AITeacherAvatarProps {
 
 interface Point { x: number; y: number }
 
-const LERP = 0.038;
-
-// Flip to -1 if the elbow visually bends the wrong way for your art (it's a
-// stylistic choice with no "correct" answer until you can see it rendered).
-const ARM_BEND_DIR = 1;
+const LERP = 0.03;
 
 function findTarget(scenes: StoryboardScene[], elapsed: number, zoom: number): Point | null {
   let best: Point | null = null;
@@ -49,55 +45,33 @@ function findTarget(scenes: StoryboardScene[], elapsed: number, zoom: number): P
   return best;
 }
 
-/**
- * Anatomically-consistent two-bone IK (upper arm + forearm), solved with the
- * law of cosines. Unlike a naive "perpendicular offset" elbow, the two bone
- * lengths never stretch or compress — only the elbow angle changes as the
- * hand reaches toward the target. This is what makes the joint read as a
- * real elbow instead of an elastic line.
- */
-function solveTwoBoneIK(
-  shoulder: Point,
-  targetX: number,
-  targetY: number,
-  upperLen: number,
-  foreLen: number,
-  bendDir: number
-): { elbow: Point; hand: Point } {
-  const dx = targetX - shoulder.x;
-  const dy = targetY - shoulder.y;
-  const dist = Math.sqrt(dx * dx + dy * dy) || 0.0001;
+// ─── Right arm SVG paths (extracted from ai-avatar.svg) ───────────────────────
+const ARM_PATHS = (
+  <g>
+    <path fill="#FEFEFD" d="M601.083 404.222C613.059 404.47 625.67 406.217 637.595 407.678C637.647 430.277 634.073 457.54 631.608 480.287C628.641 517.988 590.732 543.054 559.132 556.505C560.308 548.007 559.988 542.475 559.025 533.99C557.277 525.845 555.28 521.175 551.984 513.606C559.112 509.839 565.775 506.232 571.817 500.764C598.043 477.033 599.063 436.993 601.083 404.222Z"/>
+    <path fill="#D5D4D4" d="M631.608 480.287C628.641 517.988 590.732 543.054 559.132 556.505C560.308 548.007 559.988 542.475 559.025 533.99C580.131 523.809 596.05 518.105 613.258 500.356C619.502 493.915 625.223 486.301 631.608 480.287Z"/>
+    <path fill="#D5D4D4" d="M639.399 309.329C645.349 311.182 653.299 314.149 658.349 317.618C661.372 339.904 660.594 370.453 659.718 392.961C659.214 409.397 658.398 425.822 657.271 442.227C649.688 444.145 645.193 446.125 637.887 443.065C641.059 398.556 641.564 353.898 639.399 309.329Z"/>
+    <path fill="#93EDEC" d="M661.654 323.718C664.449 325.137 667.185 328.974 669.003 331.429C671.784 359.712 671.878 454.63 660.633 478.104C659.343 479.303 656.677 481.163 655.177 482.281C659.269 450.185 661.64 417.894 662.28 385.545C662.582 364.604 661.513 344.384 661.654 323.718Z"/>
+    <path fill="#8D8C8C" d="M637.887 443.065C645.193 446.125 649.688 444.145 657.271 442.227C656.221 453.482 654.809 476.82 651.384 486.547C645.602 490.213 638.833 492.055 632.094 493.094C634.226 477.17 635.465 458.241 637.887 443.065Z"/>
+    <path fill="#D5D4D4" d="M670.802 428.785C671.666 401.748 673.135 374.856 672.815 347.781C672.798 346.338 673.175 345.005 674.106 343.904C684.643 345.845 680.662 418.008 679.583 429.346C676.47 430.901 673.983 434.122 671.718 434.369C670.511 432.486 670.898 431.323 670.802 428.785Z"/>
+    <path fill="#9C9B9B" d="M670.802 428.785C670.898 431.323 670.511 432.486 671.718 434.369C673.983 434.122 676.47 430.901 679.583 429.346C678.217 440.217 677.024 449.449 673.149 459.705C671.366 461.125 668.867 462.778 666.954 464.124C668.863 451.221 669.383 441.099 670.802 428.785Z"/>
+    <path fill="#8D8C8C" d="M646.753 250.952C648.972 251.306 648.54 250.919 650.062 252.167C652.473 256.887 652.048 276.722 652.171 283.385C650.614 283.382 649.924 283.552 648.674 282.644C645.7 277.824 646.696 257.592 646.753 250.952Z"/>
+    <path fill="#8D8C8C" d="M647.543 294.056C656.816 294.727 654.471 305.525 654.214 312.529L648.126 309.504C647.656 303.907 647.55 299.679 647.543 294.056Z"/>
+    <path fill="#9C9B9B" d="M644.26 285.805C651.096 285.376 654.56 284.136 655.179 291.977C648.101 291.938 646.246 292.807 644.26 285.805Z"/>
+  </g>
+);
 
-  const maxReach = upperLen + foreLen - 0.5;
-  const minReach = Math.abs(upperLen - foreLen) + 0.5;
-  const clampedDist = Math.max(minReach, Math.min(maxReach, dist));
-
-  const baseAngle = Math.atan2(dy, dx);
-
-  // Angle at the shoulder between the shoulder->hand line and the upper arm.
-  const cosShoulder =
-    (upperLen * upperLen + clampedDist * clampedDist - foreLen * foreLen) /
-    (2 * upperLen * clampedDist);
-  const shoulderAngleOffset = Math.acos(Math.max(-1, Math.min(1, cosShoulder)));
-
-  const elbowAngle = baseAngle + shoulderAngleOffset * bendDir;
-  const elbow: Point = {
-    x: shoulder.x + Math.cos(elbowAngle) * upperLen,
-    y: shoulder.y + Math.sin(elbowAngle) * upperLen,
-  };
-
-  const hand: Point = {
-    x: shoulder.x + Math.cos(baseAngle) * clampedDist,
-    y: shoulder.y + Math.sin(baseAngle) * clampedDist,
-  };
-
-  return { elbow, hand };
-}
+// Shoulder pivot in SVG viewBox coords (848x1264)
+const SHOULDER_X = 580;
+const SHOULDER_Y = 320;
+// Default hand position in viewBox coords (arm at rest)
+const HAND_X = 595;
+const HAND_Y = 480;
+// Default arm angle (shoulder → hand at rest)
+const DEFAULT_ARM_ANGLE = Math.atan2(HAND_Y - SHOULDER_Y, HAND_X - SHOULDER_X);
 
 export default function AITeacherAvatar({ scenes, elapsed, viewWidth, viewHeight, zoom, isActive }: AITeacherAvatarProps) {
   const uid = useId();
-  const gradId = `fg-${uid}`;
-  const filtId = `filt-${uid}`;
 
   const pixW = viewWidth * zoom;
   const pixH = viewHeight * zoom;
@@ -108,9 +82,7 @@ export default function AITeacherAvatar({ scenes, elapsed, viewWidth, viewHeight
 
   const avatarW = Math.round(pixW * 0.16);
   const avatarH = Math.round(avatarW * (1264 / 848));
-
-  const shoulderRel = useMemo<Point>(() => ({ x: 580 / 848, y: 320 / 1264 }), []);
-  const handRel = useMemo<Point>(() => ({ x: 595 / 848, y: 480 / 1264 }), []);
+  const scale = avatarW / 848;
 
   const initialPos = useMemo<Point>(() => ({ x: pixW - avatarW - 24, y: pixH - avatarH - 24 }), [pixW, pixH, avatarW, avatarH]);
   const currentPos = useRef<Point>({ ...initialPos });
@@ -119,7 +91,7 @@ export default function AITeacherAvatar({ scenes, elapsed, viewWidth, viewHeight
   const armPhaseRef = useRef(0);
 
   const [pos, setPos] = useState<Point>(initialPos);
-  const [targetPx, setTargetPx] = useState<Point | null>(null);
+  const [armAngle, setArmAngle] = useState(0);
   const [visible, setVisible] = useState(false);
   const [mouthOpen, setMouthOpen] = useState(0);
   const [mouthWidth, setMouthWidth] = useState(0.5);
@@ -131,19 +103,8 @@ export default function AITeacherAvatar({ scenes, elapsed, viewWidth, viewHeight
     return () => clearTimeout(t);
   }, [isActive]);
 
-  const desiredPos = useMemo(() => {
-    if (!rawTarget) return null;
-    const hx = avatarW * handRel.x;
-    const hy = avatarH * handRel.y;
-    const margin = 12;
-    let ax = rawTarget.x - hx + 6;
-    let ay = rawTarget.y - hy * 0.4;
-    ax = Math.max(margin, Math.min(pixW - avatarW - margin, ax));
-    ay = Math.max(8, Math.min(pixH - avatarH - 8, ay));
-    return { x: ax, y: ay };
-  }, [rawTarget, pixW, pixH, avatarW, avatarH, handRel]);
-  const desiredPosRef = useRef(desiredPos);
-  desiredPosRef.current = desiredPos;
+  // Lerp arm angle toward the target
+  const desiredAngleRef = useRef(0);
 
   const tick = useCallback(() => {
     const dp = desiredPosRef.current;
@@ -153,36 +114,35 @@ export default function AITeacherAvatar({ scenes, elapsed, viewWidth, viewHeight
     }
     setPos({ x: currentPos.current.x, y: currentPos.current.y });
 
-    setTargetPx(rawTargetRef.current ? { x: rawTargetRef.current.x, y: rawTargetRef.current.y } : null);
+    // Calculate arm target angle
+    const rt = rawTargetRef.current;
+    if (rt) {
+      const shoulderPxX = currentPos.current.x + SHOULDER_X * scale;
+      const shoulderPxY = currentPos.current.y + SHOULDER_Y * scale;
+      const targetAngle = Math.atan2(rt.y - shoulderPxY, rt.x - shoulderPxX);
+      // Lerp the angle smoothly
+      desiredAngleRef.current += (targetAngle - DEFAULT_ARM_ANGLE - desiredAngleRef.current) * LERP * 2;
+    } else {
+      desiredAngleRef.current += (0 - desiredAngleRef.current) * LERP * 2;
+    }
+    setArmAngle(desiredAngleRef.current);
 
-    // --- Mouth: layered waveforms instead of one clean sine wave ---
-    // A single sine reads as mechanical. Talking is closer to: a slow-ish
-    // main open/close rhythm, a faster flutter for consonant-like motion,
-    // fine jitter for texture, and occasional brief closures for pauses
-    // between words/phrases.
+    // Mouth
     mouthPhaseRef.current += 0.12;
     const t = mouthPhaseRef.current;
-
     const primary = Math.sin(t * 1.7);
     const flutter = Math.sin(t * 4.3 + 1.1);
     const jitter = Math.sin(t * 11.0 + 3.7);
     let openRaw = primary * 0.55 + flutter * 0.3 + jitter * 0.15;
-    openRaw = openRaw * 0.5 + 0.5; // normalize to 0..1
-
-    // Slow phrase envelope occasionally gates the mouth toward closed,
-    // simulating a breath/pause rather than continuous chatter.
+    openRaw = openRaw * 0.5 + 0.5;
     const phraseEnvelope = Math.sin(t * 0.35) * 0.5 + 0.5;
     const pauseGate = phraseEnvelope > 0.12 ? 1 : phraseEnvelope / 0.12;
-
     setMouthOpen(Math.max(0, Math.min(1, openRaw * pauseGate)));
-
-    // Mouth width drifts on its own slower phase so open/close shapes vary
-    // (rounder vs. wider) instead of scaling uniformly every time.
     const widthRaw = Math.sin(t * 2.3 + 2.0) * 0.5 + 0.5;
     setMouthWidth(0.35 + widthRaw * 0.5);
 
     armPhaseRef.current += 0.03;
-    setArmSway(Math.sin(armPhaseRef.current) * 4);
+    setArmSway(Math.sin(armPhaseRef.current) * 0.5);
 
     rafRef.current = requestAnimationFrame(tick);
   }, []);
@@ -192,101 +152,57 @@ export default function AITeacherAvatar({ scenes, elapsed, viewWidth, viewHeight
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, [isActive, visible, tick]);
 
-  if (!isActive || !visible) return null;
+  // ─── desiredPos (body follows target) ────────────────────────────────────
+  const desiredPos = useMemo(() => {
+    if (!rawTarget) return null;
+    const margin = 12;
+    let ax = rawTarget.x - HAND_X * scale + 6;
+    let ay = rawTarget.y - HAND_Y * scale * 0.4;
+    ax = Math.max(margin, Math.min(pixW - avatarW - margin, ax));
+    ay = Math.max(8, Math.min(pixH - avatarH - 8, ay));
+    return { x: ax, y: ay };
+  }, [rawTarget, pixW, pixH, avatarW, avatarH, scale]);
+  const desiredPosRef = useRef(desiredPos);
+  desiredPosRef.current = desiredPos;
 
-  const shoulderX = pos.x + avatarW * shoulderRel.x;
-  const shoulderY = pos.y + avatarH * shoulderRel.y;
+  if (!isActive || !visible) return null;
 
   const headCX = pos.x + avatarW * (419 / 848);
   const headCY = pos.y + avatarH * (255 / 1264);
+  // Arm pivot in rendered pixels (relative to the avatar div)
+  const shoulderPivotPxX = SHOULDER_X * scale;
+  const shoulderPivotPxY = SHOULDER_Y * scale;
 
-  const upperArmLen = avatarH * 0.135;
-  const foreArmLen = avatarH * 0.125;
-
-  let elbowP: Point | null = null;
-  let handP: Point | null = null;
-  let fingerTip: Point | null = null;
-  let fingerAngleDeg = 0;
-
-  if (targetPx) {
-    const { elbow, hand } = solveTwoBoneIK(
-      { x: shoulderX, y: shoulderY },
-      targetPx.x,
-      targetPx.y,
-      upperArmLen,
-      foreArmLen,
-      ARM_BEND_DIR
-    );
-    elbowP = elbow;
-    handP = hand;
-
-    // Orient the finger along the true forearm direction (elbow -> hand),
-    // not a fixed horizontal line — this is what makes it actually "point".
-    const forearmAngle = Math.atan2(hand.y - elbow.y, hand.x - elbow.x);
-    fingerAngleDeg = (forearmAngle * 180) / Math.PI;
-
-    // Tiny tremor perpendicular to the pointing direction (a steady hand
-    // still micro-shakes) rather than the old flat horizontal shift.
-    const wobbleDx = Math.cos(forearmAngle + Math.PI / 2) * armSway * 0.6;
-    const wobbleDy = Math.sin(forearmAngle + Math.PI / 2) * armSway * 0.6;
-    fingerTip = { x: hand.x + wobbleDx, y: hand.y + wobbleDy };
-  }
+  // Micro-sway on the arm angle for a natural held-pose feel
+  const angleDeg = (armAngle * 180) / Math.PI + armSway;
 
   return (
     <div className="absolute inset-0 z-30 pointer-events-none" style={{ width: pixW, height: pixH, overflow: "visible" }}>
-      {/* Pointing arm + effects */}
-      <svg className="absolute inset-0" style={{ width: pixW, height: pixH, overflow: "visible", zIndex: 1 }}>
-        <defs>
-          <radialGradient id={gradId} cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#60a5fa" stopOpacity="0" />
-          </radialGradient>
-          <filter id={filtId}>
-            <feGaussianBlur stdDeviation="1.5" result="b" />
-            <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-        </defs>
-
-        {targetPx && elbowP && handP && fingerTip && (
-          <>
-            {/* Target glow */}
-            <circle cx={targetPx.x} cy={targetPx.y} r={14} fill={`url(#${gradId})`} className="wb-breathe" style={{ animationDuration: "1.8s" }} />
-
-            {/* Upper arm: shoulder → elbow */}
-            <line x1={shoulderX} y1={shoulderY} x2={elbowP.x} y2={elbowP.y}
-              stroke="#3b82f6" strokeWidth={5} strokeLinecap="round" opacity={0.7}
-              filter={`url(#${filtId})`} />
-
-            {/* Forearm: elbow → hand */}
-            <line x1={elbowP.x} y1={elbowP.y} x2={handP.x} y2={handP.y}
-              stroke="#3b82f6" strokeWidth={4.5} strokeLinecap="round" opacity={0.7}
-              filter={`url(#${filtId})`} />
-
-            {/* Shoulder joint */}
-            <circle cx={shoulderX} cy={shoulderY} r={5} fill="#ffffff" stroke="#3b82f6" strokeWidth={2} opacity={0.85} />
-
-            {/* Elbow joint */}
-            <circle cx={elbowP.x} cy={elbowP.y} r={4} fill="#ffffff" stroke="#3b82f6" strokeWidth={2} opacity={0.85} />
-
-            {/* Hand/finger pointer — now rotated to the real forearm direction */}
-            <g transform={`translate(${fingerTip.x}, ${fingerTip.y}) rotate(${fingerAngleDeg})`}>
-              <circle cx={0} cy={0} r={6} fill="#bfdbfe" stroke="#3b82f6" strokeWidth={1.5} opacity={0.9} />
-              <line x1={4} y1={0} x2={12} y2={0} stroke="#3b82f6" strokeWidth={2.5} strokeLinecap="round" />
-              <circle cx={14} cy={0} r={1.5} fill="#3b82f6" opacity={0.6} className="wb-breathe" style={{ animationDuration: "1.2s" }} />
-            </g>
-
-            {/* Dashed guide from hand to target */}
-            <line x1={fingerTip.x + 12} y1={fingerTip.y} x2={targetPx.x} y2={targetPx.y}
-              stroke="rgba(96,165,250,0.15)" strokeWidth={1.2} strokeDasharray="4 6" strokeLinecap="round" />
-          </>
-        )}
-      </svg>
-
-      {/* Avatar body */}
+      {/* Avatar body (static) + arm (animated) */}
       <div className="absolute" style={{ zIndex: 2, left: pos.x, top: pos.y, width: avatarW, height: avatarH, filter: "drop-shadow(0 5px 18px rgba(15,23,42,0.14))" }}>
-        <img src="/ai-avatar.svg" alt="AI Teacher" width={avatarW} height={avatarH} className="block select-none" style={{ width: avatarW, height: avatarH }} draggable={false} />
+        {/* Static body rendered from separate body SVG */}
+        <img src="/ai-avatar-body.svg" alt="AI Teacher" width={avatarW} height={avatarH} className="block select-none" style={{ width: avatarW, height: avatarH }} draggable={false} />
 
-        {/* Mouth animation — layered motion (see tick()) instead of one sine wave */}
+        {/* Animated arm overlaid on top of the body SVG */}
+        <svg
+          width={avatarW}
+          height={avatarH}
+          viewBox="0 0 848 1264"
+          className="absolute inset-0"
+          style={{ overflow: "visible", pointerEvents: "none" }}
+        >
+          <g
+            style={{
+              transformOrigin: `${shoulderPivotPxX}px ${shoulderPivotPxY}px`,
+              transform: `rotate(${angleDeg}deg)`,
+              transition: "transform 0.08s ease-out",
+            }}
+          >
+            {ARM_PATHS}
+          </g>
+        </svg>
+
+        {/* Mouth animation */}
         <div className="absolute rounded-full" style={{
           left: headCX - pos.x - 1, top: headCY - pos.y + avatarH * (22 / 1264) - 1,
           width: Math.max(3, 2 + mouthOpen * 4 + mouthWidth * 2),

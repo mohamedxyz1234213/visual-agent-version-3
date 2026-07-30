@@ -6,7 +6,7 @@ import { LessonSeries } from '../models/LessonSeries.js';
 import { extractText } from '../services/documentExtractor.js';
 import { planLessonSeries, planSingleLesson } from '../services/aiPlanner.js';
 import { saveLessonPlan } from '../services/storyboardGenerator.js';
-import { synthesize } from '../services/ttsService.js';
+import { synthesize, generateCaptionAudio } from '../services/ttsService.js';
 import { uploadFile, uploadAudio } from '../services/storageService.js';
 import { BLAZE_MODELS, getBlazeConfig, resolveBlazeModel } from '../services/blazeConfig.js';
 import { BLAZEAPI_MODELS, getBlazeAPIConfig } from '../services/blazeapiConfig.js';
@@ -299,6 +299,17 @@ async function processLesson(lessonId, seriesId, buffer, filename, userInstructi
           }
         } catch (ttsErr) {
           console.warn(`TTS failed for part ${part._id}:`, ttsErr.message);
+        }
+      }
+    }
+
+    // Per-caption TTS: generate audio for each draw_caption scene
+    for (const part of parts) {
+      if (part.partType === 'content') {
+        try {
+          await generateCaptionAudio(part._id.toString());
+        } catch (capErr) {
+          console.warn(`Caption TTS failed for part ${part._id}:`, capErr.message);
         }
       }
     }

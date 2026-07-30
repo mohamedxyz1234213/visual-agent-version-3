@@ -3,7 +3,7 @@ import { Lesson, LessonPart } from '../models/Lesson.js';
 import { LessonSeries } from '../models/LessonSeries.js';
 import { planLessonSeries } from '../services/aiPlanner.js';
 import { saveLessonPlan } from '../services/storyboardGenerator.js';
-import { synthesize } from '../services/ttsService.js';
+import { synthesize, generateCaptionAudio } from '../services/ttsService.js';
 import { uploadAudio } from '../services/storageService.js';
 import { getBlazeConfig, resolveBlazeModel } from '../services/blazeConfig.js';
 import { getOpenRouterConfig } from '../services/openrouterConfig.js';
@@ -174,6 +174,14 @@ async function processDirectText(lessonId, seriesId, rawText, userInstructions, 
         } catch (ttsErr) {
           console.warn(`TTS failed for part ${part._id}:`, ttsErr.message);
         }
+      }
+    }
+
+    // Per-caption TTS
+    for (const part of parts) {
+      if (part.partType === 'content') {
+        try { await generateCaptionAudio(part._id.toString()); }
+        catch (capErr) { console.warn(`Caption TTS failed for part ${part._id}:`, capErr.message); }
       }
     }
 

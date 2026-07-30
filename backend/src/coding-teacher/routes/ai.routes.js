@@ -7,7 +7,7 @@ import { Lesson, LessonPart, StoryboardScene } from '../../models/Lesson.js';
 import { LessonSeries } from '../../models/LessonSeries.js';
 import { planLessonSeries, callAIRace } from '../../services/aiPlanner.js';
 import { saveLessonPlan } from '../../services/storyboardGenerator.js';
-import { synthesize } from '../../services/ttsService.js';
+import { synthesize, generateCaptionAudio } from '../../services/ttsService.js';
 import { uploadAudio } from '../../services/storageService.js';
 import { reserveAiRequest } from '../../auth/services/aiQuota.js';
 import { AiRequestLog } from '../../auth/models/index.js';
@@ -933,6 +933,14 @@ async function processGeneratedLesson(lessonId, seriesId, topic, analysisModel, 
         } catch (ttsErr) {
           console.warn(`TTS failed for part ${part._id}:`, ttsErr.message);
         }
+      }
+    }
+
+    // Per-caption TTS
+    for (const part of parts) {
+      if (part.partType === 'content') {
+        try { await generateCaptionAudio(part._id.toString()); }
+        catch (capErr) { console.warn(`Caption TTS failed for part ${part._id}:`, capErr.message); }
       }
     }
 

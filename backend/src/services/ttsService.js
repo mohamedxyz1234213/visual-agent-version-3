@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { SpeechifyClient } from '@speechify/api';
+import { uploadAudio } from './storageService.js';
 
 /**
  * Synthesize narration text to audio bytes.
@@ -8,6 +9,52 @@ import { SpeechifyClient } from '@speechify/api';
  * @param {string} partId
  * @returns {Promise<Buffer|null>}
  */
+/**
+ * Generate per-caption TTS audio for all draw_caption scenes in a part.
+ * Each caption gets its own short MP3 clip so the voice reads exactly
+ * what appears under the whiteboard.
+ */
+export async function generateCaptionAudio(partId) {
+  const { StoryboardScene } = await import('../models/Lesson.js');
+  const captionScenes = await StoryboardScene.find({
+    partId,
+    actionType: 'draw_caption',
+  });
+  for (const scene of captionScenes) {
+    const text = scene.payload?.content;
+    if (!text || scene.payload?.audioUrl) continue;
+    try {
+      const audio = await synthesizeCaptionText(text);
+      if (audio) {
+        const url = await uploadAudio(audio, `cap-${scene._id}`);
+        if (url) {
+          scene.payload.audioUrl = url;
+          await scene.save();
+        }
+      }
+    } catch (err) {
+      console.warn(`[tts] Caption TTS failed scene ${scene._id}: ${err.message}`);
+    }
+  }
+}
+
+/** Synthesize a single short caption text (no speech enhancement — already conversational). */
+async function synthesizeCaptionText(text) {
+  const provider = process.env.TTS_PROVIDER || 'none';
+  const tts = String(text || '').trim().slice(0, 500);
+  if (!tts) return null;
+  if (provider === 'speechify' && process.env.SPEECHIFY_API_KEY) {
+    return synthesizeSpeechify(tts);
+  }
+  if (provider === 'elevenlabs' && process.env.ELEVENLABS_API_KEY) {
+    return synthesizeElevenLabs(tts);
+  }
+  if (provider === 'azure' && process.env.AZURE_SPEECH_KEY) {
+    return synthesizeAzure(tts);
+  }
+  return null;
+}
+
 export async function synthesize(text, partId) {
   const provider = process.env.TTS_PROVIDER || 'none';
 
