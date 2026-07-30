@@ -46,18 +46,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (user) {
         console.log("[AUTH] fetchMe OK, saving session", user.username);
         saveSession(user);
+        set({ user, initialized: true, loading: false });
       } else {
-        console.log("[AUTH] fetchMe returned null, checking sessionStorage");
+        console.log("[AUTH] fetchMe returned null, trying sessionStorage fallback");
+        const cached = loadSession();
+        if (cached) {
+          console.log("[AUTH] Fallback to sessionStorage user:", cached.username);
+          set({ user: cached, initialized: true, loading: false });
+        } else {
+          console.log("[AUTH] No sessionStorage fallback either");
+          set({ user: null, initialized: true, loading: false });
+        }
       }
-      set({ user, initialized: true, loading: false });
     } catch (err) {
       console.warn("[AUTH] fetchMe failed:", err);
       const cached = loadSession();
       if (cached) {
-        console.log("[AUTH] Falling back to sessionStorage user:", cached.username);
+        console.log("[AUTH] catch — fallback to sessionStorage user:", cached.username);
         set({ user: cached, initialized: true, loading: false });
       } else {
-        console.log("[AUTH] No sessionStorage fallback either");
+        console.log("[AUTH] catch — no sessionStorage fallback");
         set({ user: null, initialized: true, loading: false, error: err instanceof Error ? err.message : String(err) });
       }
     }
