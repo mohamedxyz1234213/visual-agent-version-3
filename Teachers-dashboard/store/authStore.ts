@@ -6,6 +6,21 @@ import {
   type SafeUser,
 } from "@/lib/api";
 
+const SESSION_KEY = "wb_user";
+
+function saveSession(user: SafeUser) {
+  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(user)); } catch {}
+}
+function loadSession(): SafeUser | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+function clearSession() {
+  try { sessionStorage.removeItem(SESSION_KEY); } catch {}
+}
+
 interface AuthState {
   user: SafeUser | null;
   loading: boolean;
@@ -28,9 +43,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const user = await fetchMe();
+      if (user) saveSession(user);
       set({ user, initialized: true, loading: false });
     } catch (err) {
-      set({ user: null, initialized: true, loading: false, error: err instanceof Error ? err.message : String(err) });
+      const cached = loadSession();
+      if (cached) {
+        set({ user: cached, initialized: true, loading: false });
+      } else {
+        set({ user: null, initialized: true, loading: false, error: err instanceof Error ? err.message : String(err) });
+      }
     }
   },
 
@@ -38,6 +59,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const user = await loginRequest(identifier, password);
+      saveSession(user);
       set({ user, loading: false });
       return user;
     } catch (err) {
@@ -48,6 +70,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   async logout() {
+    clearSession();
     await logoutRequest();
     set({ user: null });
   },

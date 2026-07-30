@@ -1,5 +1,5 @@
 import LessonPageClient from "@/components/Lesson/LessonPageClient";
-// import { AuthGate } from "@/components/Auth/AuthGate";
+import { AuthGate } from "@/components/Auth/AuthGate";
 
 type LessonPageProps = {
   params: { id: string };
@@ -17,10 +17,10 @@ export default async function LessonPage({ params, searchParams }: LessonPagePro
 
   // Try to forward the user's auth cookie so a server-side render of the
   // lesson still works. On the client, the AuthGate re-verifies.
-  // const { cookies } = await import("next/headers");
-  // const cookieStore = cookies();
-  // const sessionCookie = cookieStore.get("wb_session");
-  // const cookieHeader = sessionCookie ? `wb_session=${sessionCookie.value}` : "";
+  const { cookies } = await import("next/headers");
+  const cookieStore = cookies();
+  const sessionCookie = cookieStore.get("wb_session");
+  const cookieHeader = sessionCookie ? `wb_session=${sessionCookie.value}` : "";
 
   let initialLesson = null;
   let initialError: string | null = null;
@@ -28,7 +28,7 @@ export default async function LessonPage({ params, searchParams }: LessonPagePro
   try {
     const response = await fetch(`${apiBase}/lessons/${lessonId}`, {
       cache: "no-store",
-      // headers: cookieHeader ? { cookie: cookieHeader } : {},
+      headers: cookieHeader ? { cookie: cookieHeader } : {},
     });
     if (!response.ok) {
       const text = await response.text();
@@ -40,7 +40,7 @@ export default async function LessonPage({ params, searchParams }: LessonPagePro
   }
 
   return (
-    /* <AuthGate> */
+    <AuthGate>
       <LessonPageClient
         lessonId={lessonId}
         initialLesson={initialLesson}
@@ -48,6 +48,6 @@ export default async function LessonPage({ params, searchParams }: LessonPagePro
         seriesId={seriesId}
         totalLessons={totalLessons}
       />
-    /* </AuthGate> */
+    </AuthGate>
   );
 }
