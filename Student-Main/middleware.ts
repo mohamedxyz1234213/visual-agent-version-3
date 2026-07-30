@@ -1,54 +1,15 @@
-import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Routes that require authentication — redirect to /login with ?next=
-const PROTECTED_ROUTES = [
-  "/upload",
-  "/lesson",
-  "/student",
-  "/dashboard",
-];
+/**
+ * Auth is handled client-side via AuthGate.tsx (which calls fetchMe() with
+ * credentials: "include" against the backend). This middleware is intentionally
+ * empty because the session cookie (wb_session) is set by a *different* domain
+ * (teacherbackend-three.vercel.app) and is never visible to this middleware.
+ */
 
-// Routes that should NOT be protected (public)
-const PUBLIC_ROUTES = [
-  "/",
-  "/login",
-  "/register",
-  "/contact",
-  "/_next",
-  "/api",
-  "/favicon",
-  "/signup",
-];
+export function middleware(_request: NextRequest) {}
 
-export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-
-  // Always allow public routes
-  if (PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith(route + "/"))) {
-    return NextResponse.next();
-  }
-
-  // Check if the current path is protected
-  const isProtected = PROTECTED_ROUTES.some((route) =>
-    pathname === route || pathname.startsWith(route + "/")
-  );
-
-  if (!isProtected) {
-    return NextResponse.next();
-  }
-
-  // Check for the session cookie
-  const sessionCookie = request.cookies.get("wb_session");
-  if (!sessionCookie?.value) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("next", pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  // Has a session cookie — allow through (validation happens on the backend)
-  return NextResponse.next();
-}
+export const config = { matcher: [] };
 
 export const config = {
   matcher: [
