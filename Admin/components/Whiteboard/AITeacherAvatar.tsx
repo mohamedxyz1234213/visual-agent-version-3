@@ -60,8 +60,8 @@ const ARM_PATHS = (
 );
 
 // Shoulder pivot in SVG viewBox coords (848x1264)
-const SHOULDER_X = 580;
-const SHOULDER_Y = 320;
+const SHOULDER_X = 647;
+const SHOULDER_Y = 255;
 // Default hand position in viewBox coords (arm at rest)
 const HAND_X = 595;
 const HAND_Y = 480;
@@ -81,6 +81,12 @@ export default function AITeacherAvatar({ scenes, elapsed, viewWidth, viewHeight
   const scale = avatarW / 848;
 
   const pos = useMemo<Point>(() => ({ x: pixW - avatarW - 24, y: pixH - avatarH - 24 }), [pixW, pixH, avatarW, avatarH]);
+  const posRef = useRef(pos);
+  posRef.current = pos;
+  const scaleRef = useRef(scale);
+  scaleRef.current = scale;
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
 
   const rafRef = useRef<number | null>(null);
   const mouthPhaseRef = useRef(0);
@@ -98,10 +104,13 @@ export default function AITeacherAvatar({ scenes, elapsed, viewWidth, viewHeight
 
   const tick = useCallback(() => {
     const tgt = targetRef.current;
+    const p = posRef.current;
+    const s = scaleRef.current;
+    const z = zoomRef.current;
     if (tgt) {
-      const shoulderPxX = pos.x + SHOULDER_X * scale;
-      const shoulderPxY = pos.y + SHOULDER_Y * scale;
-      const targetAngle = Math.atan2(tgt.y * zoom - shoulderPxY, tgt.x * zoom - shoulderPxX);
+      const shoulderPxX = p.x + SHOULDER_X * s;
+      const shoulderPxY = p.y + SHOULDER_Y * s;
+      const targetAngle = Math.atan2(tgt.y * z - shoulderPxY, tgt.x * z - shoulderPxX);
       desiredAngleRef.current += (targetAngle - DEFAULT_ARM_ANGLE - desiredAngleRef.current) * 0.08;
     } else {
       desiredAngleRef.current += (0 - desiredAngleRef.current) * 0.08;
@@ -120,7 +129,7 @@ export default function AITeacherAvatar({ scenes, elapsed, viewWidth, viewHeight
     setMouthOpen(Math.max(0, Math.min(1, openRaw * pauseGate)));
 
     rafRef.current = requestAnimationFrame(tick);
-  }, [pos, scale, zoom]);
+  }, []);
 
   useEffect(() => {
     if (isActive && visible) rafRef.current = requestAnimationFrame(tick);
@@ -131,8 +140,6 @@ export default function AITeacherAvatar({ scenes, elapsed, viewWidth, viewHeight
 
   const headCX = pos.x + avatarW * (419 / 848);
   const headCY = pos.y + avatarH * (255 / 1264);
-  const shoulderPivotPxX = SHOULDER_X * scale;
-  const shoulderPivotPxY = SHOULDER_Y * scale;
   const angleDeg = (armAngle * 180) / Math.PI;
 
   return (
@@ -147,13 +154,7 @@ export default function AITeacherAvatar({ scenes, elapsed, viewWidth, viewHeight
           className="absolute inset-0"
           style={{ overflow: "visible", pointerEvents: "none" }}
         >
-          <g
-            style={{
-              transformOrigin: `${shoulderPivotPxX}px ${shoulderPivotPxY}px`,
-              transform: `rotate(${angleDeg}deg)`,
-              transition: "transform 0.08s ease-out",
-            }}
-          >
+          <g transform={`rotate(${angleDeg}, ${SHOULDER_X}, ${SHOULDER_Y})`}>
             {ARM_PATHS}
           </g>
         </svg>

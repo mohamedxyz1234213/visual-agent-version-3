@@ -78,6 +78,31 @@ app.use(
 // Resolve the current user (if any) on every request — non-blocking
 app.use(loadUser);
 
+// ── Database connection for Vercel (cached across invocations) ────────────────
+let dbPromise = null;
+async function ensureDB() {
+  if (!dbPromise) {
+    dbPromise = connectDB().then(async () => {
+      await bootstrapAdmin();
+    }).catch((err) => {
+      dbPromise = null;
+      throw err;
+    });
+  }
+  return dbPromise;
+}
+
+// Middleware that ensures DB is connected before handling any request
+// MUST be before routes so handlers can safely query the database.
+app.use(async (_req, _res, next) => {
+  try {
+    await ensureDB();
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 // Auth & Admin
 app.use('/api/v1/auth', authRouter);
@@ -109,27 +134,6 @@ app.use((err, _req, res, _next) => {
   console.error(err);
   const { status, message } = toErrorResponse(err);
   res.status(status).json({ error: message });
-});
-
-// ── Database connection for Vercel (cached across invocations) ────────────────
-let dbPromise = null;
-async function ensureDB() {
-  if (!dbPromise) {
-    dbPromise = connectDB().then(async () => {
-      await bootstrapAdmin();
-    });
-  }
-  return dbPromise;
-}
-
-// Middleware that ensures DB is connected before handling any request
-app.use(async (_req, _res, next) => {
-  try {
-    await ensureDB();
-    next();
-  } catch (err) {
-    next(err);
-  }
 });
 
 // ── Start (local dev) ────────────────────────────────────────────────────────
