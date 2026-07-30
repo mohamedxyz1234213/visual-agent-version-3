@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState, useMemo, useCallback, useId } from "react";
+import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import type { StoryboardScene } from "@/lib/types";
 
 interface AITeacherAvatarProps {
@@ -14,9 +14,7 @@ interface AITeacherAvatarProps {
 
 interface Point { x: number; y: number }
 
-const LERP = 0.03;
-
-function findTarget(scenes: StoryboardScene[], elapsed: number, zoom: number): Point | null {
+function findTarget(scenes: StoryboardScene[], elapsed: number): Point | null {
   let best: Point | null = null;
   let bestTime = -1;
   for (const scene of scenes) {
@@ -27,19 +25,19 @@ function findTarget(scenes: StoryboardScene[], elapsed: number, zoom: number): P
 
     if (scene.action_type === "draw_text") {
       const d = p as { position?: [number, number] };
-      if (d.position) { best = { x: d.position[0] * zoom, y: d.position[1] * zoom }; bestTime = scene.time_offset; }
+      if (d.position) { best = { x: d.position[0], y: d.position[1] }; bestTime = scene.time_offset; }
     } else if (scene.action_type === "draw_rect") {
       const d = p as { x?: number; y?: number; width?: number; height?: number; label?: string };
-      if (d.x != null && d.y != null && d.label) { best = { x: (d.x + (d.width ?? 100) / 2) * zoom, y: (d.y + (d.height ?? 50) / 2) * zoom }; bestTime = scene.time_offset; }
+      if (d.x != null && d.y != null && d.label) { best = { x: d.x + (d.width ?? 100) / 2, y: d.y + (d.height ?? 50) / 2 }; bestTime = scene.time_offset; }
     } else if (scene.action_type === "draw_circle") {
       const d = p as { center?: [number, number]; label?: string };
-      if (d.center && d.label) { best = { x: d.center[0] * zoom, y: d.center[1] * zoom }; bestTime = scene.time_offset; }
+      if (d.center && d.label) { best = { x: d.center[0], y: d.center[1] }; bestTime = scene.time_offset; }
     } else if (scene.action_type === "draw_arrow") {
       const d = p as { to?: [number, number] };
-      if (d.to) { best = { x: d.to[0] * zoom, y: d.to[1] * zoom }; bestTime = scene.time_offset; }
+      if (d.to) { best = { x: d.to[0], y: d.to[1] }; bestTime = scene.time_offset; }
     } else if (scene.action_type === "draw_callout" || scene.action_type === "draw_badge") {
       const d = p as { position?: [number, number] };
-      if (d.position) { best = { x: d.position[0] * zoom, y: d.position[1] * zoom }; bestTime = scene.time_offset; }
+      if (d.position) { best = { x: d.position[0], y: d.position[1] }; bestTime = scene.time_offset; }
     }
   }
   return best;
@@ -71,31 +69,26 @@ const HAND_Y = 480;
 const DEFAULT_ARM_ANGLE = Math.atan2(HAND_Y - SHOULDER_Y, HAND_X - SHOULDER_X);
 
 export default function AITeacherAvatar({ scenes, elapsed, viewWidth, viewHeight, zoom, isActive }: AITeacherAvatarProps) {
-  const uid = useId();
-
   const pixW = viewWidth * zoom;
   const pixH = viewHeight * zoom;
 
-  const rawTarget = useMemo(() => findTarget(scenes, elapsed, zoom), [scenes, elapsed, zoom]);
-  const rawTargetRef = useRef(rawTarget);
-  rawTargetRef.current = rawTarget;
+  const target = useMemo(() => findTarget(scenes, elapsed), [scenes, elapsed]);
+  const targetRef = useRef(target);
+  targetRef.current = target;
 
   const avatarW = Math.round(pixW * 0.16);
   const avatarH = Math.round(avatarW * (1264 / 848));
   const scale = avatarW / 848;
 
-  const initialPos = useMemo<Point>(() => ({ x: pixW - avatarW - 24, y: pixH - avatarH - 24 }), [pixW, pixH, avatarW, avatarH]);
-  const currentPos = useRef<Point>({ ...initialPos });
+  const pos = useMemo<Point>(() => ({ x: pixW - avatarW - 24, y: pixH - avatarH - 24 }), [pixW, pixH, avatarW, avatarH]);
+
   const rafRef = useRef<number | null>(null);
   const mouthPhaseRef = useRef(0);
-  const armPhaseRef = useRef(0);
+  const desiredAngleRef = useRef(0);
 
-  const [pos, setPos] = useState<Point>(initialPos);
-  const [armAngle, setArmAngle] = useState(0);
   const [visible, setVisible] = useState(false);
+  const [armAngle, setArmAngle] = useState(0);
   const [mouthOpen, setMouthOpen] = useState(0);
-  const [mouthWidth, setMouthWidth] = useState(0.5);
-  const [armSway, setArmSway] = useState(0);
 
   useEffect(() => {
     if (!isActive) { setVisible(false); return; }
@@ -103,31 +96,18 @@ export default function AITeacherAvatar({ scenes, elapsed, viewWidth, viewHeight
     return () => clearTimeout(t);
   }, [isActive]);
 
-  // Lerp arm angle toward the target
-  const desiredAngleRef = useRef(0);
-
   const tick = useCallback(() => {
-    const dp = desiredPosRef.current;
-    if (dp) {
-      currentPos.current.x += (dp.x - currentPos.current.x) * LERP;
-      currentPos.current.y += (dp.y - currentPos.current.y) * LERP;
-    }
-    setPos({ x: currentPos.current.x, y: currentPos.current.y });
-
-    // Calculate arm target angle
-    const rt = rawTargetRef.current;
-    if (rt) {
-      const shoulderPxX = currentPos.current.x + SHOULDER_X * scale;
-      const shoulderPxY = currentPos.current.y + SHOULDER_Y * scale;
-      const targetAngle = Math.atan2(rt.y - shoulderPxY, rt.x - shoulderPxX);
-      // Lerp the angle smoothly
-      desiredAngleRef.current += (targetAngle - DEFAULT_ARM_ANGLE - desiredAngleRef.current) * LERP * 2;
+    const tgt = targetRef.current;
+    if (tgt) {
+      const shoulderPxX = pos.x + SHOULDER_X * scale;
+      const shoulderPxY = pos.y + SHOULDER_Y * scale;
+      const targetAngle = Math.atan2(tgt.y * zoom - shoulderPxY, tgt.x * zoom - shoulderPxX);
+      desiredAngleRef.current += (targetAngle - DEFAULT_ARM_ANGLE - desiredAngleRef.current) * 0.08;
     } else {
-      desiredAngleRef.current += (0 - desiredAngleRef.current) * LERP * 2;
+      desiredAngleRef.current += (0 - desiredAngleRef.current) * 0.08;
     }
     setArmAngle(desiredAngleRef.current);
 
-    // Mouth
     mouthPhaseRef.current += 0.12;
     const t = mouthPhaseRef.current;
     const primary = Math.sin(t * 1.7);
@@ -138,52 +118,26 @@ export default function AITeacherAvatar({ scenes, elapsed, viewWidth, viewHeight
     const phraseEnvelope = Math.sin(t * 0.35) * 0.5 + 0.5;
     const pauseGate = phraseEnvelope > 0.12 ? 1 : phraseEnvelope / 0.12;
     setMouthOpen(Math.max(0, Math.min(1, openRaw * pauseGate)));
-    const widthRaw = Math.sin(t * 2.3 + 2.0) * 0.5 + 0.5;
-    setMouthWidth(0.35 + widthRaw * 0.5);
-
-    armPhaseRef.current += 0.03;
-    setArmSway(Math.sin(armPhaseRef.current) * 0.5);
 
     rafRef.current = requestAnimationFrame(tick);
-  }, []);
+  }, [pos, scale, zoom]);
 
   useEffect(() => {
     if (isActive && visible) rafRef.current = requestAnimationFrame(tick);
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, [isActive, visible, tick]);
 
-  // ─── desiredPos (body follows target) ────────────────────────────────────
-  const desiredPos = useMemo(() => {
-    if (!rawTarget) return null;
-    const margin = 12;
-    let ax = rawTarget.x - HAND_X * scale + 6;
-    let ay = rawTarget.y - HAND_Y * scale * 0.4;
-    ax = Math.max(margin, Math.min(pixW - avatarW - margin, ax));
-    ay = Math.max(8, Math.min(pixH - avatarH - 8, ay));
-    return { x: ax, y: ay };
-  }, [rawTarget, pixW, pixH, avatarW, avatarH, scale]);
-  const desiredPosRef = useRef(desiredPos);
-  desiredPosRef.current = desiredPos;
-
   if (!isActive || !visible) return null;
 
   const headCX = pos.x + avatarW * (419 / 848);
   const headCY = pos.y + avatarH * (255 / 1264);
-  // Arm pivot in rendered pixels (relative to the avatar div)
-  const shoulderPivotPxX = SHOULDER_X * scale;
-  const shoulderPivotPxY = SHOULDER_Y * scale;
-
-  // Micro-sway on the arm angle for a natural held-pose feel
-  const angleDeg = (armAngle * 180) / Math.PI + armSway;
+  const angleDeg = (armAngle * 180) / Math.PI;
 
   return (
     <div className="absolute inset-0 z-30 pointer-events-none" style={{ width: pixW, height: pixH, overflow: "visible" }}>
-      {/* Avatar body (static) + arm (animated) */}
       <div className="absolute" style={{ zIndex: 2, left: pos.x, top: pos.y, width: avatarW, height: avatarH, filter: "drop-shadow(0 5px 18px rgba(15,23,42,0.14))" }}>
-        {/* Static body rendered from separate body SVG */}
         <img src="/ai-avatar-body.svg" alt="AI Teacher" width={avatarW} height={avatarH} className="block select-none" style={{ width: avatarW, height: avatarH }} draggable={false} />
 
-        {/* Animated arm overlaid on top of the body SVG */}
         <svg
           width={avatarW}
           height={avatarH}
@@ -191,22 +145,15 @@ export default function AITeacherAvatar({ scenes, elapsed, viewWidth, viewHeight
           className="absolute inset-0"
           style={{ overflow: "visible", pointerEvents: "none" }}
         >
-          <g
-            style={{
-              transformOrigin: `${shoulderPivotPxX}px ${shoulderPivotPxY}px`,
-              transform: `rotate(${angleDeg}deg)`,
-              transition: "transform 0.08s ease-out",
-            }}
-          >
+          <g transform={`rotate(${angleDeg}, ${SHOULDER_X}, ${SHOULDER_Y})`} style={{ transition: "transform 0.08s ease-out" }}>
             {ARM_PATHS}
           </g>
         </svg>
 
-        {/* Mouth animation */}
         <div className="absolute rounded-full" style={{
           left: headCX - pos.x - 1, top: headCY - pos.y + avatarH * (22 / 1264) - 1,
-          width: Math.max(3, 2 + mouthOpen * 4 + mouthWidth * 2),
-          height: Math.max(2, 1 + mouthOpen * 4),
+          width: Math.max(3, 2 + mouthOpen * 6),
+          height: Math.max(2, 1 + mouthOpen * 5),
           borderRadius: "50% 50% 50% 50% / 40% 40% 60% 60%",
           background: mouthOpen > 0.3 ? "#1a1a1a" : "#333",
           opacity: 0.92,

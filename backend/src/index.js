@@ -111,20 +111,44 @@ app.use((err, _req, res, _next) => {
   res.status(status).json({ error: message });
 });
 
-// ── Start ─────────────────────────────────────────────────────────────────────
-connectDB()
-  .then(async () => {
-    await bootstrapAdmin();
-    app.listen(PORT, () => {
-      console.log(`\n Server running on port ${PORT}`);
-      console.log(` Whiteboard features: /api/v1/upload, /api/v1/explain, /api/v1/lessons`);
-      console.log(`Coding teacher:     /api/v1/student, /api/v1/teacher, /api/v1/ai`);
-      console.log(` Parent portal:       /api/v1/parent`);
-      console.log(` Gamification:       /api/v1/gamification`);
-      console.log(` Admin enhanced:     /api/v1/admin\n`);
+// ── Database connection for Vercel (cached across invocations) ────────────────
+let dbPromise = null;
+async function ensureDB() {
+  if (!dbPromise) {
+    dbPromise = connectDB().then(async () => {
+      await bootstrapAdmin();
     });
-  })
-  .catch((err) => {
-    console.error('[FATAL] MongoDB connection failed:', err.message);
-    process.exit(1);
-  });
+  }
+  return dbPromise;
+}
+
+// Middleware that ensures DB is connected before handling any request
+app.use(async (_req, _res, next) => {
+  try {
+    await ensureDB();
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Start (local dev) ────────────────────────────────────────────────────────
+if (process.env.VERCEL !== '1') {
+  ensureDB()
+    .then(() => {
+      app.listen(PORT, () => {
+        console.log(`\n Server running on port ${PORT}`);
+        console.log(` Whiteboard features: /api/v1/upload, /api/v1/explain, /api/v1/lessons`);
+        console.log(`Coding teacher:     /api/v1/student, /api/v1/teacher, /api/v1/ai`);
+        console.log(` Parent portal:       /api/v1/parent`);
+        console.log(` Gamification:       /api/v1/gamification`);
+        console.log(` Admin enhanced:     /api/v1/admin\n`);
+      });
+    })
+    .catch((err) => {
+      console.error('[FATAL] MongoDB connection failed:', err.message);
+      process.exit(1);
+    });
+}
+
+export default app;
