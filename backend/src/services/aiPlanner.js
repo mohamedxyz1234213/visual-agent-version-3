@@ -12,7 +12,9 @@
 // No filler. No generic labels. No empty decoration.
 // -----------------------------------------------------------------------------
 
-import dagre from '@dagrejs/dagre';
+import { createRequire } from 'module';
+const _require = createRequire(import.meta.url);
+const dagre = _require('@dagrejs/dagre');
 import { getBlazeConfig, resolveBlazeModel } from './blazeConfig.js';
 import { getBlazeAPIConfig, buildBlazeAPIModelChain } from './blazeapiConfig.js';
 import { getOpenRouterConfig, OPENROUTER_DEFAULT_MODEL } from './openrouterConfig.js';
