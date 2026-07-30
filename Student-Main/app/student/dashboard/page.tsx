@@ -71,14 +71,14 @@ export default function StudentDashboard() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-[140px] bg-white rounded-[20px] animate-pulse" />
           ))}
         </div>
-        <div className="grid grid-cols-5 gap-4">
-          <div className="col-span-3 h-[280px] bg-white rounded-[20px] animate-pulse" />
-          <div className="col-span-2 h-[280px] bg-white rounded-[20px] animate-pulse" />
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          <div className="lg:col-span-3 h-[280px] bg-white rounded-[20px] animate-pulse" />
+          <div className="lg:col-span-2 h-[280px] bg-white rounded-[20px] animate-pulse" />
         </div>
       </div>
     );
@@ -123,7 +123,7 @@ export default function StudentDashboard() {
       </div>
 
       {/* Row 1: 3 stat cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatsCard
           title="XP Earned"
           value={s.xp.toLocaleString()}
@@ -144,9 +144,9 @@ export default function StudentDashboard() {
       </div>
 
       {/* Row 2: Dark hero card + Supporting card */}
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         {/* Dark Hero Card — Learning Activity */}
-        <div className="col-span-3 flux-card-dark">
+        <div className="lg:col-span-3 flux-card-dark">
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-2.5">
               <div className="flux-icon-chip-dark">
@@ -222,7 +222,7 @@ export default function StudentDashboard() {
         </div>
 
         {/* Supporting card — Progress by Subject */}
-        <div className="col-span-2 flux-card">
+        <div className="lg:col-span-2 flux-card">
           <h3 className="text-[15px] font-semibold text-[#0F0F0F] mb-5">
             Progress by Subject
           </h3>
@@ -250,15 +250,12 @@ export default function StudentDashboard() {
       <AdaptivePathSection />
 
       {/* Row 4: Quick Actions + Mini Leaderboard */}
-      <div className="grid grid-cols-5 gap-4">
-        <div className="col-span-3 flux-card">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <div className="lg:col-span-3 flux-card">
           <h3 className="text-[15px] font-semibold text-[#0F0F0F] mb-4">
             Quick Actions
           </h3>
-          <div className="grid grid-cols-4 gap-3">
-            {[
-              {
-                icon: <IconBook size={22} className="text-[#0F0F0F]" />,
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 label: "Learn",
                 href: "/student/learn",
               },
@@ -292,7 +289,7 @@ export default function StudentDashboard() {
           </div>
         </div>
 
-        <div className="col-span-2 flux-card">
+        <div className="lg:col-span-2 flux-card">
           <h3 className="text-[15px] font-semibold text-[#0F0F0F] mb-4">
             Leaderboard Preview
           </h3>
@@ -450,8 +447,8 @@ function AdaptivePathSection() {
 
   if (adaptiveLoading) {
     return (
-      <div className="grid grid-cols-5 gap-4">
-        <div className="col-span-5 h-[160px] bg-white rounded-2xl animate-pulse" />
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <div className="lg:col-span-5 h-[160px] bg-white rounded-2xl animate-pulse" />
       </div>
     );
   }

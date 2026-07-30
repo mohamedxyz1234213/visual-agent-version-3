@@ -528,7 +528,8 @@ export default function LessonPageClient({
           )}
 
           {status !== "quiz" ? (
-            <div className="app-surface flex flex-1 items-center justify-center rounded-[32px] p-4 md:p-5">
+            <div className="app-surface flex flex-1 items-center justify-center rounded-[32px] p-2 sm:p-4 md:p-5 overflow-hidden">
+              <div className="w-full">
               <Whiteboard
                 scenes={currentPart.scenes}
                 elapsed={elapsed}
@@ -537,6 +538,7 @@ export default function LessonPageClient({
                 onSandboxOpen={() => useLessonStore.getState().pause()}
                 onSandboxResult={(passed) => { if (passed) useLessonStore.getState().play(); }}
               />
+              </div>
             </div>
           ) : (
             activeQuiz && (

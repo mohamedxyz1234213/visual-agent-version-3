@@ -123,8 +123,8 @@ export default function NavigationControls({ parts }: NavigationControlsProps) {
           <span className="w-10 font-mono text-xs tabular-nums text-slate-500">{fmt(duration)}</span>
         </div>
 
-        <div className="grid gap-3 xl:grid-cols-[auto_minmax(0,1fr)_auto] xl:items-center">
-          <div className="flex items-center gap-2">
+        <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] items-center">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={prevPart}
               disabled={currentPartIndex === 0}
@@ -165,7 +165,7 @@ export default function NavigationControls({ parts }: NavigationControlsProps) {
             </button>
           </div>
 
-          <div className="order-3 flex items-center justify-center gap-1.5 xl:order-none">
+          <div className="hidden sm:flex items-center justify-center gap-1.5">
             {parts.map((p, i) => (
               <div
                 key={p.id}
@@ -181,7 +181,7 @@ export default function NavigationControls({ parts }: NavigationControlsProps) {
             ))}
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 xl:justify-end">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 sm:justify-end">
             <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
               <span className="font-semibold uppercase tracking-[0.18em]">Speed</span>
               <select

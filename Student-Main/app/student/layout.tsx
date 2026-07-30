@@ -23,7 +23,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
   const { user, initialized, refresh } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false); // always starts closed (drawer on mobile, collapsed on desktop)
   const [onboardingCheckDone, setOnboardingCheckDone] = useState(false);
 
   useEffect(() => { if (!initialized) refresh(); }, [initialized, refresh]);

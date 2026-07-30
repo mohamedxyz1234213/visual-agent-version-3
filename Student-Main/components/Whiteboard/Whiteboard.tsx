@@ -11,9 +11,21 @@
  */
 
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import type { StoryboardScene } from "@/lib/types";
 import AITeacherAvatar from "./AITeacherAvatar";
+
+function useContainerWidth(ref: React.RefObject<HTMLDivElement | null>) {
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    if (!ref.current) return;
+    const ro = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
+    ro.observe(ref.current);
+    setWidth(ref.current.offsetWidth);
+    return () => ro.disconnect();
+  }, [ref]);
+  return width;
+}
 
 // ─── Payload shapes ────────────────────────────────────────────────────────────
 
@@ -145,6 +157,12 @@ export default function Whiteboard({
   onSandboxOpen,
   onSandboxResult,
 }: WhiteboardProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const containerWidth = useContainerWidth(containerRef);
+  // Compute responsive scale: fit within container, never exceed zoom * native width
+  const responsiveScale = containerWidth > 0 ? Math.min(zoom, (containerWidth / width)) : zoom;
+  const scaledW = width * responsiveScale;
+  const scaledH = height * responsiveScale;
   const [visible, setVisible] = useState<RenderedEl[]>([]);
   const [camera, setCamera] = useState<CameraState>({ zoom: 1, offsetX: 0, offsetY: 0, transition: 'none' });
   const [caption, setCaption] = useState<{ text: string; index: number; total: number } | null>(null);
@@ -258,10 +276,10 @@ export default function Whiteboard({
   }, [elapsed, scenes]);
 
   return (
-    <div className="flex flex-col items-center" style={{ width: width * zoom }}>
+    <div ref={containerRef} className="flex flex-col items-center w-full">
     <div
-      className="relative overflow-hidden rounded-[28px] border border-slate-300 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] shadow-[0_28px_80px_rgba(15,23,42,0.12)]"
-      style={{ width: width * zoom, height: height * zoom }}
+      className="relative overflow-hidden rounded-[20px] sm:rounded-[28px] border border-slate-300 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] shadow-[0_28px_80px_rgba(15,23,42,0.12)] w-full"
+      style={{ width: scaledW, height: scaledH }}
     >
       <div className="pointer-events-none absolute -left-10 top-6 h-28 w-28 rounded-full bg-sky-200/35 blur-3xl" />
       <div className="pointer-events-none absolute bottom-0 right-0 h-36 w-36 rounded-full bg-emerald-200/25 blur-3xl" />
@@ -270,8 +288,8 @@ export default function Whiteboard({
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-10 bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(255,255,255,0))]" />
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        width={width * zoom}
-        height={height * zoom}
+        width={scaledW}
+        height={scaledH}
         className="absolute inset-0"
         style={{
           fontFamily: "var(--font-sans)",
@@ -494,7 +512,7 @@ export default function Whiteboard({
         elapsed={elapsed}
         viewWidth={width}
         viewHeight={height}
-        zoom={zoom}
+        zoom={responsiveScale}
         isActive={showAvatar}
       />
 
@@ -517,7 +535,7 @@ export default function Whiteboard({
         Sits UNDER the board, in normal flow, so it can never overlap shapes in
         the board's bottom edge. A fixed min-height reserves the strip so the
         board doesn't jump as captions appear / change / wrap. */}
-    <div className="mt-3 flex w-full justify-center" style={{ minHeight: 76 }}>
+    <div className="mt-3 flex w-full justify-center" style={{ minHeight: 60, maxWidth: scaledW }}>
       {caption && caption.text ? (
         <div
           key={`${caption.text}-${caption.index}`}

@@ -74,7 +74,12 @@ export function Sidebar({ items, title, subtitle, bottomContent, isCollapsed = f
   const pathname = usePathname();
 
   return (
-    <aside className={`fixed left-0 top-0 h-[calc(100vh-24px)] bg-[#171717] text-white flex flex-col z-50 m-3 rounded-[20px] transition-all duration-300 ease-in-out ${isCollapsed ? 'w-[72px]' : 'w-[220px]'}`}>
+    <>
+      {!isCollapsed && (
+        <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={onToggle} />
+      )}
+    <aside className={`fixed left-0 top-0 h-[calc(100vh-24px)] bg-[#171717] text-white flex flex-col z-50 m-3 rounded-[20px] transition-all duration-300 ease-in-out
+        ${isCollapsed ? '-translate-x-full lg:translate-x-0 lg:w-[72px]' : 'translate-x-0 w-[220px]'}`}>
       {/* Logo */}
       <div className={`${isCollapsed ? 'px-4' : 'px-5'} pt-5 pb-4`}>
         <Link href="/" className="flex items-center gap-2.5">
@@ -121,5 +126,6 @@ export function Sidebar({ items, title, subtitle, bottomContent, isCollapsed = f
       <div className="px-3 py-2 border-t border-white/10" />
       {bottomContent || <div className="p-3" />}
     </aside>
+    </>
   );
 }

@@ -25,7 +25,7 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
   const { user, initialized, refresh } = useAuthStore();
   const router = useRouter();
   const { classes } = useClasses();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Flatten all students from all classes for the notification compose modal
   const allStudents = Object.values(classes || {}).flat().map((s: any) => ({
@@ -48,7 +48,7 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
   return (
     <div className="min-h-screen bg-[#EDEDED]">
       <Sidebar items={teacherNavItems} title="CodeBuddy" subtitle={user.username} isCollapsed={!sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
-      <main className={`min-h-screen p-5 transition-all duration-300 ease-in-out ${sidebarOpen ? 'ml-[244px]' : 'ml-[96px]'}`}>
+      <main className={`min-h-screen p-3 sm:p-5 transition-all duration-300 ease-in-out ${sidebarOpen ? 'lg:ml-[244px]' : 'lg:ml-[96px]'}`}>
         <Header title="Teacher Portal" subtitle="Manage your classes" username={user.username} students={allStudents} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
         {children}
       </main>
