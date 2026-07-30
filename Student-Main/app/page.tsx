@@ -210,21 +210,16 @@ export default function HomePage() {
         </p>
         <div className="flex items-center justify-center gap-4">
           <Link
-            href="/login"
+            href="/upload"
             className="flux-btn-lime text-base px-8 py-4 flex items-center gap-2 hover:scale-105 transition-transform"
           >
             Get Started
             <IconArrowRight className="w-5 h-5" />
           </Link>
           <Link
-            href={user ? "/upload" : "/login?next=" + encodeURIComponent("/upload")}
+            href="/upload"
             className="flux-btn-primary text-base px-8 py-4 flex items-center gap-2 hover:scale-105 transition-transform"
-            onClick={(e) => {
-              if (!user && !loading) {
-                e.preventDefault();
-                window.location.href = "/login?next=" + encodeURIComponent("/upload");
-              }
-            }}
+            // onClick removed — open access
           >
             <IconBoard className="w-5 h-5" />
             Try Whiteboard

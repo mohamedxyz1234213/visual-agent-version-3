@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { UploadZone } from "@/components/Upload";
-import { AuthGate } from "@/components/Auth/AuthGate";
+// import { AuthGate } from "@/components/Auth/AuthGate";
 
 function IconBoard({ className = "w-5 h-5" }: { className?: string }) {
   return (
@@ -23,9 +23,9 @@ function IconArrowLeft({ className = "w-4 h-4" }: { className?: string }) {
 
 export default function UploadPage() {
   return (
-    <AuthGate>
+    /* <AuthGate> */
       <UploadPageInner />
-    </AuthGate>
+    /* </AuthGate> */
   );
 }
 
