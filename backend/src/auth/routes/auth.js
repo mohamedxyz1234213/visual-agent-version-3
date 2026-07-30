@@ -203,9 +203,9 @@ router.post('/complete-signup', async (req, res, next) => {
       userAgent: getUserAgent(req),
     });
 
-    await createSession(user, req, res);
+    const token = await createSession(user, req, res);
 
-    return res.json({ ok: true, user: user.toSafeJSON() });
+    return res.json({ ok: true, user: user.toSafeJSON(), token });
   } catch (err) {
     next(err);
   }
@@ -250,8 +250,8 @@ router.post('/login', async (req, res, next) => {
       userAgent: ua,
     });
 
-    await createSession(user, req, res);
-    return res.json({ ok: true, user: user.toSafeJSON() });
+    const token = await createSession(user, req, res);
+    return res.json({ ok: true, user: user.toSafeJSON(), token });
   } catch (err) {
     next(err);
   }
@@ -324,8 +324,8 @@ router.post('/bootstrap-first-admin', async (req, res, next) => {
       userAgent: getUserAgent(req),
     });
 
-    await createSession(admin, req, res);
-    res.json({ ok: true, user: admin.toSafeJSON() });
+    const token = await createSession(admin, req, res);
+    res.json({ ok: true, user: admin.toSafeJSON(), token });
   } catch (err) { next(err); }
 });
 

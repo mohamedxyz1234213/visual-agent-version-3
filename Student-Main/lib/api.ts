@@ -7,13 +7,19 @@ import type {
   SeriesLesson,
   DashboardResponse,
 } from "./types";
+import { getAuthToken, setAuthToken, clearAuthToken } from "./authToken";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+
+function authHeaders(): Record<string, string> {
+  const token = getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     credentials: "include",
-    headers: { "Content-Type": "application/json", ...init?.headers },
+    headers: { "Content-Type": "application/json", ...authHeaders(), ...init?.headers },
     ...init,
   });
   if (!res.ok) {
@@ -59,7 +65,7 @@ export async function explainText(
 ): Promise<LessonStatus> {
   const res = await fetch(`${BASE}/explain/`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     credentials: "include",
     body: JSON.stringify({
       text,
@@ -209,7 +215,10 @@ export interface SafeUser {
 
 export async function fetchMe(): Promise<SafeUser | null> {
   console.log("[API] GET /auth/me →", `${BASE}/auth/me`);
-  const res = await fetch(`${BASE}/auth/me`, { credentials: "include" });
+  const res = await fetch(`${BASE}/auth/me`, {
+    credentials: "include",
+    headers: { ...authHeaders() },
+  });
   console.log("[API] /auth/me status:", res.status, res.statusText);
   if (!res.ok) throw new Error(`Failed to fetch /me: ${res.status}`);
   const data = await res.json();
@@ -226,10 +235,13 @@ export async function loginRequest(identifier: string, password: string): Promis
     body: JSON.stringify({ identifier, password }),
   });
   console.log("[API] /auth/login status:", res.status, res.statusText);
-  console.log("[API] /auth/login Set-Cookie:", res.headers.get("set-cookie"));
   const data = await res.json().catch(() => ({}));
   console.log("[API] /auth/login response:", data);
   if (!res.ok) throw new Error(data.error || `Login failed: ${res.status}`);
+  if (data.token) {
+    setAuthToken(data.token);
+    console.log("[API] Stored auth token");
+  }
   return data.user;
 }
 
@@ -237,7 +249,9 @@ export async function logoutRequest(): Promise<void> {
   await fetch(`${BASE}/auth/logout`, {
     method: "POST",
     credentials: "include",
+    headers: { ...authHeaders() },
   }).catch(() => {});
+  clearAuthToken();
 }
 
 export async function requestEarlyAccess(input: {
@@ -394,7 +408,7 @@ async function adminRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     credentials: "include",
-    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+    headers: { "Content-Type": "application/json", ...authHeaders(), ...(init?.headers || {}) },
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `${res.status} ${res.statusText}`);
