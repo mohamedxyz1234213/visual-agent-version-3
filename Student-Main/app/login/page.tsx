@@ -28,19 +28,24 @@ function LoginPageInner() {
     e.preventDefault();
     setError("");
     setLoading(true);
+    const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+    console.log("[LOGIN] Submitting to:", `${base}/auth/login`, { identifier, password: "***" });
     try {
       const user = await login(identifier, password);
-      // If a ?next= redirect was specified, go there first (only internal paths)
+      console.log("[LOGIN] Success — user:", { id: user.id, username: user.username, role: user.role });
       const decoded = next ? decodeURIComponent(next) : null;
       if (decoded && decoded.startsWith("/")) {
+        console.log("[LOGIN] Redirecting to (next):", decoded);
         router.push(decoded);
         return;
       }
       const role = user.role;
+      console.log("[LOGIN] Redirecting based on role:", role);
       if (role === "admin") router.push("/admin");
       else if (role === "teacher") router.push("/teacher/dashboard");
       else router.push("/student/dashboard");
     } catch (err: any) {
+      console.error("[LOGIN] Error:", err);
       setError(err.message || "Login failed");
     } finally {
       setLoading(false);

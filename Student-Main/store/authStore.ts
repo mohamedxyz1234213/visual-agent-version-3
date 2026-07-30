@@ -43,13 +43,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const user = await fetchMe();
-      if (user) saveSession(user);
+      if (user) {
+        console.log("[AUTH] fetchMe OK, saving session", user.username);
+        saveSession(user);
+      } else {
+        console.log("[AUTH] fetchMe returned null, checking sessionStorage");
+      }
       set({ user, initialized: true, loading: false });
     } catch (err) {
+      console.warn("[AUTH] fetchMe failed:", err);
       const cached = loadSession();
       if (cached) {
+        console.log("[AUTH] Falling back to sessionStorage user:", cached.username);
         set({ user: cached, initialized: true, loading: false });
       } else {
+        console.log("[AUTH] No sessionStorage fallback either");
         set({ user: null, initialized: true, loading: false, error: err instanceof Error ? err.message : String(err) });
       }
     }
@@ -59,17 +67,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const user = await loginRequest(identifier, password);
+      console.log("[AUTH] Login success, saving to sessionStorage");
       saveSession(user);
       set({ user, loading: false });
       return user;
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Login failed";
+      console.error("[AUTH] Login failed:", msg);
       set({ loading: false, error: msg });
       throw err;
     }
   },
 
   async logout() {
+    console.log("[AUTH] Logout");
     clearSession();
     await logoutRequest();
     set({ user: null });

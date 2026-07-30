@@ -208,20 +208,27 @@ export interface SafeUser {
 }
 
 export async function fetchMe(): Promise<SafeUser | null> {
+  console.log("[API] GET /auth/me →", `${BASE}/auth/me`);
   const res = await fetch(`${BASE}/auth/me`, { credentials: "include" });
+  console.log("[API] /auth/me status:", res.status, res.statusText);
   if (!res.ok) throw new Error(`Failed to fetch /me: ${res.status}`);
   const data = await res.json();
+  console.log("[API] /auth/me response:", data);
   return data.user ?? null;
 }
 
 export async function loginRequest(identifier: string, password: string): Promise<SafeUser> {
+  console.log("[API] POST /auth/login →", `${BASE}/auth/login`);
   const res = await fetch(`${BASE}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
     body: JSON.stringify({ identifier, password }),
   });
+  console.log("[API] /auth/login status:", res.status, res.statusText);
+  console.log("[API] /auth/login Set-Cookie:", res.headers.get("set-cookie"));
   const data = await res.json().catch(() => ({}));
+  console.log("[API] /auth/login response:", data);
   if (!res.ok) throw new Error(data.error || `Login failed: ${res.status}`);
   return data.user;
 }
