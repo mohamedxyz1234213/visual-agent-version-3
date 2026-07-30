@@ -94,14 +94,7 @@ const PROVIDER_MODELS: Record<string, Array<{
     { id: "google/gemma-4-27b-it:free", label: "Gemma 4 27B (free)", modelName: "google/gemma-4-27b-it:free", desc: "Google model", badge: null },
     { id: "meta-llama/llama-4-maverick:free", label: "Llama 4 Maverick (free)", modelName: "meta-llama/llama-4-maverick:free", desc: "Meta latest", badge: null },
   ],
-  blaze: [
-    { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash", modelName: "deepseek-v4-flash", desc: "Fast & accurate", badge: "Recommended" },
-    { id: "deepseek-v4-pro", label: "DeepSeek V4 Pro", modelName: "deepseek-v4-pro", desc: "Deepest analysis", badge: null },
-  ],
-  blazeapi: [
-    { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash", modelName: "deepseek-v4-flash", desc: "Fast & accurate", badge: "Recommended" },
-    { id: "deepseek-v4-pro", label: "DeepSeek V4 Pro", modelName: "deepseek-v4-pro", desc: "Deepest analysis", badge: null },
-  ],
+  
 };
 
 // ─── Pipeline stage definitions ───────────────────────────────────────────────

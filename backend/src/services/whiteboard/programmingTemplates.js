@@ -3427,4 +3427,374 @@ define({
     return s;
   },
 });
+
+// ── P101. CPU ARCHITECTURE ───────────────────────────────────────────────────
+define({
+  id: 'prog_cpu_arch', intent: 'define', label: 'CPU architecture & pipeline',
+  capacity: { stages: 5, cores: 4 },
+  fill(d, ctx) {
+    const p = PALETTES[0];
+    const s = [...header(ctx, p.accent)];
+    const stages = (d.stages || d.items || []).slice(0, 5);
+    const defStages = ['Fetch', 'Decode', 'Execute', 'Memory', 'Writeback'];
+    const list = stages.length ? stages : defStages.map((t) => ({ title: t }));
+    const n = Math.min(list.length, 5);
+    const boxW = 130, gap = 8;
+    const total = boxW * n + gap * (n - 1);
+    const x0 = (W - total) / 2;
+    const colors = ['#2563eb', '#0d9488', '#ea580c', '#7c3aed', '#16a34a'];
+    list.slice(0, n).forEach((st, i) => {
+      const x = x0 + i * (boxW + gap);
+      s.push(rect(x, 180, boxW, 48, { fill: colors[i], stroke: colors[i], rx: 6 }));
+      s.push(txt(anchor(itemText(st.title || st), 5), x + boxW / 2, 210, { fontSize: 11, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
+      if (i < n - 1) s.push(arrow([x + boxW + 2, 204], [x + boxW + gap - 2, 204], { color: '#94a3b8', strokeWidth: 2 }));
+    });
+    s.push(rect(60, 260, 680, 80, { fill: '#0f172a', stroke: '#1e293b', rx: 8 }));
+    s.push(txt('Pipeline States', 400, 282, { fontSize: 13, fontWeight: '700', color: '#94a3b8', textAnchor: 'middle' }));
+    const stagesList = ['IF', 'ID', 'EX', 'MEM', 'WB'];
+    stagesList.forEach((st, i) => {
+      const x = 100 + i * 140;
+      s.push(rect(x, 294, 110, 30, { fill: p.soft, stroke: p.accent, strokeWidth: 1, rx: 4 }));
+      s.push(txt(st, x + 55, 314, { fontSize: 11, fontWeight: '700', color: p.accent, textAnchor: 'middle' }));
+    });
+    s.push(txt('Clock cycles advance left → right, one instruction per stage', 400, 370, { fontSize: 10, color: '#64748b', textAnchor: 'middle', fontStyle: 'italic' }));
+    s.push(txt('Superscalar: multiple instructions per cycle | Hazards: RAW, WAR, WAW', 400, 450, { fontSize: 10, color: '#94a3b8', textAnchor: 'middle' }));
+    return s;
+  },
+});
+
+// ── P102. COMPILER DESIGN ────────────────────────────────────────────────────
+define({
+  id: 'prog_compiler_design', intent: 'process', label: 'Compiler stages',
+  capacity: { stages: 6 },
+  fill(d, ctx) {
+    const p = PALETTES[2];
+    const s = [...header(ctx, p.accent)];
+    const stages = (d.stages || d.steps || []).slice(0, 6);
+    const defs = [
+      { title: 'Lexer', detail: 'Tokenization' },
+      { title: 'Parser', detail: 'AST construction' },
+      { title: 'Semantic', detail: 'Type checking' },
+      { title: 'IR Gen', detail: 'Intermediate code' },
+      { title: 'Optimizer', detail: 'Constant folding' },
+      { title: 'Codegen', detail: 'Machine code' },
+    ];
+    const list = stages.length ? stages : defs;
+    const n = Math.min(list.length, 6);
+    const boxW = 110, gap = 8;
+    const total = boxW * n + gap * (n - 1);
+    const x0 = (W - total) / 2;
+    const cols = ['#7c3aed', '#2563eb', '#0d9488', '#ea580c', '#f59e0b', '#16a34a'];
+    list.slice(0, n).forEach((st, i) => {
+      const x = x0 + i * (boxW + gap);
+      s.push(rect(x, 170, boxW, 70, { fill: cols[i], stroke: cols[i], rx: 8 }));
+      s.push(txt(anchor(itemText(st.title || st), 4), x + boxW / 2, 203, { fontSize: 11, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
+      if (st.detail) s.push(txt(anchor(st.detail, 6), x + boxW / 2, 225, { fontSize: 9, fontWeight: '500', color: 'rgba(255,255,255,0.8)', textAnchor: 'middle' }));
+      if (i < n - 1) s.push(arrow([x + boxW + 2, 205], [x + boxW + gap - 2, 205], { color: '#94a3b8', strokeWidth: 2 }));
+    });
+    s.push(txt('Source code → Token stream → Parse tree → IR → Optimized IR → Assembly', 400, 300, { fontSize: 11, fontWeight: '600', color: p.accent, textAnchor: 'middle' }));
+    s.push(rect(180, 320, 440, 36, { fill: p.soft, stroke: p.accent, strokeWidth: 1, rx: 6 }));
+    s.push(txt('Frontend (language-specific)  →  Middle-end (optimization)  →  Backend (target)', 400, 344, { fontSize: 10, fontWeight: '600', color: p.deep, textAnchor: 'middle' }));
+    s.push(txt('Examples: GCC (RTL), LLVM (LLVM IR), V8 (TurboFan)', 400, 450, { fontSize: 10, color: '#64748b', textAnchor: 'middle', fontStyle: 'italic' }));
+    return s;
+  },
+});
+
+// ── P103. NETWORK PACKET STRUCTURE ───────────────────────────────────────────
+define({
+  id: 'prog_network_packet', intent: 'define', label: 'TCP/IP packet structure',
+  capacity: { headers: 7 },
+  fill(d, ctx) {
+    const p = PALETTES[6];
+    const s = [...header(ctx, p.accent)];
+    const headers = (d.headers || d.items || []).slice(0, 7);
+    const defs = [
+      { field: 'Source Port', bits: 16, color: '#2563eb' },
+      { field: 'Dest Port', bits: 16, color: '#0d9488' },
+      { field: 'Seq Number', bits: 32, color: '#ea580c' },
+      { field: 'Ack Number', bits: 32, color: '#7c3aed' },
+      { field: 'Flags (SYN,ACK,FIN)', bits: 9, color: '#f59e0b' },
+      { field: 'Window Size', bits: 16, color: '#16a34a' },
+      { field: 'Urgent Pointer', bits: 16, color: '#db2777' },
+    ];
+    const list = headers.length ? headers : defs;
+    const n = Math.min(list.length, 7);
+    const rowH = 34, gap = 4;
+    const startY = 110;
+    list.slice(0, n).forEach((h, i) => {
+      const y = startY + i * (rowH + gap);
+      s.push(rect(140, y, 520, rowH, { fill: h.color || p.soft, stroke: h.color || p.accent, strokeWidth: 1.5, rx: 4 }));
+      s.push(txt(anchor(itemText(h.field || h.title), 8), 160, y + rowH / 2 + 5, { fontSize: 12, fontWeight: '700', color: '#ffffff', textAnchor: 'start' }));
+      const bits = h.bits || h.size || 32;
+      s.push(badge(bits + 'b', 640, y + 2, { bg: 'rgba(255,255,255,0.2)', fontSize: 9 }));
+    });
+    s.push(rect(140, startY + n * (rowH + gap) + 4, 520, 20, { fill: '#0f172a', stroke: '#334155', rx: 4 }));
+    s.push(txt('Total: ' + list.reduce((a, h) => a + (h.bits || h.size || 32), 0) + ' bits (min)', 400, startY + n * (rowH + gap) + 18, { fontSize: 10, color: '#94a3b8', textAnchor: 'middle', fontWeight: '600' }));
+    s.push(txt('TCP segment encapsulated in IP packet → Ethernet frame', 400, 450, { fontSize: 11, color: '#64748b', textAnchor: 'middle', fontStyle: 'italic' }));
+    return s;
+  },
+});
+
+// ── P104. STATE MACHINE ──────────────────────────────────────────────────────
+define({
+  id: 'prog_state_machine', intent: 'process', label: 'Finite state machine',
+  capacity: { states: 5, transitions: 6 },
+  fill(d, ctx) {
+    const p = PALETTES[1];
+    const s = [...header(ctx, p.accent)];
+    const states = (d.states || d.items || []).slice(0, 5);
+    const defStates = [
+      { label: 'Idle', x: 120, y: 320 },
+      { label: 'Loading', x: 350, y: 180 },
+      { label: 'Processing', x: 580, y: 280 },
+      { label: 'Success', x: 450, y: 400 },
+      { label: 'Error', x: 200, y: 200 },
+    ];
+    const list = states.length ? states : defStates;
+    const n = Math.min(list.length, 5);
+    const transitions = [
+      [0, 1], [1, 2], [2, 3], [2, 4], [4, 0], [3, 0]
+    ];
+    transitions.slice(0, 6).forEach(([from, to]) => {
+      if (from < n && to < n) {
+        const f = list[from], t = list[to];
+        const fx = f.x || (typeof f === 'object' && f.position ? f.position[0] : 200 + from * 120);
+        const fy = f.y || (typeof f === 'object' && f.position ? f.position[1] : 200 + (from % 2) * 80);
+        const tx = t.x || (typeof t === 'object' && t.position ? t.position[0] : 200 + to * 120);
+        const ty = t.y || (typeof t === 'object' && t.position ? t.position[1] : 200 + (to % 2) * 80);
+        s.push(arrow([fx + 40, fy + 30], [tx - 40, ty + 30], { color: '#94a3b8', strokeWidth: 1.5 }));
+      }
+    });
+    list.slice(0, n).forEach((st, i) => {
+      const sx = st.x || (typeof st === 'object' && st.position ? st.position[0] : 120 + i * 140);
+      const sy = st.y || (typeof st === 'object' && st.position ? st.position[1] : 180 + (i % 2) * 80);
+      const isAccept = i === 3 || i === 0;
+      s.push(circle(sx + 40, sy + 30, 36, { fill: p.soft, stroke: isAccept ? '#16a34a' : p.accent, strokeWidth: isAccept ? 3 : 2 }));
+      if (isAccept) s.push(circle(sx + 40, sy + 30, 28, { fill: 'none', stroke: '#16a34a', strokeWidth: 1.5 }));
+      s.push(txt(anchor(itemText(st.label || st.title || 'S' + i), 4), sx + 40, sy + 34, { fontSize: 9, fontWeight: '700', color: p.deep, textAnchor: 'middle' }));
+    });
+    s.push(txt('Deterministic finite automaton (DFA): each input triggers exactly one transition', 400, 450, { fontSize: 10, color: '#64748b', textAnchor: 'middle', fontStyle: 'italic' }));
+    return s;
+  },
+});
+
+// ── P105. TURING MACHINE ─────────────────────────────────────────────────────
+define({
+  id: 'prog_turing_machine', intent: 'define', label: 'Turing machine model',
+  capacity: { tape: 10, transitions: 4 },
+  fill(d, ctx) {
+    const p = PALETTES[2];
+    const s = [...header(ctx, p.accent)];
+    const tape = (d.tape || d.items || '0101 1010').slice(0, 10);
+    const tapeStr = Array.isArray(tape) ? tape.join('') : String(tape).replace(/\s/g, '');
+    const symbols = tapeStr.split('').slice(0, 10);
+    const cellW = 56, cellH = 48;
+    const tapeX0 = (W - symbols.length * cellW) / 2;
+    symbols.forEach((sym, i) => {
+      const x = tapeX0 + i * cellW;
+      s.push(rect(x, 200, cellW, cellH, { fill: i === 3 ? '#fef3c7' : '#ffffff', stroke: i === 3 ? '#f59e0b' : '#cbd5e1', strokeWidth: i === 3 ? 2.5 : 1.5, rx: 0 }));
+      s.push(txt(sym, x + cellW / 2, 232, { fontSize: 20, fontWeight: '800', color: '#0f172a', textAnchor: 'middle' }));
+    });
+    s.push(txt('Tape (infinite →)', 400, 188, { fontSize: 11, fontWeight: '600', color: '#64748b', textAnchor: 'middle' }));
+    s.push(rect(tapeX0 + 3 * cellW - 8, 260, cellW + 16, 20, { fill: p.accent, stroke: p.accent, rx: 4 }));
+    s.push(txt('Read/Write Head', tapeX0 + 3 * cellW, 275, { fontSize: 8, fontWeight: '700', color: '#ffffff', textAnchor: 'middle' }));
+    s.push(arrow([tapeX0 + 3 * cellW + cellW / 2, 248], [tapeX0 + 3 * cellW + cellW / 2, 262], { color: p.accent, strokeWidth: 2 }));
+    s.push(rect(200, 310, 400, 60, { fill: p.soft, stroke: p.accent, strokeWidth: 1.5, rx: 8 }));
+    s.push(txt('Finite Control (States)', 400, 330, { fontSize: 12, fontWeight: '700', color: p.deep, textAnchor: 'middle' }));
+    s.push(txt('δ(state, symbol) → (new_state, write_symbol, L|R)', 400, 355, { fontSize: 10, fontWeight: '600', color: '#475569', textAnchor: 'middle' }));
+    s.push(txt('Church-Turing thesis: anything computable can be computed by a TM', 400, 450, { fontSize: 10, color: '#64748b', textAnchor: 'middle', fontStyle: 'italic' }));
+    return s;
+  },
+});
+
+// ── P106. BLOCKCHAIN ─────────────────────────────────────────────────────────
+define({
+  id: 'prog_blockchain', intent: 'process', label: 'Blockchain architecture',
+  capacity: { blocks: 5 },
+  fill(d, ctx) {
+    const p = PALETTES[3];
+    const s = [...header(ctx, p.accent)];
+    const blocks = (d.blocks || d.items || []).slice(0, 5);
+    const defs = [
+      { index: 0, data: 'Genesis Block', hash: '0x0000...', nonce: 0 },
+      { index: 1, data: 'Transaction A', hash: '0x1a2b...', nonce: 1423 },
+      { index: 2, data: 'Transaction B', hash: '0x3c4d...', nonce: 8912 },
+      { index: 3, data: 'Contract Call', hash: '0x5e6f...', nonce: 4451 },
+      { index: 4, data: 'Mining Reward', hash: '0x7a8b...', nonce: 9203 },
+    ];
+    const list = blocks.length ? blocks : defs;
+    const n = Math.min(list.length, 5);
+    const boxW = 130, gap = 12;
+    const total = boxW * n + gap * (n - 1);
+    const x0 = (W - total) / 2;
+    list.slice(0, n).forEach((b, i) => {
+      const x = x0 + i * (boxW + gap);
+      s.push(rect(x, 150, boxW, 130, { fill: '#ffffff', stroke: p.accent, strokeWidth: 2, rx: 8 }));
+      if (i > 0) {
+        s.push(arrow([x - gap + 2, 215], [x - 2, 215], { color: '#94a3b8', strokeWidth: 2 }));
+        s.push(path('M ' + (x - 6) + ' 215 L ' + (x - 2) + ' 209 M ' + (x - 6) + ' 215 L ' + (x - 2) + ' 221', { stroke: '#94a3b8', strokeWidth: 1.5 }));
+      }
+      s.push(rect(x + 6, 158, boxW - 12, 22, { fill: p.accent, stroke: p.accent, rx: 4 }));
+      s.push(txt('Block #' + (b.index || i), x + boxW / 2, 174, { fontSize: 9, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
+      s.push(txt(anchor(itemText(b.data || b.title), 5), x + boxW / 2, 210, { fontSize: 9, fontWeight: '600', color: '#0f172a', textAnchor: 'middle' }));
+      const hash = b.hash || (typeof b === 'object' ? b.tx_hash || b.hash_value : '');
+      s.push(txt(hash ? 'Hash: ' + String(hash).slice(0, 10) : 'hash: ...', x + boxW / 2, 240, { fontSize: 7, color: '#64748b', textAnchor: 'middle' }));
+      s.push(txt('Nonce: ' + (b.nonce || b.id || i * 100), x + boxW / 2, 260, { fontSize: 7, color: '#94a3b8', textAnchor: 'middle' }));
+    });
+    s.push(txt('Each block contains hash of previous block → immutable chain', 400, 330, { fontSize: 11, fontWeight: '600', color: p.deep, textAnchor: 'middle' }));
+    s.push(rect(200, 350, 400, 30, { fill: p.soft, stroke: p.accent, strokeWidth: 1, rx: 6 }));
+    s.push(txt('Consensus: PoW / PoS | Immutability: hash chain | Security: 51% attack', 400, 370, { fontSize: 8, fontWeight: '600', color: p.deep, textAnchor: 'middle' }));
+    s.push(txt('Applications: cryptocurrencies, smart contracts, supply chain, DAOs', 400, 450, { fontSize: 10, color: '#64748b', textAnchor: 'middle', fontStyle: 'italic' }));
+    return s;
+  },
+});
+
+// ── P107. QUANTUM COMPUTING ───────────────────────────────────────────────────
+define({
+  id: 'prog_quantum', intent: 'define', label: 'Quantum computing basics',
+  capacity: { gates: 5 },
+  fill(d, ctx) {
+    const p = PALETTES[2];
+    const s = [...header(ctx, p.accent)];
+    const gates = (d.gates || d.items || []).slice(0, 5);
+    const defs = [
+      { symbol: 'H', name: 'Hadamard', desc: 'Creates superposition' },
+      { symbol: 'X', name: 'Pauli-X (NOT)', desc: 'Bit flip' },
+      { symbol: 'Z', name: 'Pauli-Z', desc: 'Phase flip' },
+      { symbol: '⊗', name: 'CNOT', desc: 'Controlled-NOT, entangles' },
+      { symbol: 'S', name: 'Phase Gate', desc: 'π/2 phase shift' },
+    ];
+    const list = gates.length ? gates : defs;
+    const n = Math.min(list.length, 5);
+    const boxW = 140, gap = 8;
+    const total = boxW * n + gap * (n - 1);
+    const x0 = (W - total) / 2;
+    s.push(txt('Fundamental Quantum Gates', 400, 110, { fontSize: 14, fontWeight: '700', color: p.deep, textAnchor: 'middle' }));
+    list.slice(0, n).forEach((g, i) => {
+      const x = x0 + i * (boxW + gap);
+      s.push(rect(x, 140, boxW, 90, { fill: '#ffffff', stroke: p.accent, strokeWidth: 1.5, rx: 8 }));
+      s.push(circle(x + boxW / 2, 175, 18, { fill: p.soft, stroke: p.accent, strokeWidth: 2 }));
+      s.push(txt(g.symbol || String.fromCharCode(9733), x + boxW / 2, 180, { fontSize: 16, fontWeight: '800', color: p.accent, textAnchor: 'middle' }));
+      s.push(txt(anchor(g.name || g.title, 6), x + boxW / 2, 210, { fontSize: 9, fontWeight: '700', color: '#0f172a', textAnchor: 'middle' }));
+      if (g.desc) s.push(txt(anchor(g.desc, 6), x + boxW / 2, 224, { fontSize: 7, color: '#64748b', textAnchor: 'middle' }));
+    });
+    s.push(txt('Qubit: |ψ⟩ = α|0⟩ + β|1⟩, |α|² + |β|² = 1', 400, 280, { fontSize: 12, fontWeight: '700', color: p.deep, textAnchor: 'middle' }));
+    s.push(rect(160, 300, 480, 50, { fill: p.soft, stroke: p.accent, strokeWidth: 1, rx: 6 }));
+    s.push(txt('Quantum supremacy: tasks impractical for classical computers', 400, 320, { fontSize: 10, fontWeight: '600', color: p.deep, textAnchor: 'middle' }));
+    s.push(txt('Applications: cryptography (Shor), search (Grover), simulation', 400, 340, { fontSize: 9, color: '#475569', textAnchor: 'middle' }));
+    s.push(txt('Challenges: decoherence, error correction, qubit stability', 400, 450, { fontSize: 10, color: '#64748b', textAnchor: 'middle', fontStyle: 'italic' }));
+    return s;
+  },
+});
+
+// ── P108. CODE DIFF / PR REVIEW ──────────────────────────────────────────────
+define({
+  id: 'prog_code_diff', intent: 'compare', label: 'Code diff & pull request',
+  capacity: { changes: 6 },
+  fill(d, ctx) {
+    const p = PALETTES[4];
+    const s = [...header(ctx, p.accent)];
+    const changes = (d.changes || d.lines || d.items || []).slice(0, 6);
+    const defs = [
+      { type: 'add', text: 'function calculateTotal(items) {' },
+      { type: 'add', text: '  return items.reduce((sum, item) => sum + item.price, 0);' },
+      { type: 'remove', text: '  let total = 0;' },
+      { type: 'remove', text: '  for (let i = 0; i < items.length; i++) {' },
+      { type: 'remove', text: '    total += items[i].price;' },
+      { type: 'context', text: '  }' },
+    ];
+    const list = changes.length ? changes : defs;
+    const n = Math.min(list.length, 8);
+    const lineH = 28;
+    const startY = 120;
+    const diffW = 600;
+    const diffX = (W - diffW) / 2;
+    s.push(rect(diffX, 100, diffW, 30, { fill: '#0f172a', stroke: '#334155', rx: 6 }));
+    s.push(txt('src/utils.js — Pull Request #42', diffX + 16, 120, { fontSize: 11, fontWeight: '700', color: '#e2e8f0', textAnchor: 'start' }));
+    s.push(badge('+2 -3', diffX + diffW - 70, 102, { bg: '#16a34a', fontSize: 10 }));
+    list.slice(0, n).forEach((ln, i) => {
+      const y = startY + i * lineH;
+      const bg = ln.type === 'add' ? '#dcfce7' : ln.type === 'remove' ? '#fee2e2' : '#f8fafc';
+      const stroke = ln.type === 'add' ? '#86efac' : ln.type === 'remove' ? '#fca5a5' : '#e2e8f0';
+      const textColor = ln.type === 'add' ? '#166534' : ln.type === 'remove' ? '#991b1b' : '#475569';
+      const prefix = ln.type === 'add' ? '+ ' : ln.type === 'remove' ? '- ' : '  ';
+      s.push(rect(diffX, y, diffW, lineH, { fill: bg, stroke, strokeWidth: 0.5, rx: 0, flat: true }));
+      s.push(txt(prefix + anchor(ln.text || ln, 16), diffX + 12, y + 18, { fontSize: 11, fontWeight: '600', color: textColor, textAnchor: 'start' }));
+    });
+    s.push(txt('Code review: verify correctness, style, security, performance', 400, 450, { fontSize: 10, color: '#64748b', textAnchor: 'middle', fontStyle: 'italic' }));
+    return s;
+  },
+});
+
+// ── P109. MATH FORMULAS (CS FOUNDATIONS) ─────────────────────────────────────
+define({
+  id: 'prog_math_formulas', intent: 'formula', label: 'CS math foundations',
+  capacity: { formulas: 6 },
+  fill(d, ctx) {
+    const p = PALETTES[0];
+    const s = [...header(ctx, p.accent)];
+    const formulas = (d.formulas || d.items || []).slice(0, 6);
+    const defs = [
+      { name: 'Boolean Algebra', formula: 'A · (B + C) = A·B + A·C', detail: 'Distributive law' },
+      { name: 'Set Theory', formula: '|A ∪ B| = |A| + |B| - |A ∩ B|', detail: 'Inclusion-exclusion' },
+      { name: 'Logarithm', formula: 'log_b (x·y) = log_b x + log_b y', detail: 'Log product identity' },
+      { name: 'Summation', formula: '∑ᵢ₌₁ⁿ i = n(n+1)/2', detail: 'Arithmetic series' },
+      { name: 'Combinations', formula: 'C(n,k) = n!/(k!(n-k)!)', detail: 'Binomial coefficient' },
+      { name: 'Exponential', formula: 'eˣ = ∑ₙ₌₀^∞ xⁿ/n!', detail: 'Taylor series' },
+    ];
+    const list = formulas.length ? formulas : defs;
+    const n = Math.min(list.length, 6);
+    const cols = ['#2563eb', '#0d9488', '#ea580c', '#7c3aed', '#f59e0b', '#16a34a'];
+    const boxW = 220, gap = 12;
+    const colN = 2;
+    const x0 = (W - (boxW * colN + gap * (colN - 1))) / 2;
+    list.slice(0, n).forEach((f, i) => {
+      const col = i % colN, row = Math.floor(i / colN);
+      const x = x0 + col * (boxW + gap);
+      const y = 100 + row * 110;
+      s.push(rect(x, y, boxW, 96, { fill: '#ffffff', stroke: cols[i], strokeWidth: 1.8, rx: 8 }));
+      s.push(rect(x, y, boxW, 24, { fill: cols[i], stroke: cols[i], rx: 8 }));
+      s.push(txt(anchor(itemText(f.name || f.title), 8), x + boxW / 2, y + 17, { fontSize: 11, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
+      s.push(txt(anchor(f.formula || f.text || String(f), 12), x + boxW / 2, y + 56, { fontSize: 12, fontWeight: '700', color: '#0f172a', textAnchor: 'middle' }));
+      if (f.detail) s.push(txt(anchor(f.detail, 10), x + boxW / 2, y + 80, { fontSize: 9, fontWeight: '500', color: '#64748b', textAnchor: 'middle', fontStyle: 'italic' }));
+    });
+    s.push(txt('Foundational math for CS: complexity analysis, cryptography, data science', 400, 455, { fontSize: 10, color: '#64748b', textAnchor: 'middle', fontStyle: 'italic' }));
+    return s;
+  },
+});
+
+// ── P110. ADVANCED DB NORMALIZATION ───────────────────────────────────────────
+define({
+  id: 'prog_db_normalization', intent: 'process', label: 'DB normalization forms',
+  capacity: { forms: 5 },
+  fill(d, ctx) {
+    const p = PALETTES[5];
+    const s = [...header(ctx, p.accent)];
+    const forms = (d.forms || d.items || []).slice(0, 5);
+    const defs = [
+      { name: '1NF', title: 'Atomic values', detail: 'No repeating groups, each cell has one value' },
+      { name: '2NF', title: 'Partial dependency', detail: 'Every non-key attr fully depends on whole PK' },
+      { name: '3NF', title: 'Transitive dependency', detail: 'No non-key attr depends on another non-key' },
+      { name: 'BCNF', title: 'Boyce-Codd', detail: 'Every determinant is a candidate key' },
+      { name: '4NF', title: 'Multivalued dependency', detail: 'No multi-valued facts about an entity' },
+    ];
+    const list = forms.length ? forms : defs;
+    const n = Math.min(list.length, 5);
+    const boxW = 680, rowH = 54, gap = 6;
+    const x = (W - boxW) / 2;
+    s.push(txt('Normalization: systematically reduce redundancy & avoid anomalies', 400, 100, { fontSize: 13, fontWeight: '600', color: p.deep, textAnchor: 'middle' }));
+    list.slice(0, n).forEach((f, i) => {
+      const y = 120 + i * (rowH + gap);
+      const colors = ['#2563eb', '#0d9488', '#ea580c', '#7c3aed', '#16a34a'];
+      s.push(rect(x, y, 60, rowH, { fill: colors[i], stroke: colors[i], rx: 4 }));
+      s.push(txt(anchor(f.name || 'NF', 4), x + 30, y + rowH / 2 + 4, { fontSize: 10, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
+      s.push(rect(x + 64, y, boxW - 64, rowH, { fill: '#ffffff', stroke: colors[i], strokeWidth: 1.5, rx: 4 }));
+      s.push(txt(anchor(f.title || f.name, 8), x + 80, y + 20, { fontSize: 12, fontWeight: '700', color: colors[i], textAnchor: 'start' }));
+      if (f.detail) s.push(txt(anchor(f.detail, 16), x + 80, y + 40, { fontSize: 9, fontWeight: '500', color: '#64748b', textAnchor: 'start' }));
+      if (i < n - 1) s.push(arrow([x + 30, y + rowH + gap], [x + 30, y + rowH + gap + 12], { color: '#94a3b8', strokeWidth: 1.5 }));
+    });
+    s.push(txt('Each normal form eliminates a specific type of redundancy', 400, 455, { fontSize: 10, color: '#64748b', textAnchor: 'middle', fontStyle: 'italic' }));
+    return s;
+  },
+});
 }

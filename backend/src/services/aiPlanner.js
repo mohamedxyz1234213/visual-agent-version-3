@@ -4476,6 +4476,11 @@ function normalizeProvider(raw) {
 
 /** Resolve the model id for API calls from user selection + provider. */
 function resolveModel(aiProvider, analysisModel) {
+  const provider = normalizeProvider(aiProvider) || 'openrouter';
+  if (provider === 'openrouter') {
+    const cfg = getOpenRouterConfig();
+    return analysisModel || cfg.defaultModel || OPENROUTER_DEFAULT_MODEL;
+  }
   const { defaultDeepModel } = getBlazeConfig();
   return resolveBlazeModel(analysisModel, defaultDeepModel);
 }
@@ -4666,7 +4671,7 @@ async function callOpenRouter(prompt, maxTokens, timeoutMs, model, hasExplicitMo
       return result;
     } catch (error) {
       const msg = String(error?.message || error || '');
-      const isGatewayError = /502|503|gateway|upstream|retrying|sentinel|unavailable|429/i.test(msg);
+      const isGatewayError = /402|502|503|gateway|upstream|retrying|sentinel|unavailable|429|insufficient.*(?:credit|quota)|rate.*limit|too.*many.*request/i.test(msg);
       lastError = error;
 
       if (isGatewayError) {

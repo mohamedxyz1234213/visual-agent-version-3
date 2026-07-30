@@ -13,6 +13,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import type { StoryboardScene } from "@/lib/types";
+import AITeacherAvatar from "./AITeacherAvatar";
 
 // ─── Payload shapes ────────────────────────────────────────────────────────────
 
@@ -120,6 +121,7 @@ export interface WhiteboardProps {
   width?: number;
   height?: number;
   zoom?: number;
+  showAvatar?: boolean;
   onSandboxOpen?: (payload: Record<string, unknown>, sceneId: string) => void;
   onSandboxResult?: (passed: boolean, sceneId: string) => void;
 }
@@ -139,6 +141,7 @@ export default function Whiteboard({
   width = 800,
   height = 500,
   zoom = 1,
+  showAvatar = false,
   onSandboxOpen,
   onSandboxResult,
 }: WhiteboardProps) {
@@ -485,6 +488,16 @@ export default function Whiteboard({
         </g>
       </svg>
 
+      {/* AI Teacher Avatar overlay — points at text on teacher-generated lessons */}
+      <AITeacherAvatar
+        scenes={scenes}
+        elapsed={elapsed}
+        viewWidth={width}
+        viewHeight={height}
+        zoom={zoom}
+        isActive={showAvatar}
+      />
+
       {/* Sandbox question overlay — HTML overlay on top of the SVG */}
       {activeSandbox && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -551,6 +564,36 @@ function renderScene(scene: StoryboardScene): React.ReactNode {
     case "draw_table":             return <DrawTable             id={scene.id} p={p as unknown as DrawTableP}             />;
     case "draw_highlight":         return <DrawHighlight         id={scene.id} p={p as unknown as DrawHighlightP}         />;
     case "sandbox_question":       return null; // rendered as HTML overlay in Whiteboard
+    case "draw_code_block":        return <DrawCodeBlock    id={scene.id} p={p as unknown as DrawCodeBlockP}    />;
+    case "draw_linked_list":       return <DrawLinkedList   id={scene.id} p={p as unknown as DrawLinkedListP}   />;
+    case "draw_tree_struct":       return <DrawTreeStruct   id={scene.id} p={p as unknown as DrawTreeStructP}   />;
+    case "draw_graph_struct":      return <DrawGraphStruct  id={scene.id} p={p as unknown as DrawGraphStructP}  />;
+    case "draw_sorting":           return <DrawSorting      id={scene.id} p={p as unknown as DrawSortingP}      />;
+    case "draw_flowchart":         return <DrawFlowchart    id={scene.id} p={p as unknown as DrawFlowchartP}    />;
+    case "draw_uml":               return <DrawUml          id={scene.id} p={p as unknown as DrawUmlP}          />;
+    case "draw_big_o":             return <DrawBigO         id={scene.id} p={p as unknown as DrawBigOP}         />;
+    case "draw_network":           return <DrawNetwork      id={scene.id} p={p as unknown as DrawNetworkP}      />;
+    case "draw_datastream":        return <DrawDatastream        id={scene.id} p={p as unknown as DrawDatastreamP}        />;
+    case "write_text":             return <DrawText              id={scene.id} p={p as unknown as DrawTextP}              />;
+    case "draw_cpu":               return <DrawCpu               id={scene.id} p={p as unknown as DrawCpuP}               />;
+    case "draw_os_memory":         return <DrawOsMemory          id={scene.id} p={p as unknown as DrawOsMemoryP}          />;
+    case "draw_compiler":          return <DrawCompiler           id={scene.id} p={p as unknown as DrawCompilerP}           />;
+    case "draw_network_packet":    return <DrawNetworkPacket      id={scene.id} p={p as unknown as DrawNetworkPacketP}      />;
+    case "draw_db_schema":         return <DrawDbSchema           id={scene.id} p={p as unknown as DrawDbSchemaP}           />;
+    case "draw_state_machine":     return <DrawStateMachine       id={scene.id} p={p as unknown as DrawStateMachineP}       />;
+    case "draw_turing":            return <DrawTuring             id={scene.id} p={p as unknown as DrawTuringP}             />;
+    case "draw_blockchain":        return <DrawBlockchain         id={scene.id} p={p as unknown as DrawBlockchainP}         />;
+    case "draw_security_shield":   return <DrawSecurityShield     id={scene.id} p={p as unknown as DrawSecurityShieldP}     />;
+    case "draw_quantum":           return <DrawQuantum            id={scene.id} p={p as unknown as DrawQuantumP}            />;
+    case "draw_design_pattern":    return <DrawDesignPattern      id={scene.id} p={p as unknown as DrawDesignPatternP}      />;
+    case "draw_testing_pyramid":   return <DrawTestingPyramid     id={scene.id} p={p as unknown as DrawTestingPyramidP}     />;
+    case "draw_regex":             return <DrawRegex              id={scene.id} p={p as unknown as DrawRegexP}              />;
+    case "draw_api":               return <DrawApi                id={scene.id} p={p as unknown as DrawApiP}                />;
+    case "draw_math_formula":      return <DrawMathFormula        id={scene.id} p={p as unknown as DrawMathFormulaP}        />;
+    case "draw_language_showcase": return <DrawLanguageShowcase   id={scene.id} p={p as unknown as DrawLanguageShowcaseP}   />;
+    case "draw_algorithm_complex": return <DrawAlgorithmComplex   id={scene.id} p={p as unknown as DrawAlgorithmComplexP}   />;
+    case "draw_code_diff":         return <DrawCodeDiff           id={scene.id} p={p as unknown as DrawCodeDiffP}           />;
+    case "draw_architecture_diagram": return <DrawArchitectureDiagram id={scene.id} p={p as unknown as DrawArchitectureDiagramP} />;
     default:              return null;
   }
 }
@@ -2411,6 +2454,1194 @@ function DrawHighlight({ id, p }: { id: string; p: DrawHighlightP }) {
           {label}
         </text>
       )}
+    </g>
+  );
+}
+
+// ── Programming-specific renderers ──────────────────────────────────
+
+interface DrawCodeBlockP {
+  code: string;
+  language: string;
+  position: [number, number];
+  width?: number;
+  height?: number;
+  highlight_lines?: number[];
+  title?: string;
+}
+
+function DrawCodeBlock({ id, p }: { id: string; p: DrawCodeBlockP }) {
+  const [x, y] = p.position ?? [50, 50];
+  const w = p.width ?? 400;
+  const h = p.height ?? 160;
+  const lang = p.language ?? "javascript";
+  const code = p.code ?? "";
+  const highlightLines = p.highlight_lines ?? [];
+  const title = p.title;
+  const codeLines = code.split("\n");
+  const maxVisibleLines = Math.min(codeLines.length, Math.floor((h - 40) / 18));
+  const visibleLines = codeLines.slice(0, maxVisibleLines);
+
+  return (
+    <g key={id} className="wb-code-type">
+      <rect x={x} y={y} width={w} height={h} rx={8} fill="#1e293b" stroke="#334155" strokeWidth={1.5} filter="url(#wb-shadow)" />
+      <rect x={x} y={y} width={w} height={28} rx={8} fill="#0f172a" />
+      <rect x={x} y={y + 18} width={w} height={10} fill="#0f172a" />
+      <circle cx={x + 16} cy={y + 14} r={4.5} fill="#ef4444" />
+      <circle cx={x + 32} cy={y + 14} r={4.5} fill="#eab308" />
+      <circle cx={x + 48} cy={y + 14} r={4.5} fill="#22c55e" />
+      {title && (
+        <text x={x + w / 2} y={y + 18} textAnchor="middle" fontSize={11} fill="#94a3b8" fontWeight="600">{title}</text>
+      )}
+      <text x={x + 12} y={y + 48} fontFamily="monospace" fontSize={12} fill="#e2e8f0">
+        {visibleLines.map((line, i) => {
+          const lineNum = i + 1;
+          const isHighlighted = highlightLines.includes(lineNum);
+          return (
+            <tspan key={i} x={x + 12} dy={i === 0 ? 0 : 18}>
+              {isHighlighted && (
+                <tspan fill="#fbbf24" fontWeight="700">{"\u25B6 "}</tspan>
+              )}
+              <tspan fill={isHighlighted ? "#fde68a" : "#e2e8f0"}>{line}</tspan>
+            </tspan>
+          );
+        })}
+      </text>
+    </g>
+  );
+}
+
+interface DrawLinkedListP {
+  values: string[];
+  position: [number, number];
+  direction?: "horizontal" | "vertical";
+  highlight_indices?: number[];
+  show_null?: boolean;
+}
+
+function DrawLinkedList({ id, p }: { id: string; p: DrawLinkedListP }) {
+  const [x, y] = p.position ?? [50, 200];
+  const values = p.values ?? [];
+  const dir = p.direction ?? "horizontal";
+  const highlightIdx = p.highlight_indices ?? [];
+  const showNull = p.show_null !== false;
+  const nodeW = 56;
+  const nodeH = 40;
+  const gap = 28;
+  const isH = dir === "horizontal";
+  const totalW = isH ? values.length * (nodeW + gap) + (showNull ? nodeW + gap : 0) : nodeW + 20;
+  const totalH = isH ? nodeH + 20 : values.length * (nodeH + gap) + (showNull ? nodeH + gap : 0);
+
+  return (
+    <g key={id}>
+      {values.map((val, i) => {
+        const cx = isH ? x + i * (nodeW + gap) + nodeW / 2 : x + nodeW / 2;
+        const cy = isH ? y + nodeH / 2 : y + i * (nodeH + gap) + nodeH / 2;
+        const hl = highlightIdx.includes(i);
+        const color = hl ? "#2563eb" : "#1e293b";
+        return (
+          <g key={i}>
+            <rect
+              x={isH ? x + i * (nodeW + gap) : x}
+              y={isH ? y : y + i * (nodeH + gap)}
+              width={nodeW} height={nodeH} rx={6}
+              fill="#ffffff" stroke={color} strokeWidth={hl ? 2.5 : 1.5}
+              filter="url(#wb-shadow)"
+              className="wb-tree-grow"
+            />
+            <text
+              x={cx} y={cy + 5} textAnchor="middle"
+              fontSize={14} fill="#1e293b" fontWeight="700"
+              className="wb-write-on"
+            >
+              {val}
+            </text>
+            <line
+              x1={isH ? x + (i + 1) * nodeW + i * gap - gap / 2 : cx}
+              y1={isH ? cy : y + (i + 1) * nodeH + i * gap - gap / 2}
+              x2={isH ? x + (i + 1) * nodeW + i * gap + gap / 2 : cx}
+              y2={isH ? cy : y + (i + 1) * nodeH + i * gap + gap / 2}
+              stroke="#94a3b8" strokeWidth={2}
+              markerEnd="url(#arr-gray)"
+              className="wb-node-link"
+            />
+          </g>
+        );
+      })}
+      {showNull && (
+        <g className="wb-tree-grow">
+          <rect
+            x={isH ? x + values.length * (nodeW + gap) : x}
+            y={isH ? y : y + values.length * (nodeH + gap)}
+            width={nodeW} height={nodeH} rx={6}
+            fill="#f8fafc" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="4 3"
+          />
+          <text
+            x={isH ? x + values.length * (nodeW + gap) + nodeW / 2 : x + nodeW / 2}
+            y={isH ? y + nodeH / 2 + 4 : y + values.length * (nodeH + gap) + nodeH / 2 + 4}
+            textAnchor="middle" fontSize={12} fill="#94a3b8" fontWeight="600"
+          >
+            null
+          </text>
+        </g>
+      )}
+    </g>
+  );
+}
+
+interface DrawTreeStructP {
+  structure: "binary_tree" | "bst" | "heap" | "trie" | "avl";
+  values: string[];
+  position: [number, number];
+  highlight_values?: string[];
+}
+
+function DrawTreeStruct({ id, p }: { id: string; p: DrawTreeStructP }) {
+  const [x, y] = p.position ?? [50, 30];
+  const values = p.values ?? [];
+  const hlv = p.highlight_values ?? [];
+  const nodeR = 20;
+  const levelGap = 56;
+  const siblingGap = 48;
+
+  function treeNode(val: string, cx: number, cy: number, level: number, idx: number): React.ReactNode {
+    const hl = hlv.includes(val);
+    return (
+      <g key={`${level}-${idx}`} className="wb-tree-grow">
+        <circle cx={cx} cy={cy} r={nodeR} fill={hl ? "#dbeafe" : "#ffffff"} stroke={hl ? "#2563eb" : "#1e293b"} strokeWidth={hl ? 3 : 2} filter="url(#wb-shadow)" />
+        <text x={cx} y={cy + 4} textAnchor="middle" fontSize={13} fill="#1e293b" fontWeight="700">{val}</text>
+      </g>
+    );
+  }
+
+  function renderTree(level: number, startIdx: number, count: number, cx: number, cy: number, dx: number): React.ReactNode[] {
+    const nodes: React.ReactNode[] = [];
+    if (count === 0 || startIdx >= values.length) return nodes;
+    const levelCount = Math.min(count, values.length - startIdx);
+    for (let i = 0; i < levelCount; i++) {
+      const nx = cx + (i - (levelCount - 1) / 2) * dx;
+      const ny = cy;
+      nodes.push(treeNode(values[startIdx + i], nx, ny, level, i));
+      if (level < 4) {
+        const childStart = startIdx + count + i * 2;
+        if (childStart < values.length) {
+          nodes.push(
+            <line key={`edge-${level}-${i}-0`} x1={nx} y1={ny + nodeR} x2={nx - dx / 3} y2={ny + levelGap - nodeR} stroke="#94a3b8" strokeWidth={1.5} className="wb-node-link" />
+          );
+          if (childStart + 1 < values.length) {
+            nodes.push(
+              <line key={`edge-${level}-${i}-1`} x1={nx} y1={ny + nodeR} x2={nx + dx / 3} y2={ny + levelGap - nodeR} stroke="#94a3b8" strokeWidth={1.5} className="wb-node-link" />
+            );
+          }
+        }
+      }
+    }
+    if (level < 4) {
+      const nextCount = levelCount * 2;
+      const rendered = renderTree(level + 1, startIdx + count, nextCount, cx, cy + levelGap, dx * 0.5);
+      nodes.push(...rendered);
+    }
+    return nodes;
+  }
+
+  return (
+    <g key={id}>
+      {renderTree(0, 0, 1, x + 200, y + 30, 120)}
+    </g>
+  );
+}
+
+interface DrawGraphStructP {
+  nodes: { id: string; label: string; x: number; y: number; color?: string }[];
+  edges: { from: string; to: string; label?: string; dashed?: boolean }[];
+  position: [number, number];
+}
+
+function DrawGraphStruct({ id, p }: { id: string; p: DrawGraphStructP }) {
+  const [ox, oy] = p.position ?? [10, 10];
+  const nodes = p.nodes ?? [];
+  const edges = p.edges ?? [];
+
+  return (
+    <g key={id}>
+      {edges.map((e, i) => {
+        const from = nodes.find(n => n.id === e.from);
+        const to = nodes.find(n => n.id === e.to);
+        if (!from || !to) return null;
+        return (
+          <g key={`e-${i}`}>
+            <line
+              x1={ox + from.x} y1={oy + from.y}
+              x2={ox + to.x} y2={oy + to.y}
+              stroke={e.dashed ? "#94a3b8" : "#64748b"}
+              strokeWidth={1.5}
+              strokeDasharray={e.dashed ? "5 4" : "none"}
+              markerEnd={e.dashed ? undefined : "url(#arr-gray)"}
+              className="wb-node-link"
+            />
+            {e.label && (
+              <text
+                x={ox + (from.x + to.x) / 2}
+                y={oy + (from.y + to.y) / 2 - 6}
+                fontSize={10} fill="#64748b" textAnchor="middle"
+                className="wb-appear"
+              >
+                {e.label}
+              </text>
+            )}
+          </g>
+        );
+      })}
+      {nodes.map((n, i) => (
+        <g key={`n-${i}`} className="wb-tree-grow">
+          <circle
+            cx={ox + n.x} cy={oy + n.y} r={18}
+            fill={n.color ?? "#ffffff"}
+            stroke="#1e293b" strokeWidth={2}
+            filter="url(#wb-shadow)"
+          />
+          <text x={ox + n.x} y={oy + n.y + 4} textAnchor="middle" fontSize={11} fill="#1e293b" fontWeight="700">{n.label}</text>
+        </g>
+      ))}
+    </g>
+  );
+}
+
+interface DrawSortingP {
+  array: number[];
+  position: [number, number];
+  highlight_indices?: number[];
+  sort_type?: "bar" | "array";
+  title?: string;
+}
+
+function DrawSorting({ id, p }: { id: string; p: DrawSortingP }) {
+  const [x, y] = p.position ?? [20, 100];
+  const arr = p.array ?? [];
+  const hl = p.highlight_indices ?? [];
+  const sortType = p.sort_type ?? "bar";
+  const title = p.title;
+  const barW = Math.min(36, Math.max(12, 400 / Math.max(arr.length, 1)));
+  const maxVal = Math.max(...arr, 1);
+
+  return (
+    <g key={id}>
+      {title && (
+        <text x={x + 200} y={y - 12} textAnchor="middle" fontSize={15} fill="#1e293b" fontWeight="700" className="wb-write-on">{title}</text>
+      )}
+      {arr.map((val, i) => {
+        const bx = x + i * (barW + 4);
+        const barH = (val / maxVal) * 140;
+        const by = y + 160 - barH;
+        const isHl = hl.includes(i);
+        return (
+          <g key={i} className={isHl ? "wb-bar-cmp" : "wb-bar-grow"}>
+            <rect
+              x={bx} y={by} width={barW} height={Math.max(barH, 2)} rx={3}
+              fill={isHl ? "#3b82f6" : "#6366f1"}
+              fillOpacity={0.85}
+              stroke={isHl ? "#1d4ed8" : "#4338ca"}
+              strokeWidth={1}
+              className="wb-stack-push"
+            />
+            <text x={bx + barW / 2} y={by - 4} textAnchor="middle" fontSize={10} fill="#1e293b" fontWeight="600">{val}</text>
+            <text x={bx + barW / 2} y={y + 178} textAnchor="middle" fontSize={10} fill="#64748b">{i}</text>
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+interface DrawFlowchartP {
+  steps: { id: string; label: string; shape: "rect" | "diamond" | "circle" | "parallelogram"; }[];
+  connections: { from: string; to: string; label?: string }[];
+  position: [number, number];
+}
+
+function DrawFlowchart({ id, p }: { id: string; p: DrawFlowchartP }) {
+  const [ox, oy] = p.position ?? [20, 20];
+  const steps = p.steps ?? [];
+  const conns = p.connections ?? [];
+  const nodeW = 120;
+  const nodeH = 44;
+  const gapX = 60;
+  const gapY = 50;
+  const cols = 3;
+
+  function getNodePos(idx: number): [number, number] {
+    const col = idx % cols;
+    const row = Math.floor(idx / cols);
+    return [ox + col * (nodeW + gapX), oy + row * (nodeH + gapY)];
+  }
+
+  return (
+    <g key={id}>
+      {conns.map((c, i) => {
+        const fromIdx = steps.findIndex(s => s.id === c.from);
+        const toIdx = steps.findIndex(s => s.id === c.to);
+        if (fromIdx === -1 || toIdx === -1) return null;
+        const [fx, fy] = getNodePos(fromIdx);
+        const [tx, ty] = getNodePos(toIdx);
+        const midX = (fx + nodeW + tx) / 2;
+        return (
+          <g key={`c-${i}`}>
+            <path
+              d={`M ${fx + nodeW} ${fy + nodeH / 2} C ${midX} ${fy + nodeH / 2}, ${midX} ${ty + nodeH / 2}, ${tx} ${ty + nodeH / 2}`}
+              fill="none" stroke="#94a3b8" strokeWidth={1.5} markerEnd="url(#arr-gray)"
+              className="wb-node-link"
+            />
+            {c.label && (
+              <text x={midX} y={(fy + ty) / 2 + nodeH / 2 - 6} fontSize={10} fill="#64748b" textAnchor="middle" className="wb-appear">{c.label}</text>
+            )}
+          </g>
+        );
+      })}
+      {steps.map((s, i) => {
+        const [nx, ny] = getNodePos(i);
+        const cl = "wb-flow-step";
+        if (s.shape === "diamond") {
+          return (
+            <g key={s.id} className={cl}>
+              <polygon
+                points={`${nx + nodeW / 2},${ny} ${nx + nodeW},${ny + nodeH / 2} ${nx + nodeW / 2},${ny + nodeH} ${nx},${ny + nodeH / 2}`}
+                fill="#fef3c7" stroke="#d97706" strokeWidth={2}
+                filter="url(#wb-shadow)"
+              />
+              <text x={nx + nodeW / 2} y={ny + nodeH / 2 + 4} textAnchor="middle" fontSize={11} fill="#92400e" fontWeight="600">{s.label}</text>
+            </g>
+          );
+        }
+        if (s.shape === "parallelogram") {
+          return (
+            <g key={s.id} className={cl}>
+              <polygon
+                points={`${nx + 16},${ny} ${nx + nodeW},${ny} ${nx + nodeW - 16},${ny + nodeH} ${nx},${ny + nodeH}`}
+                fill="#e0f2fe" stroke="#0284c7" strokeWidth={2}
+                filter="url(#wb-shadow)"
+              />
+              <text x={nx + nodeW / 2} y={ny + nodeH / 2 + 4} textAnchor="middle" fontSize={11} fill="#0c4a6e" fontWeight="600">{s.label}</text>
+            </g>
+          );
+        }
+        return (
+          <g key={s.id} className={cl}>
+            <rect x={nx} y={ny} width={nodeW} height={nodeH} rx={8} fill="#ffffff" stroke="#1e293b" strokeWidth={2} filter="url(#wb-shadow)" />
+            <text x={nx + nodeW / 2} y={ny + nodeH / 2 + 4} textAnchor="middle" fontSize={11} fill="#1e293b" fontWeight="600">{s.label}</text>
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+interface DrawUmlP {
+  class_name: string;
+  fields: string[];
+  methods: string[];
+  position: [number, number];
+}
+
+function DrawUml({ id, p }: { id: string; p: DrawUmlP }) {
+  const [x, y] = p.position ?? [40, 40];
+  const cname = p.class_name ?? "MyClass";
+  const fields = p.fields ?? [];
+  const methods = p.methods ?? [];
+  const w = 200;
+  const titleH = 34;
+  const fieldH = Math.max(20, fields.length * 18 + 10);
+  const methodH = Math.max(20, methods.length * 18 + 10);
+  const totalH = titleH + fieldH + methodH;
+
+  return (
+    <g key={id} className="wb-diagram-build">
+      <rect x={x} y={y} width={w} height={totalH} rx={6} fill="#ffffff" stroke="#1e293b" strokeWidth={2} filter="url(#wb-shadow)" />
+      <rect x={x} y={y} width={w} height={titleH} rx={6} fill="#1e293b" />
+      <rect x={x} y={y + titleH - 6} width={w} height={6} fill="#1e293b" />
+      <text x={x + w / 2} y={y + 22} textAnchor="middle" fontSize={14} fill="#ffffff" fontWeight="700">{cname}</text>
+      <line x1={x} y1={y + titleH} x2={x + w} y2={y + titleH} stroke="#1e293b" strokeWidth={1.5} />
+      {fields.map((f, i) => (
+        <text key={`f-${i}`} x={x + 8} y={y + titleH + 14 + i * 18} fontSize={11} fill="#475569" fontFamily="monospace">{f}</text>
+      ))}
+      <line x1={x} y1={y + titleH + fieldH} x2={x + w} y2={y + titleH + fieldH} stroke="#1e293b" strokeWidth={1.5} />
+      {methods.map((m, i) => (
+        <text key={`m-${i}`} x={x + 8} y={y + titleH + fieldH + 14 + i * 18} fontSize={11} fill="#475569" fontFamily="monospace">{m}</text>
+      ))}
+    </g>
+  );
+}
+
+interface DrawBigOP {
+  notation: string;
+  description: string;
+  position: [number, number];
+  n_value?: number;
+}
+
+function DrawBigO({ id, p }: { id: string; p: DrawBigOP }) {
+  const [x, y] = p.position ?? [40, 40];
+  const notation = p.notation ?? "O(n)";
+  const desc = p.description ?? "Linear Time";
+  const nv = p.n_value;
+
+  return (
+    <g key={id} className="wb-teach">
+      <rect x={x} y={y} width={180} height={70} rx={12} fill="#f0fdf4" stroke="#16a34a" strokeWidth={2} filter="url(#wb-shadow)" />
+      <text x={x + 90} y={y + 28} textAnchor="middle" fontSize={24} fill="#15803d" fontWeight="800" fontStyle="italic">{notation}</text>
+      <text x={x + 90} y={y + 50} textAnchor="middle" fontSize={12} fill="#166534" fontWeight="600">{desc}</text>
+      {nv !== undefined && (
+        <text x={x + 90} y={y + 64} textAnchor="middle" fontSize={10} fill="#16a34a">n = {nv}</text>
+      )}
+    </g>
+  );
+}
+
+interface DrawNetworkP {
+  topology: "star" | "mesh" | "ring" | "bus" | "tree";
+  node_count: number;
+  position: [number, number];
+  labels?: string[];
+}
+
+function DrawNetwork({ id, p }: { id: string; p: DrawNetworkP }) {
+  const [ox, oy] = p.position ?? [50, 50];
+  const topo = p.topology ?? "star";
+  const count = Math.min(p.node_count ?? 5, 8);
+  const labels = p.labels ?? [];
+  const radius = 80;
+  const nodeR = 20;
+
+  function nodeAt(angle: number, i: number): [number, number] {
+    return [ox + 120 + radius * Math.cos(angle), oy + 100 + radius * Math.sin(angle)];
+  }
+
+  const nodes: [number, number][] = [];
+  const edges: [number, number][] = [];
+  if (topo === "star") {
+    const cx = ox + 120;
+    const cy = oy + 100;
+    for (let i = 0; i < count; i++) {
+      const angle = (2 * Math.PI * i) / count - Math.PI / 2;
+      nodes.push(nodeAt(angle, i));
+      edges.push([i, -1]);
+    }
+  } else {
+    for (let i = 0; i < count; i++) {
+      const angle = (2 * Math.PI * i) / count - Math.PI / 2;
+      nodes.push(nodeAt(angle, i));
+      if (i > 0) edges.push([i - 1, i]);
+    }
+    if (topo === "ring") edges.push([count - 1, 0]);
+  }
+
+  const cx = ox + 120;
+  const cy = oy + 100;
+
+  return (
+    <g key={id}>
+      {edges.map((e, i) => {
+        const [ax, ay] = e[1] === -1 ? [cx, cy] : nodes[e[1]];
+        const [bx, by] = nodes[e[0]];
+        return (
+          <line key={`e-${i}`} x1={ax} y1={ay} x2={bx} y2={by} stroke="#94a3b8" strokeWidth={1.5} className="wb-node-link" />
+        );
+      })}
+      {nodes.map(([nx, ny], i) => (
+        <g key={`n-${i}`} className="wb-tree-grow">
+          <circle cx={nx} cy={ny} r={nodeR} fill="#ffffff" stroke="#6366f1" strokeWidth={2.5} filter="url(#wb-shadow)" />
+          <text x={nx} y={ny + 4} textAnchor="middle" fontSize={11} fill="#4338ca" fontWeight="700">
+            {labels[i] ?? String(i + 1)}
+          </text>
+        </g>
+      ))}
+    </g>
+  );
+}
+
+interface DrawDatastreamP {
+  label: string;
+  data_points: number[];
+  position: [number, number];
+  color?: string;
+}
+
+function DrawDatastream({ id, p }: { id: string; p: DrawDatastreamP }) {
+  const [x, y] = p.position ?? [30, 80];
+  const label = p.label ?? "Data Stream";
+  const points = p.data_points ?? [];
+  const color = p.color ?? "#2563eb";
+  const w = 320;
+  const h = 100;
+  const maxVal = Math.max(...points, 1);
+
+  const pathD = points.map((pt, i) => {
+    const px = x + (i / Math.max(points.length - 1, 1)) * w;
+    const py = y + h - (pt / maxVal) * h * 0.85;
+    return `${i === 0 ? "M" : "L"} ${px} ${py}`;
+  }).join(" ");
+
+  return (
+    <g key={id} className="wb-diagram-build">
+      <text x={x} y={y - 8} fontSize={13} fill="#1e293b" fontWeight="700">{label}</text>
+      <rect x={x} y={y} width={w} height={h} rx={6} fill="#f8fafc" stroke="#e2e8f0" strokeWidth={1} />
+      <path d={pathD} fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="wb-connector-draw" />
+      {points.map((pt, i) => {
+        const px = x + (i / Math.max(points.length - 1, 1)) * w;
+        const py = y + h - (pt / maxVal) * h * 0.85;
+        return (
+          <circle key={i} cx={px} cy={py} r={4} fill={color} className="wb-tree-grow">
+            <title>{`${pt}`}</title>
+          </circle>
+        );
+      })}
+      <text x={x + w + 4} y={y + h} fontSize={10} fill="#94a3b8">{`max=${maxVal}`}</text>
+    </g>
+  );
+}
+
+// ── Advanced CS renderers ──────────────────────────────────────────────
+
+interface DrawCpuP {
+  label?: string;
+  cores?: number;
+  cache_size?: string;
+  position: [number, number];
+}
+
+function DrawCpu({ id, p }: { id: string; p: DrawCpuP }) {
+  const [x, y] = p.position ?? [40, 40];
+  const cores = p.cores ?? 4;
+  const label = p.label ?? "CPU Architecture";
+  const w = 320; const h = 220;
+
+  return (
+    <g key={id} className="wb-diagram-build">
+      <text x={x + w / 2} y={y + 16} textAnchor="middle" fontSize={14} fill="#1e293b" fontWeight="700">{label}</text>
+      <rect x={x} y={y + 24} width={w} height={h - 30} rx={10} fill="#0f172a" stroke="#334155" strokeWidth={2} filter="url(#wb-shadow)" />
+      <text x={x + w / 2} y={y + 46} textAnchor="middle" fontSize={11} fill="#94a3b8" fontWeight="600">CPU Die</text>
+      {Array.from({ length: cores }, (_, i) => {
+        const col = i % 2; const row = Math.floor(i / 2);
+        const cx = x + 16 + col * (w / 2 - 8); const cy = y + 56 + row * 70;
+        return (
+          <g key={i} className="wb-chip-glow">
+            <rect x={cx} y={cy} width={w / 2 - 20} height={58} rx={6} fill="#1e293b" stroke="#3b82f6" strokeWidth={1.5} />
+            <text x={cx + (w / 2 - 20) / 2} y={cy + 16} textAnchor="middle" fontSize={9} fill="#60a5fa" fontWeight="700">Core {i + 1}</text>
+            <rect x={cx + 8} y={cy + 24} width={28} height={20} rx={3} fill="#334155" />
+            <text x={cx + 22} y={cy + 38} textAnchor="middle" fontSize={7} fill="#e2e8f0">ALU</text>
+            <rect x={cx + 42} y={cy + 24} width={w / 2 - 72} height={20} rx={3} fill="#334155" />
+            <text x={cx + 42 + (w / 2 - 72) / 2} y={cy + 38} textAnchor="middle" fontSize={7} fill="#e2e8f0">L1 Cache</text>
+          </g>
+        );
+      })}
+      <rect x={x + 12} y={y + h - 48} width={w - 24} height={20} rx={4} fill="#1e293b" stroke="#22c55e" strokeWidth={1} />
+      <text x={x + w / 2} y={y + h - 34} textAnchor="middle" fontSize={9} fill="#4ade80" fontWeight="600">L2 Cache (shared) {p.cache_size ?? "4 MB"}</text>
+      <text x={x + w / 2} y={y + h - 8} textAnchor="middle" fontSize={10} fill="#64748b">Memory Bus → RAM</text>
+    </g>
+  );
+}
+
+interface DrawOsMemoryP {
+  label?: string;
+  processes?: number;
+  position: [number, number];
+}
+
+function DrawOsMemory({ id, p }: { id: string; p: DrawOsMemoryP }) {
+  const [x, y] = p.position ?? [40, 30];
+  const label = p.label ?? "Process Memory Layout";
+  const w = 300; const h = 340;
+
+  const regions = [
+    { label: "Stack (local vars)", yp: 0.02, hp: 0.28, color: "#dbeafe", textColor: "#1e40af", dir: "↓ grows down" },
+    { label: "Free Space / Gap", yp: 0.30, hp: 0.08, color: "#f8fafc", textColor: "#94a3b8", dir: "" },
+    { label: "Heap (dynamic alloc)", yp: 0.38, hp: 0.22, color: "#fef3c7", textColor: "#92400e", dir: "↑ grows up" },
+    { label: "BSS (uninit data)", yp: 0.60, hp: 0.10, color: "#ede9fe", textColor: "#5b21b6", dir: "" },
+    { label: "Data (init globals)", yp: 0.70, hp: 0.10, color: "#e0f2fe", textColor: "#0c4a6e", dir: "" },
+    { label: "Text (code)", yp: 0.80, hp: 0.15, color: "#f0fdf4", textColor: "#166534", dir: "" },
+  ];
+
+  return (
+    <g key={id} className="wb-diagram-build">
+      <text x={x + w / 2} y={y + 14} textAnchor="middle" fontSize={14} fill="#1e293b" fontWeight="700">{label}</text>
+      <rect x={x} y={y + 22} width={w} height={h - 28} rx={8} fill="#ffffff" stroke="#1e293b" strokeWidth={2} filter="url(#wb-shadow)" />
+      <text x={x + w / 2} y={y + h - 6} textAnchor="middle" fontSize={9} fill="#94a3b8">Low Address → High Address</text>
+      {regions.map((r, i) => {
+        const ry = y + 22 + r.yp * (h - 28);
+        const rh = r.hp * (h - 28);
+        return (
+          <g key={i}>
+            <rect x={x + 2} y={ry} width={w - 4} height={Math.max(rh, 20)} fill={r.color} stroke="#e2e8f0" strokeWidth={1} />
+            <text x={x + 16} y={ry + rh / 2 + 4} fontSize={11} fill={r.textColor} fontWeight="700">{r.label}</text>
+            {r.dir && <text x={x + w - 80} y={ry + rh / 2 + 4} fontSize={9} fill={r.textColor} fontWeight="500">{r.dir}</text>}
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+interface DrawCompilerP {
+  stages: string[];
+  position: [number, number];
+}
+
+function DrawCompiler({ id, p }: { id: string; p: DrawCompilerP }) {
+  const [x, y] = p.position ?? [20, 60];
+  const stages = p.stages ?? ["Lexing", "Parsing", "Semantic\nAnalysis", "Optimization", "Code\nGen"];
+
+  return (
+    <g key={id}>
+      <text x={x + 360} y={y - 10} textAnchor="middle" fontSize={15} fill="#1e293b" fontWeight="700">Compiler Pipeline</text>
+      {stages.map((s, i) => {
+        const sx = x + i * 140;
+        const multiLine = s.includes("\n");
+        return (
+          <g key={i} className="wb-pipeline">
+            <rect x={sx} y={y + 8} width={120} height={60} rx={8} fill="#1e293b" stroke="#3b82f6" strokeWidth={2} filter="url(#wb-shadow)" />
+            {multiLine ? (
+              s.split("\n").map((line, li) => (
+                <text key={li} x={sx + 60} y={y + 28 + li * 20} textAnchor="middle" fontSize={11} fill="#60a5fa" fontWeight="700">{line}</text>
+              ))
+            ) : (
+              <text x={sx + 60} y={y + 44} textAnchor="middle" fontSize={12} fill="#60a5fa" fontWeight="700">{s}</text>
+            )}
+            {i < stages.length - 1 && (
+              <path d={`M ${sx + 120} ${y + 38} L ${sx + 135} ${y + 38}`} stroke="#64748b" strokeWidth={2} markerEnd="url(#arr-gray)" className="wb-connector-draw" />
+            )}
+          </g>
+        );
+      })}
+      <rect x={x} y={y + 86} width={680} height={40} rx={6} fill="#f8fafc" stroke="#e2e8f0" strokeWidth={1} />
+      <text x={x + 340} y={y + 112} textAnchor="middle" fontSize={11} fill="#64748b">Source Code → Token Stream → AST → IR → Optimized IR → Machine Code</text>
+    </g>
+  );
+}
+
+interface DrawNetworkPacketP {
+  layers: string[];
+  position: [number, number];
+}
+
+function DrawNetworkPacket({ id, p }: { id: string; p: DrawNetworkPacketP }) {
+  const [x, y] = p.position ?? [40, 50];
+  const layers = p.layers ?? ["Ethernet\nHeader", "IP\nHeader", "TCP\nHeader", "Payload\n(Data)", "FCS"];
+
+  return (
+    <g key={id} className="wb-diagram-build">
+      <text x={x + 300} y={y + 14} textAnchor="middle" fontSize={14} fill="#1e293b" fontWeight="700">Network Packet Structure</text>
+      <rect x={x} y={y + 26} width={600} height={80} rx={6} fill="#0f172a" stroke="#334155" strokeWidth={1.5} filter="url(#wb-shadow)" />
+      {layers.map((l, i) => {
+        const lx = x + i * 120;
+        const lw = i === layers.length - 1 ? 120 : 119;
+        return (
+          <g key={i}>
+            <rect x={lx} y={y + 26} width={lw} height={80} fill="none" stroke="#334155" strokeWidth={1} />
+            <rect x={lx + 4} y={y + 34} width={lw - 8} height={64} rx={4} fill={i === 3 ? "#f0fdf4" : i % 2 === 0 ? "#1e293b" : "#334155"} />
+            {l.split("\n").map((line, li) => (
+              <text key={li} x={lx + lw / 2} y={y + 56 + li * 16} textAnchor="middle" fontSize={9} fill={i === 3 ? "#166534" : "#94a3b8"} fontWeight={i === 3 ? "700" : "500"}>{line}</text>
+            ))}
+          </g>
+        );
+      })}
+      <text x={x + 300} y={y + 124} textAnchor="middle" fontSize={10} fill="#64748b">Each layer encapsulates the layer above | TCP/IP Protocol Stack</text>
+    </g>
+  );
+}
+
+interface DrawDbSchemaP {
+  tables: { name: string; columns: string[]; pk?: string }[];
+  position: [number, number];
+}
+
+function DrawDbSchema({ id, p }: { id: string; p: DrawDbSchemaP }) {
+  const [x, y] = p.position ?? [20, 30];
+  const tables = p.tables ?? [];
+
+  return (
+    <g key={id} className="wb-diagram-build">
+      <text x={x + 350} y={y + 14} textAnchor="middle" fontSize={14} fill="#1e293b" fontWeight="700">Database Schema</text>
+      {tables.map((t, i) => {
+        const tx = x + (i % 3) * 240;
+        const ty = y + 30 + Math.floor(i / 3) * 180;
+        const colH = Math.max(20, t.columns.length * 18 + 12);
+        return (
+          <g key={i} className="wb-db-query">
+            <rect x={tx} y={ty} width={220} height={36 + colH} rx={8} fill="#ffffff" stroke="#1e293b" strokeWidth={2} filter="url(#wb-shadow)" />
+            <rect x={tx} y={ty} width={220} height={36} rx={8} fill="#1e293b" />
+            <rect x={tx} y={ty + 28} width={220} height={8} fill="#1e293b" />
+            <text x={tx + 110} y={ty + 24} textAnchor="middle" fontSize={13} fill="#ffffff" fontWeight="700">{t.name}</text>
+            <rect x={tx + 2} y={ty + 36} width={3} height={colH} fill="#3b82f6" />
+            {t.columns.map((col, ci) => (
+              <text key={ci} x={tx + 12} y={ty + 54 + ci * 18} fontSize={10} fill="#475569" fontFamily="monospace">
+                {col === t.pk ? `🔑 ${col}` : `   ${col}`}
+              </text>
+            ))}
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+interface DrawStateMachineP {
+  states: string[];
+  transitions: { from: number; to: number; label: string }[];
+  position: [number, number];
+}
+
+function DrawStateMachine({ id, p }: { id: string; p: DrawStateMachineP }) {
+  const [x, y] = p.position ?? [40, 50];
+  const states = p.states ?? ["Start", "Processing", "Error", "Complete"];
+  const trans = p.transitions ?? [{ from: 0, to: 1, label: "begin" }, { from: 1, to: 2, label: "fail" }, { from: 1, to: 3, label: "done" }];
+  const positions = states.map((_, i) => {
+    const angle = (2 * Math.PI * i) / states.length - Math.PI / 2;
+    return { x: x + 160 + 100 * Math.cos(angle), y: y + 100 + 100 * Math.sin(angle) };
+  });
+
+  return (
+    <g key={id}>
+      <text x={x + 160} y={y - 8} textAnchor="middle" fontSize={14} fill="#1e293b" fontWeight="700">State Machine</text>
+      {trans.map((t, i) => {
+        const f = positions[t.from]; const to = positions[t.to];
+        return (
+          <g key={i}>
+            <line x1={f.x} y1={f.y} x2={to.x} y2={to.y} stroke="#94a3b8" strokeWidth={1.5} markerEnd="url(#arr-gray)" className="wb-transition" />
+            <text x={(f.x + to.x) / 2} y={(f.y + to.y) / 2 - 8} fontSize={9} fill="#64748b" textAnchor="middle">{t.label}</text>
+          </g>
+        );
+      })}
+      {states.map((s, i) => {
+        const p = positions[i];
+        const isStart = i === 0; const isEnd = i === states.length - 1;
+        return (
+          <g key={i} className="wb-tree-grow">
+            <circle cx={p.x} cy={p.y} r={28} fill={isStart ? "#dbeafe" : isEnd ? "#f0fdf4" : "#ffffff"} stroke={isStart ? "#2563eb" : isEnd ? "#16a34a" : "#1e293b"} strokeWidth={isStart || isEnd ? 3 : 2} filter="url(#wb-shadow)" />
+            {isEnd && <circle cx={p.x} cy={p.y} r={34} fill="none" stroke="#16a34a" strokeWidth={1.5} />}
+            <text x={p.x} y={p.y + 4} textAnchor="middle" fontSize={9} fill="#1e293b" fontWeight="700">{s}</text>
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+interface DrawTuringP {
+  tape: string[];
+  head_position?: number;
+  state?: string;
+  position: [number, number];
+}
+
+function DrawTuring({ id, p }: { id: string; p: DrawTuringP }) {
+  const [x, y] = p.position ?? [30, 60];
+  const tape = p.tape ?? ["1", "0", "1", "1", "0", "_", "_"];
+  const headPos = p.head_position ?? 2;
+  const state = p.state ?? "q2";
+
+  return (
+    <g key={id} className="wb-diagram-build">
+      <text x={x + 320} y={y + 14} textAnchor="middle" fontSize={15} fill="#1e293b" fontWeight="700">Turing Machine</text>
+      <rect x={x} y={y + 70} width={640} height={50} rx={6} fill="#0f172a" stroke="#334155" strokeWidth={1.5} />
+      {tape.map((sym, i) => (
+        <g key={i}>
+          <rect x={x + 8 + i * 44} y={y + 72} width={42} height={46} fill={i === headPos ? "#dbeafe" : "#1e293b"} stroke={i === headPos ? "#3b82f6" : "#334155"} strokeWidth={i === headPos ? 2 : 1} />
+          <text x={x + 29 + i * 44} y={y + 102} textAnchor="middle" fontSize={16} fill={i === headPos ? "#1d4ed8" : "#e2e8f0"} fontWeight="700" fontFamily="monospace">{sym}</text>
+        </g>
+      ))}
+      <path d={`M ${x + 29 + headPos * 44} ${y + 72} L ${x + 29 + headPos * 44} ${y + 56} L ${x + 29 + headPos * 44 + 30} ${y + 62}`} fill="none" stroke="#ef4444" strokeWidth={2} markerEnd="url(#arr-red)" />
+      <text x={x + 29 + headPos * 44 + 14} y={y + 52} fontSize={11} fill="#ef4444" fontWeight="700">HEAD [{state}]</text>
+      <text x={x + 320} y={y + 146} textAnchor="middle" fontSize={10} fill="#64748b">Infinite tape | Read/Write head | State transition function</text>
+    </g>
+  );
+}
+
+interface DrawBlockchainP {
+  blocks: number;
+  position: [number, number];
+}
+
+function DrawBlockchain({ id, p }: { id: string; p: DrawBlockchainP }) {
+  const [x, y] = p.position ?? [30, 40];
+  const count = p.blocks ?? 4;
+
+  return (
+    <g key={id} className="wb-diagram-build">
+      <text x={x + 320} y={y + 14} textAnchor="middle" fontSize={14} fill="#1e293b" fontWeight="700">Blockchain</text>
+      {Array.from({ length: count }, (_, i) => {
+        const bx = x + i * 170;
+        const isLatest = i === count - 1;
+        return (
+          <g key={i} className={isLatest ? "wb-mine-block" : "wb-appear"}>
+            <rect x={bx} y={y + 30} width={150} height={130} rx={8} fill={isLatest ? "#fef3c7" : "#ffffff"} stroke={isLatest ? "#f59e0b" : "#1e293b"} strokeWidth={isLatest ? 2.5 : 2} filter="url(#wb-shadow)" />
+            <rect x={bx} y={y + 30} width={150} height={6} rx={0} fill={isLatest ? "#f59e0b" : "#1e293b"} />
+            <text x={bx + 75} y={y + 54} textAnchor="middle" fontSize={12} fill="#1e293b" fontWeight="700">Block #{i + 1}</text>
+            <rect x={bx + 8} y={y + 64} width={134} height={20} rx={3} fill="#f8fafc" />
+            <text x={bx + 75} y={y + 78} textAnchor="middle" fontSize={7} fill="#64748b" fontFamily="monospace">
+              {`0x${"a".repeat(6 - i)}${"f".repeat(i)}`}
+            </text>
+            <rect x={bx + 8} y={y + 88} width={134} height={20} rx={3} fill="#f8fafc" />
+            <text x={bx + 75} y={y + 102} textAnchor="middle" fontSize={7} fill="#64748b" fontFamily="monospace">
+              Prev: 0x{`a`.repeat(6 - i)}{"f".repeat(Math.max(0, i - 1))}0
+            </text>
+            <text x={bx + 75} y={y + 122} textAnchor="middle" fontSize={8} fill="#475569" fontWeight="600">{isLatest ? "⛏ Mining..." : "✓ Verified"}</text>
+            <text x={bx + 75} y={y + 140} textAnchor="middle" fontSize={8} fill="#64748b">Nonce: {1000 + i * 137}</text>
+            {i < count - 1 && (
+              <path d={`M ${bx + 150} ${y + 95} L ${bx + 165} ${y + 95}`} stroke="#94a3b8" strokeWidth={2} markerEnd="url(#arr-gray)" className="wb-connector-draw" />
+            )}
+          </g>
+        );
+      })}
+      <text x={x + 320} y={y + 180} textAnchor="middle" fontSize={10} fill="#64748b">Immutable chain of blocks linked by cryptographic hashes</text>
+    </g>
+  );
+}
+
+interface DrawSecurityShieldP {
+  concepts: string[];
+  position: [number, number];
+}
+
+function DrawSecurityShield({ id, p }: { id: string; p: DrawSecurityShieldP }) {
+  const [x, y] = p.position ?? [40, 40];
+  const concepts = p.concepts ?? ["Confidentiality", "Integrity", "Availability"];
+
+  return (
+    <g key={id} className="wb-diagram-build">
+      <text x={x + 200} y={y + 14} textAnchor="middle" fontSize={14} fill="#1e293b" fontWeight="700">CIA Triad</text>
+      {concepts.map((c, i) => {
+        const angle = (2 * Math.PI * i) / concepts.length - Math.PI / 2;
+        const cx = x + 200 + 60 * Math.cos(angle);
+        const cy = y + 100 + 60 * Math.sin(angle);
+        return (
+          <g key={i} className="wb-lock-reveal">
+            <circle cx={cx} cy={cy} r={40} fill={i === 0 ? "#dbeafe" : i === 1 ? "#f0fdf4" : "#fef3c7"} stroke={i === 0 ? "#2563eb" : i === 1 ? "#16a34a" : "#f59e0b"} strokeWidth={2.5} filter="url(#wb-shadow)" />
+            <text x={cx} y={cy + 4} textAnchor="middle" fontSize={10} fill="#1e293b" fontWeight="700">{c}</text>
+            <line x1={x + 200} y1={y + 100} x2={cx} y2={cy} stroke="#94a3b8" strokeWidth={1} strokeDasharray="4 3" />
+          </g>
+        );
+      })}
+      <circle cx={x + 200} cy={y + 100} r={22} fill="#1e293b" />
+      <text x={x + 200} y={y + 105} textAnchor="middle" fontSize={12} fill="#ffffff" fontWeight="700">CIA</text>
+      <text x={x + 200} y={y + 180} textAnchor="middle" fontSize={10} fill="#64748b">Information Security Principles</text>
+    </g>
+  );
+}
+
+interface DrawQuantumP {
+  qubits: number;
+  position: [number, number];
+}
+
+function DrawQuantum({ id, p }: { id: string; p: DrawQuantumP }) {
+  const [x, y] = p.position ?? [30, 50];
+  const qubits = p.qubits ?? 3;
+
+  return (
+    <g key={id} className="wb-diagram-build">
+      <text x={x + 320} y={y + 14} textAnchor="middle" fontSize={14} fill="#1e293b" fontWeight="700">Quantum Circuit</text>
+      {Array.from({ length: qubits }, (_, qi) => {
+        const qy = y + 40 + qi * 56;
+        return (
+          <g key={qi}>
+            <text x={x + 20} y={qy + 4} fontSize={12} fill="#7c3aed" fontWeight="700" fontStyle="italic">|q{qi}⟩</text>
+            <line x1={x + 50} y1={qy} x2={x + 580} y2={qy} stroke="#64748b" strokeWidth={1.5} />
+            {qi < qubits - 1 && <line x1={x + 200} y1={qy - 10} x2={x + 200} y2={qy + 40} stroke="#94a3b8" strokeWidth={1} strokeDasharray="3 3" />}
+            {qi === 0 && (
+              <g>
+                <circle cx={x + 100} cy={qy - 4} r={16} fill="#ede9fe" stroke="#7c3aed" strokeWidth={2} className="wb-qubit-spin" />
+                <text x={x + 100} y={qy} textAnchor="middle" fontSize={10} fill="#5b21b6" fontWeight="700">H</text>
+                <text x={x + 85} y={qy - 24} fontSize={8} fill="#7c3aed">Hadamard</text>
+              </g>
+            )}
+            {qi === 1 && (
+              <g>
+                <circle cx={x + 180} cy={qy - 4} r={16} fill="#dbeafe" stroke="#2563eb" strokeWidth={2} />
+                <text x={x + 180} y={qy} textAnchor="middle" fontSize={10} fill="#1d4ed8" fontWeight="700">X</text>
+                <text x={x + 165} y={qy - 24} fontSize={8} fill="#2563eb">Pauli-X</text>
+              </g>
+            )}
+            {qi === 2 && (
+              <g>
+                <circle cx={x + 260} cy={qy - 4} r={16} fill="#f0fdf4" stroke="#16a34a" strokeWidth={2} />
+                <text x={x + 260} y={qy} textAnchor="middle" fontSize={8} fill="#166534" fontWeight="700">CNOT</text>
+                <text x={x + 245} y={qy - 24} fontSize={8} fill="#16a34a">Controlled</text>
+              </g>
+            )}
+            <circle cx={x + 550} cy={qy - 4} r={8} fill="#1e293b" />
+            <text x={x + 555} y={qy - 16} fontSize={8} fill="#64748b">Measure</text>
+          </g>
+        );
+      })}
+      <text x={x + 320} y={y + qubits * 56 + 50} textAnchor="middle" fontSize={10} fill="#64748b">Superposition → Entanglement → Interference → Measurement</text>
+    </g>
+  );
+}
+
+interface DrawDesignPatternP {
+  pattern_name: string;
+  participants: string[];
+  position: [number, number];
+}
+
+function DrawDesignPattern({ id, p }: { id: string; p: DrawDesignPatternP }) {
+  const [x, y] = p.position ?? [40, 40];
+  const name = p.pattern_name ?? "Observer Pattern";
+  const participants = p.participants ?? ["Subject", "Observer A", "Observer B", "Observer C"];
+
+  return (
+    <g key={id} className="wb-diagram-build">
+      <text x={x + 280} y={y + 14} textAnchor="middle" fontSize={14} fill="#1e293b" fontWeight="700">{name}</text>
+      <rect x={x + 80} y={y + 30} width={200} height={50} rx={8} fill="#2563eb" filter="url(#wb-shadow)" />
+      <text x={x + 180} y={y + 60} textAnchor="middle" fontSize={13} fill="#ffffff" fontWeight="700">{participants[0] ?? "Subject"}</text>
+      {participants.slice(1).map((p, i) => {
+        const py = y + 30 + (i + 1) * 70;
+        return (
+          <g key={i}>
+            <rect x={x + 320} y={py} width={160} height={44} rx={6} fill="#ffffff" stroke={i % 2 === 0 ? "#3b82f6" : "#10b981"} strokeWidth={2} filter="url(#wb-shadow)" />
+            <text x={x + 400} y={py + 28} textAnchor="middle" fontSize={11} fill="#1e293b" fontWeight="600">{p}</text>
+            <path d={`M ${x + 280} ${y + 55} Q ${x + 300 + i * 20} ${y + 55 + (i + 1) * 20} ${x + 320} ${py + 22}`} fill="none" stroke="#94a3b8" strokeWidth={1.5} markerEnd="url(#arr-gray)" className="wb-connector-draw" />
+            <text x={x + 290} y={y + 55 + (i + 1) * 10} fontSize={8} fill="#64748b">notify()</text>
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+interface DrawTestingPyramidP {
+  layers: string[];
+  position: [number, number];
+}
+
+function DrawTestingPyramid({ id, p }: { id: string; p: DrawTestingPyramidP }) {
+  const [x, y] = p.position ?? [150, 40];
+  const layers = p.layers ?? ["E2E Tests", "Integration", "Unit Tests"];
+
+  return (
+    <g key={id} className="wb-diagram-build">
+      <text x={x + 150} y={y + 14} textAnchor="middle" fontSize={14} fill="#1e293b" fontWeight="700">Testing Pyramid</text>
+      {layers.map((l, i) => {
+        const idx = layers.length - 1 - i;
+        const width = 60 + idx * 60;
+        const lx = x + 150 - width / 2;
+        const ly = y + 40 + i * 60;
+        const colors = ["#22c55e", "#eab308", "#ef4444"];
+        return (
+          <g key={i} className="wb-stack-push">
+            <polygon points={`${lx},${ly} ${lx + width},${ly} ${lx + width - 20},${ly + 50} ${lx + 20},${ly + 50}`} fill={colors[i]} fillOpacity={0.85} stroke={colors[i]} strokeWidth={2} filter="url(#wb-shadow)" />
+            <text x={x + 150} y={ly + 30} textAnchor="middle" fontSize={11} fill="#ffffff" fontWeight="700">{l}</text>
+            <text x={x + 150} y={ly + 44} textAnchor="middle" fontSize={8} fill="rgba(255,255,255,0.8)">{i === 0 ? "Slow, costly" : i === 1 ? "Medium" : "Fast, many"}</text>
+          </g>
+        );
+      })}
+      <text x={x + 150} y={y + layers.length * 60 + 50} textAnchor="middle" fontSize={10} fill="#64748b">More tests at bottom, fewer at top</text>
+    </g>
+  );
+}
+
+interface DrawRegexP {
+  pattern: string;
+  test_string?: string;
+  position: [number, number];
+}
+
+function DrawRegex({ id, p }: { id: string; p: DrawRegexP }) {
+  const [x, y] = p.position ?? [40, 60];
+  const pattern = p.pattern ?? "/\\d{3}-\\d{4}/";
+  const testStr = p.test_string ?? "Call 555-1234 today!";
+
+  return (
+    <g key={id} className="wb-code-reveal">
+      <text x={x + 300} y={y + 14} textAnchor="middle" fontSize={14} fill="#1e293b" fontWeight="700">Regular Expression</text>
+      <rect x={x} y={y + 26} width={600} height={50} rx={8} fill="#1e293b" filter="url(#wb-shadow)" />
+      <text x={x + 300} y={y + 58} textAnchor="middle" fontSize={18} fill="#22c55e" fontWeight="700" fontFamily="monospace">{pattern}</text>
+      <rect x={x} y={y + 84} width={600} height={40} rx={6} fill="#f8fafc" stroke="#e2e8f0" strokeWidth={1.5} />
+      <text x={x + 300} y={y + 110} textAnchor="middle" fontSize={13} fill="#1e293b" fontWeight="500">{testStr}</text>
+      <rect x={x + 70} y={y + 84} width={90} height={40} fill="none" stroke="#3b82f6" strokeWidth={2} rx={4} className="wb-pattern-match" />
+      <text x={x + 300} y={y + 148} textAnchor="middle" fontSize={10} fill="#64748b">Pattern matches "555-1234" | Quantifiers, groups, character classes</text>
+    </g>
+  );
+}
+
+interface DrawApiP {
+  methods: string[];
+  position: [number, number];
+}
+
+function DrawApi({ id, p }: { id: string; p: DrawApiP }) {
+  const [x, y] = p.position ?? [40, 40];
+  const methods = p.methods ?? ["GET", "POST", "PUT", "DELETE"];
+
+  return (
+    <g key={id} className="wb-diagram-build">
+      <text x={x + 280} y={y + 14} textAnchor="middle" fontSize={14} fill="#1e293b" fontWeight="700">REST API</text>
+      <rect x={x + 20} y={y + 30} width={140} height={200} rx={10} fill="#0f172a" filter="url(#wb-shadow)" />
+      <text x={x + 90} y={y + 56} textAnchor="middle" fontSize={11} fill="#e2e8f0" fontWeight="600">Client</text>
+      <text x={x + 90} y={y + 74} textAnchor="middle" fontSize={8} fill="#64748b">Browser / App</text>
+      <rect x={x + 160} y={y + 30} width={20} height={200} fill="none" />
+      <rect x={x + 240} y={y + 30} width={260} height={200} rx={10} fill="#ffffff" stroke="#1e293b" strokeWidth={2} filter="url(#wb-shadow)" />
+      <text x={x + 370} y={y + 56} textAnchor="middle" fontSize={11} fill="#1e293b" fontWeight="600">Server / API</text>
+      <line x1={x + 245} y1={y + 64} x2={x + 495} y2={y + 64} stroke="#e2e8f0" strokeWidth={1} />
+      {methods.map((m, i) => {
+        const my = y + 80 + i * 34;
+        const colors: Record<string, string> = { "GET": "#22c55e", "POST": "#3b82f6", "PUT": "#f59e0b", "DELETE": "#ef4444" };
+        const color = colors[m] ?? "#64748b";
+        return (
+          <g key={i} className="wb-appear">
+            <rect x={x + 255} y={my} width={50} height={24} rx={4} fill={color} />
+            <text x={x + 280} y={my + 16} textAnchor="middle" fontSize={9} fill="#ffffff" fontWeight="700">{m}</text>
+            <text x={x + 320} y={my + 16} fontSize={10} fill="#475569" fontFamily="monospace">/api/resource</text>
+            <line x1={x + 180} y1={y + 55 + i * 34} x2={x + 240} y2={y + 55 + i * 34} stroke="#94a3b8" strokeWidth={1.5} markerEnd="url(#arr-gray)" className="wb-data-bus" />
+          </g>
+        );
+      })}
+      <text x={x + 280} y={y + 250} textAnchor="middle" fontSize={10} fill="#64748b">Client ↔ Server communication via HTTP methods</text>
+    </g>
+  );
+}
+
+interface DrawMathFormulaP {
+  formulas: { latex: string; description: string }[];
+  position: [number, number];
+}
+
+function DrawMathFormula({ id, p }: { id: string; p: DrawMathFormulaP }) {
+  const [x, y] = p.position ?? [40, 40];
+  const formulas = p.formulas ?? [];
+
+  return (
+    <g key={id} className="wb-diagram-build">
+      <text x={x + 300} y={y + 14} textAnchor="middle" fontSize={14} fill="#1e293b" fontWeight="700">CS Math Foundations</text>
+      {formulas.map((f, i) => (
+        <g key={i} className="wb-math-step">
+          <rect x={x + 10} y={y + 28 + i * 60} width={580} height={50} rx={8} fill={i % 2 === 0 ? "#f8fafc" : "#ffffff"} stroke="#e2e8f0" strokeWidth={1.5} />
+          <text x={x + 300} y={y + 48 + i * 60} textAnchor="middle" fontSize={14} fill="#1e293b" fontWeight="700" fontStyle="italic">{f.latex}</text>
+          <text x={x + 300} y={y + 66 + i * 60} textAnchor="middle" fontSize={10} fill="#64748b">{f.description}</text>
+        </g>
+      ))}
+    </g>
+  );
+}
+
+interface DrawLanguageShowcaseP {
+  snippets: { name: string; code: string }[];
+  position: [number, number];
+}
+
+function DrawLanguageShowcase({ id, p }: { id: string; p: DrawLanguageShowcaseP }) {
+  const [x, y] = p.position ?? [20, 40];
+  const snippets = p.snippets ?? [];
+
+  return (
+    <g key={id} className="wb-diagram-build">
+      <text x={x + 380} y={y + 14} textAnchor="middle" fontSize={14} fill="#1e293b" fontWeight="700">Language Comparison</text>
+      {snippets.map((s, i) => {
+        const sx = x + (i % 2) * 380;
+        const sy = y + 28 + Math.floor(i / 2) * 150;
+        const colors = ["#2563eb", "#16a34a", "#7c3aed", "#ea580c"];
+        return (
+          <g key={i} className="wb-tree-grow">
+            <rect x={sx} y={sy} width={360} height={130} rx={8} fill="#0f172a" stroke="#334155" strokeWidth={1.5} filter="url(#wb-shadow)" />
+            <rect x={sx} y={sy} width={360} height={28} rx={8} fill={colors[i % 4]} />
+            <rect x={sx} y={sy + 20} width={360} height={8} fill={colors[i % 4]} />
+            <text x={sx + 180} y={sy + 20} textAnchor="middle" fontSize={11} fill="#ffffff" fontWeight="700">{s.name}</text>
+            <text x={sx + 12} y={sy + 50} fontSize={9} fill="#e2e8f0" fontFamily="monospace">
+              {s.code.split("\n").map((line, li) => (
+                <tspan key={li} x={sx + 12} dy={li === 0 ? 0 : 16}>{line}</tspan>
+              ))}
+            </text>
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+interface DrawAlgorithmComplexP {
+  steps: { label: string; detail: string }[];
+  position: [number, number];
+}
+
+function DrawAlgorithmComplex({ id, p }: { id: string; p: DrawAlgorithmComplexP }) {
+  const [x, y] = p.position ?? [40, 40];
+  const steps = p.steps ?? [];
+
+  return (
+    <g key={id} className="wb-diagram-build">
+      <text x={x + 300} y={y + 14} textAnchor="middle" fontSize={14} fill="#1e293b" fontWeight="700">Algorithm Trace</text>
+      {steps.map((s, i) => (
+        <g key={i} className="wb-flow-step">
+          <rect x={x + 10} y={y + 28 + i * 52} width={580} height={44} rx={6} fill={i % 2 === 0 ? "#f8fafc" : "#ffffff"} stroke="#e2e8f0" strokeWidth={1.5} />
+          <rect x={x + 14} y={y + 28 + i * 52} width={4} height={44} rx={2} fill={i === 0 ? "#3b82f6" : i === steps.length - 1 ? "#16a34a" : "#94a3b8"} />
+          <text x={x + 30} y={y + 44 + i * 52} fontSize={12} fill="#1e293b" fontWeight="600">{s.label}</text>
+          <text x={x + 30} y={y + 62 + i * 52} fontSize={10} fill="#64748b">{s.detail}</text>
+          {i < steps.length - 1 && (
+            <line x1={x + 16} y1={y + 28 + (i + 1) * 52} x2={x + 16} y2={y + 28 + i * 52 + 44} stroke="#94a3b8" strokeWidth={1.5} />
+          )}
+        </g>
+      ))}
+    </g>
+  );
+}
+
+interface DrawCodeDiffP {
+  old_code: string;
+  new_code: string;
+  position: [number, number];
+}
+
+function DrawCodeDiff({ id, p }: { id: string; p: DrawCodeDiffP }) {
+  const [x, y] = p.position ?? [20, 40];
+  const oldCode = p.old_code ?? "";
+  const newCode = p.new_code ?? "";
+  const oldLines = oldCode.split("\n"); const newLines = newCode.split("\n");
+
+  return (
+    <g key={id} className="wb-diagram-build">
+      <text x={x + 380} y={y + 14} textAnchor="middle" fontSize={14} fill="#1e293b" fontWeight="700">Code Diff</text>
+      <rect x={x} y={y + 24} width={370} height={28} rx={6} fill="#dc2626" />
+      <text x={x + 185} y={y + 43} textAnchor="middle" fontSize={10} fill="#ffffff" fontWeight="600">Old Version</text>
+      <rect x={x + 380} y={y + 24} width={370} height={28} rx={6} fill="#16a34a" />
+      <text x={x + 565} y={y + 43} textAnchor="middle" fontSize={10} fill="#ffffff" fontWeight="600">New Version</text>
+      <rect x={x} y={y + 52} width={370} height={Math.max(40, oldLines.length * 18 + 8)} rx={4} fill="#fef2f2" stroke="#fecaca" strokeWidth={1} />
+      {oldLines.map((line, i) => (
+        <text key={i} x={x + 8} y={y + 70 + i * 18} fontSize={10} fill="#dc2626" fontFamily="monospace">- {line}</text>
+      ))}
+      <rect x={x + 380} y={y + 52} width={370} height={Math.max(40, newLines.length * 18 + 8)} rx={4} fill="#f0fdf4" stroke="#bbf7d0" strokeWidth={1} />
+      {newLines.map((line, i) => (
+        <text key={i} x={x + 388} y={y + 70 + i * 18} fontSize={10} fill="#16a34a" fontFamily="monospace">+ {line}</text>
+      ))}
+    </g>
+  );
+}
+
+interface DrawArchitectureDiagramP {
+  components: { name: string; x: number; y: number; w: number; h: number; color: string }[];
+  connections: { from: number; to: number }[];
+  position: [number, number];
+}
+
+function DrawArchitectureDiagram({ id, p }: { id: string; p: DrawArchitectureDiagramP }) {
+  const [ox, oy] = p.position ?? [10, 10];
+  const comps = p.components ?? [];
+  const conns = p.connections ?? [];
+
+  return (
+    <g key={id} className="wb-diagram-build">
+      <text x={ox + 380} y={oy + 14} textAnchor="middle" fontSize={14} fill="#1e293b" fontWeight="700">System Architecture</text>
+      {conns.map((c, i) => {
+        const f = comps[c.from]; const t = comps[c.to];
+        if (!f || !t) return null;
+        return (
+          <line key={i} x1={ox + f.x + f.w / 2} y1={oy + f.y + f.h / 2} x2={ox + t.x + t.w / 2} y2={oy + t.y + t.h / 2} stroke="#94a3b8" strokeWidth={1.5} className="wb-node-link" />
+        );
+      })}
+      {comps.map((c, i) => (
+        <g key={i} className="wb-tree-grow">
+          <rect x={ox + c.x} y={oy + c.y} width={c.w} height={c.h} rx={8} fill={c.color} filter="url(#wb-shadow)" />
+          <text x={ox + c.x + c.w / 2} y={oy + c.y + c.h / 2 + 4} textAnchor="middle" fontSize={11} fill="#ffffff" fontWeight="600">{c.name}</text>
+        </g>
+      ))}
     </g>
   );
 }

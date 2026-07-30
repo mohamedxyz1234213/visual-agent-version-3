@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { requireAuth } from '../../auth/middleware/auth.js';
 import { requireRole } from '../middleware/roles.js';
 import { Student, AIConversation, Submission, Progress, Exercise, Exam, ExerciseBlock } from '../models/index.js';
-import { Lesson, LessonPart } from '../../models/Lesson.js';
+import { Lesson, LessonPart, StoryboardScene } from '../../models/Lesson.js';
 import { LessonSeries } from '../../models/LessonSeries.js';
 import { planLessonSeries, callAIRace } from '../../services/aiPlanner.js';
 import { saveLessonPlan } from '../../services/storyboardGenerator.js';
@@ -15,6 +15,7 @@ import { toUserFacingError } from '../../utils/errors.js';
 import { getBlazeConfig, resolveBlazeModel } from '../../services/blazeConfig.js';
 import { resolveBlazeAPIModel } from '../../services/blazeapiConfig.js';
 import { processVoice, submitCode, startSession } from '../../services/fastapiClient.js';
+import { getTemplateForTopic, getAllTopicKeys } from '../../services/whiteboard/programmingLessonTemplates.js';
 
 const router = Router();
 
@@ -225,6 +226,86 @@ function scheduleBackgroundTask(label, task) {
       });
   });
 }
+
+// ── POST /api/v1/ai/generate-template ──────────────────────────────────────────
+router.post('/generate-template', requireRole('teacher', 'admin'), async (req, res, next) => {
+  try {
+    const { topic, subjectId } = req.body;
+    if (!topic) return res.status(400).json({ error: 'Topic is required' });
+
+    const template = getTemplateForTopic(topic);
+    if (!template) {
+      const available = getAllTopicKeys();
+      return res.status(400).json({
+        error: `No template found for "${topic}". Available topics: ${available.join(', ')}`,
+        availableTopics: available,
+      });
+    }
+
+    // Create lesson series
+    const series = await LessonSeries.create({
+      userInstructions: `Topic: ${topic} (template-based)`,
+      analysisModel: 'template',
+      sourceFilename: `topic-${topic.replace(/[^a-zA-Z0-9 ]/g, '').trim().slice(0, 40)}`,
+      totalLessons: 1,
+      completedLessons: 0,
+    });
+
+    // Create lesson
+    const lesson = await Lesson.create({
+      title: topic,
+      summary: template.summary,
+      sourceFilename: 'ai-template',
+      subject: subjectId || null,
+      aiProvider: 'template',
+      analysisModel: 'template',
+      seriesId: series._id,
+      lessonIndex: 0,
+      totalLessons: 1,
+      status: 'ready',
+      processingStep: 'done',
+      ownerId: req.user._id,
+    });
+
+    // Create parts with scenes
+    for (let i = 0; i < template.parts.length; i++) {
+      const partDef = template.parts[i];
+      const part = await LessonPart.create({
+        lessonId: lesson._id,
+        orderIndex: i,
+        title: partDef.title,
+        narration: partDef.narration || null,
+        durationSeconds: partDef.durationSeconds || 120,
+        audioUrl: null,
+        partType: partDef.partType || 'content',
+      });
+
+      // Create scenes
+      const sceneDocs = partDef.scenes.map((s, idx) => ({
+        partId: part._id,
+        timeOffset: s.timeOffset,
+        actionType: s.actionType,
+        payload: s.payload || {},
+      }));
+      if (sceneDocs.length > 0) {
+        await StoryboardScene.insertMany(sceneDocs);
+      }
+    }
+
+    // Update series
+    await LessonSeries.findByIdAndUpdate(series._id, { $inc: { completedLessons: 1 } });
+
+    res.status(202).json({
+      id: lesson._id.toString(),
+      series_id: series._id.toString(),
+      topic,
+      status: 'ready',
+      parts_count: template.parts.length,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // ── POST /api/v1/ai/generate-lesson ───────────────────────────────────────────
 router.post('/generate-lesson', requireRole('teacher', 'admin'), async (req, res, next) => {

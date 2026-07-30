@@ -419,6 +419,172 @@ html, body {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes avatarSlideIn {
+  from { opacity: 0; transform: translateX(30px) scale(0.92); }
+  60%  { opacity: 1; transform: translateX(-4px) scale(1.02); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes avatarMouthTalk {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+
+@keyframes pointerTap {
+  0%, 100% { transform: translate(0, 0); }
+  40% { transform: translate(1px, -1px); }
+  60% { transform: translate(-0.5px, 0.5px); }
+}
+
+/* ── Programming-specific animations ──────────────────────────────────── */
+
+@keyframes wbCodeType {
+  0%   { clip-path: inset(0 100% 0 0); }
+  30%  { clip-path: inset(0 65% 0 0); }
+  60%  { clip-path: inset(0 30% 0 0); }
+  100% { clip-path: inset(0 0 0 0); }
+}
+
+@keyframes wbLineReveal {
+  0%   { opacity: 0; transform: translateX(-8px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes wbPointerAppear {
+  0%   { opacity: 0; transform: translate(0, 0); }
+  50%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx, 80px), var(--dy, 0)); }
+}
+
+@keyframes wbTreeGrow {
+  0%   { opacity: 0; transform: scale(0) translateY(20px); }
+  60%  { opacity: 1; transform: scale(1.05) translateY(0); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes wbNodeLink {
+  from { stroke-dashoffset: var(--path-len, 200); opacity: 0.2; }
+  to   { stroke-dashoffset: 0; opacity: 1; }
+}
+
+@keyframes wbSortSwap {
+  0%   { transform: translateY(0); opacity: 1; }
+  30%  { transform: translateY(-12px); opacity: 0.7; }
+  60%  { transform: translateY(-12px); opacity: 0.7; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes wbBarCompare {
+  0%   { fill-opacity: 0.6; transform: scaleY(0.95); }
+  50%  { fill-opacity: 1; transform: scaleY(1.08); }
+  100% { fill-opacity: 0.9; transform: scaleY(1); }
+}
+
+@keyframes wbFlowStep {
+  0%   { opacity: 0; transform: translateY(12px) scale(0.95); }
+  50%  { opacity: 0.6; }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes wbHighlightLine {
+  0%   { opacity: 0.3; stroke-dashoffset: var(--path-len, 400); }
+  50%  { opacity: 0.7; }
+  100% { opacity: 0.45; stroke-dashoffset: 0; }
+}
+
+@keyframes wbMemoryWrite {
+  0%   { fill-opacity: 0; transform: scale(0.5); }
+  60%  { fill-opacity: 0.3; transform: scale(1.1); }
+  100% { fill-opacity: 0.15; transform: scale(1); }
+}
+
+@keyframes wbDataFlow {
+  0%   { stroke-dashoffset: 200; opacity: 0; }
+  50%  { opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0.4; }
+}
+
+@keyframes wbStackPush {
+  0%   { transform: translateY(-20px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes wbArrowBounce {
+  0%   { transform: translateX(0); opacity: 0.5; }
+  50%  { transform: translateX(6px); opacity: 1; }
+  100% { transform: translateX(0); opacity: 0.8; }
+}
+
+@keyframes wbChipGlow {
+  0%, 100% { filter: drop-shadow(0 0 2px rgba(59,130,246,0.3)); }
+  50%      { filter: drop-shadow(0 0 8px rgba(59,130,246,0.7)); }
+}
+
+@keyframes wbDataBus {
+  0%   { stroke-dashoffset: 400; opacity: 0.2; }
+  50%  { opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0.6; }
+}
+
+@keyframes wbCacheHit {
+  0%   { fill: #dbeafe; transform: scale(1); }
+  50%  { fill: #86efac; transform: scale(1.12); }
+  100% { fill: #dbeafe; transform: scale(1); }
+}
+
+@keyframes wbPipelineStage {
+  0%   { opacity: 0; transform: translateY(12px) scale(0.96); }
+  60%  { opacity: 1; transform: translateY(-2px) scale(1.02); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes wbPageIn {
+  0%   { opacity: 0; transform: translateX(-20px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes wbPacketFly {
+  0%   { stroke-dashoffset: 300; opacity: 0; }
+  30%  { opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0.5; }
+}
+
+@keyframes wbDbQuery {
+  0%   { opacity: 0; transform: scale(0.7) translateY(10px); }
+  60%  { opacity: 1; transform: scale(1.05) translateY(0); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes wbMineBlock {
+  0%   { fill-opacity: 0; transform: translateY(-8px) scale(0.8); }
+  60%  { fill-opacity: 0.3; transform: translateY(2px) scale(1.04); }
+  100% { fill-opacity: 0.15; transform: translateY(0) scale(1); }
+}
+
+@keyframes wbQubitSpin {
+  0%   { transform: rotate(0deg) scale(1); opacity: 0.6; }
+  50%  { transform: rotate(180deg) scale(1.1); opacity: 1; }
+  100% { transform: rotate(360deg) scale(1); opacity: 0.6; }
+}
+
+@keyframes wbTransition {
+  0%   { opacity: 0; transform: translateX(-8px); }
+  60%  { opacity: 0.7; transform: translateX(3px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes wbLockReveal {
+  0%   { opacity: 0; transform: scale(0.5) rotate(-10deg); }
+  70%  { opacity: 1; transform: scale(1.05) rotate(2deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+@keyframes wbPatternMatch {
+  0%   { clip-path: inset(0 100% 0 0); }
+  50%  { clip-path: inset(0 50% 0 0); }
+  100% { clip-path: inset(0 0 0 0); }
+}
+
 /* ── Animation classes ─────────────────────────────────────────────────── */
 .wb-appear { animation: fadeInUp 0.8s cubic-bezier(0.22, 0.61, 0.36, 1) forwards; will-change: opacity, transform; opacity: 0; }
 .wb-pop    { animation: wbPopIn 0.7s cubic-bezier(0.34, 1.3, 0.64, 1) forwards; will-change: opacity, transform; opacity: 0; }
@@ -453,6 +619,30 @@ html, body {
 .wb-focus     { animation: wbFocusZoom    2.8s ease-in-out infinite; transform-origin: center; will-change: transform; }
 .wb-teach     { animation: wbTeacherReveal 0.85s cubic-bezier(.22,.61,.36,1) forwards; opacity: 0; will-change: opacity, transform; }
 .wb-caption   { animation: wbCaptionIn 0.34s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.wb-code-type   { animation: wbCodeType 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards; will-change: clip-path; }
+.wb-line-reveal { animation: wbLineReveal 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) forwards; opacity: 0; will-change: opacity, transform; }
+.wb-pointer     { animation: wbPointerAppear 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite; will-change: opacity, transform; }
+.wb-tree-grow   { animation: wbTreeGrow 0.7s cubic-bezier(0.34, 1.3, 0.64, 1) forwards; opacity: 0; will-change: opacity, transform; }
+.wb-node-link   { animation: wbNodeLink 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards; will-change: stroke-dashoffset, opacity; }
+.wb-sort-swap   { animation: wbSortSwap 0.8s cubic-bezier(0.22, 0.61, 0.36, 1) forwards; will-change: transform, opacity; }
+.wb-bar-cmp     { animation: wbBarCompare 0.7s cubic-bezier(0.22, 0.61, 0.36, 1) forwards; will-change: fill-opacity, transform; }
+.wb-flow-step   { animation: wbFlowStep 0.6s cubic-bezier(0.22, 0.61, 0.36, 1) forwards; opacity: 0; will-change: opacity, transform; }
+.wb-mem-write    { animation: wbMemoryWrite 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards; will-change: fill-opacity, transform; }
+.wb-data-flow    { animation: wbDataFlow 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards; will-change: stroke-dashoffset, opacity; }
+.wb-stack-push   { animation: wbStackPush 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) forwards; opacity: 0; will-change: opacity, transform; }
+.wb-arrow-bounce { animation: wbArrowBounce 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite; will-change: transform, opacity; }
+.wb-chip-glow     { animation: wbChipGlow 2.8s ease-in-out infinite; will-change: filter; }
+.wb-data-bus      { animation: wbDataBus 1.5s cubic-bezier(0.4, 0, 0.2, 1) forwards; will-change: stroke-dashoffset, opacity; }
+.wb-cache-hit     { animation: wbCacheHit 1.2s cubic-bezier(0.22, 0.61, 0.36, 1) forwards; will-change: fill, transform; }
+.wb-pipeline      { animation: wbPipelineStage 0.7s cubic-bezier(0.34, 1.3, 0.64, 1) forwards; opacity: 0; will-change: opacity, transform; }
+.wb-page-in       { animation: wbPageIn 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) forwards; opacity: 0; will-change: opacity, transform; }
+.wb-packet-fly    { animation: wbPacketFly 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards; will-change: stroke-dashoffset, opacity; }
+.wb-db-query      { animation: wbDbQuery 0.8s cubic-bezier(0.34, 1.3, 0.64, 1) forwards; opacity: 0; will-change: opacity, transform; }
+.wb-mine-block    { animation: wbMineBlock 1s cubic-bezier(0.22, 0.61, 0.36, 1) forwards; will-change: fill-opacity, transform; }
+.wb-qubit-spin    { animation: wbQubitSpin 3s linear infinite; will-change: transform, opacity; }
+.wb-transition    { animation: wbTransition 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) forwards; opacity: 0; will-change: opacity, transform; }
+.wb-lock-reveal   { animation: wbLockReveal 0.9s cubic-bezier(0.34, 1.3, 0.64, 1) forwards; opacity: 0; will-change: opacity, transform; }
+.wb-pattern-match { animation: wbPatternMatch 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards; will-change: clip-path; }
 
 .wb-delay-1 { animation-delay: 0.08s; }
 .wb-delay-2 { animation-delay: 0.16s; }

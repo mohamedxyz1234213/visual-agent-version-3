@@ -35,7 +35,39 @@ export type ActionType =
   | "draw_highlight"
   | "draw_caption"
   | "camera"
-  | "sandbox_question";
+  | "sandbox_question"
+  // ── Programming-specific action types ──
+  | "draw_code_block"
+  | "draw_linked_list"
+  | "draw_tree_struct"
+  | "draw_graph_struct"
+  | "draw_sorting"
+  | "draw_flowchart"
+  | "draw_uml"
+  | "draw_big_o"
+  | "draw_network"
+  | "draw_datastream"
+  | "write_text"
+  // ── Advanced CS domains ──
+  | "draw_cpu"
+  | "draw_os_memory"
+  | "draw_compiler"
+  | "draw_network_packet"
+  | "draw_db_schema"
+  | "draw_state_machine"
+  | "draw_turing"
+  | "draw_blockchain"
+  | "draw_security_shield"
+  | "draw_quantum"
+  | "draw_design_pattern"
+  | "draw_testing_pyramid"
+  | "draw_regex"
+  | "draw_api"
+  | "draw_math_formula"
+  | "draw_language_showcase"
+  | "draw_algorithm_complex"
+  | "draw_code_diff"
+  | "draw_architecture_diagram";
 
 export interface LessonPart {
   id: string;

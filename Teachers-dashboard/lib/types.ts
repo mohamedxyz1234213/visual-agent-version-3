@@ -35,7 +35,39 @@ export type ActionType =
   | "draw_highlight"
   | "draw_caption"
   | "camera"
-  | "sandbox_question";
+  | "sandbox_question"
+  // ── Programming-specific action types ──
+  | "draw_code_block"
+  | "draw_linked_list"
+  | "draw_tree_struct"
+  | "draw_graph_struct"
+  | "draw_sorting"
+  | "draw_flowchart"
+  | "draw_uml"
+  | "draw_big_o"
+  | "draw_network"
+  | "draw_datastream"
+  | "write_text"
+  // ── Advanced CS domains ──
+  | "draw_cpu"
+  | "draw_os_memory"
+  | "draw_compiler"
+  | "draw_network_packet"
+  | "draw_db_schema"
+  | "draw_state_machine"
+  | "draw_turing"
+  | "draw_blockchain"
+  | "draw_security_shield"
+  | "draw_quantum"
+  | "draw_design_pattern"
+  | "draw_testing_pyramid"
+  | "draw_regex"
+  | "draw_api"
+  | "draw_math_formula"
+  | "draw_language_showcase"
+  | "draw_algorithm_complex"
+  | "draw_code_diff"
+  | "draw_architecture_diagram";
 
 export interface LessonPart {
   id: string;
@@ -44,8 +76,24 @@ export interface LessonPart {
   narration: string | null;
   duration_seconds: number;
   audio_url: string | null;
-  part_type: "content" | "quiz" | "final_quiz";
+  part_type: "content" | "quiz" | "final_quiz" | "exercise";
   scenes: StoryboardScene[];
+  exercise_block_id?: string;
+}
+
+export interface LessonExerciseBlock {
+  _id: string;
+  lessonId: string;
+  title: string;
+  instructions: string;
+  language: string;
+  starterCode: string;
+  hints: { order: number; text: string }[];
+  difficulty: string;
+  order: number;
+  isRequired: boolean;
+  xpReward: number;
+  testCases: { id: string; input: string; expectedOutput: string; isHidden: boolean; description: string }[];
 }
 
 export interface Lesson {

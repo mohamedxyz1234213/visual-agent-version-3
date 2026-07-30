@@ -129,6 +129,10 @@ export async function generateAILesson(topic: string, subjectId?: string, diffic
   return request("/ai/generate-lesson", { method: "POST", body: JSON.stringify({ topic, subjectId, difficulty, duration, style }) });
 }
 
+export async function generateTemplateLesson(topic: string, subjectId?: string): Promise<{ id: string; series_id: string; topic: string; status: string; parts_count: number }> {
+  return request("/ai/generate-template", { method: "POST", body: JSON.stringify({ topic, subjectId }) });
+}
+
 export async function generateAIExercise(topic: string, difficulty?: string, type?: string, subjectId?: string): Promise<{ exercise: any }> {
   return request("/ai/generate-exercise", { method: "POST", body: JSON.stringify({ topic, difficulty, type, subjectId }) });
 }

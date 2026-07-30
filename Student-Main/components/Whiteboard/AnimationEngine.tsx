@@ -19,16 +19,14 @@ export default function AnimationEngine({ part, onPartComplete }: AnimationEngin
   const { status, speed, setElapsed, setStatus } = useLessonStore();
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  // Use a ref so the setInterval callback always reads the latest elapsed value
   const elapsedRef = useRef<number>(0);
+  const tickRef = useRef<number>(100);
 
-  // Keep elapsedRef in sync with the store
   const storeElapsed = useLessonStore((s) => s.elapsed);
   useEffect(() => {
     elapsedRef.current = storeElapsed;
   }, [storeElapsed]);
 
-  // Sync audio with play/pause
   useEffect(() => {
     if (part.audio_url) {
       if (!audioRef.current) {
@@ -44,14 +42,16 @@ export default function AnimationEngine({ part, onPartComplete }: AnimationEngin
   useEffect(() => {
     if (!audioRef.current) return;
     audioRef.current.playbackRate = speed;
+    tickRef.current = speed >= 2 ? 50 : speed <= 0.5 ? 200 : 100;
   }, [speed]);
 
-  // Drive elapsed timer
   useEffect(() => {
     if (status === "playing") {
       audioRef.current?.play().catch(() => {});
+      const tick = tickRef.current;
       timerRef.current = setInterval(() => {
-        const next = elapsedRef.current + 0.1 * speed;
+        const delta = (tick / 1000) * speed;
+        const next = elapsedRef.current + delta;
         elapsedRef.current = next;
         setElapsed(next);
         if (next >= part.duration_seconds) {
@@ -60,7 +60,7 @@ export default function AnimationEngine({ part, onPartComplete }: AnimationEngin
           setStatus("idle");
           onPartComplete();
         }
-      }, 100);
+      }, tick);
     } else {
       audioRef.current?.pause();
       if (timerRef.current) {
@@ -74,5 +74,5 @@ export default function AnimationEngine({ part, onPartComplete }: AnimationEngin
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, speed, part.duration_seconds]);
 
-  return null; // headless driver
+  return null;
 }

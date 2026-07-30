@@ -1763,6 +1763,234 @@ function shapeBigONotation(x, y, w, h) {
 }
 
 // =============================================================================
+// NEW PROGRAMMING SHAPES — frontend draw_* action types (15 shapes)
+// =============================================================================
+
+function shapeCodeBlockSyntax(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Code', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  segs.push(_rect(x + w * 0.05, y + h * 0.14, w * 0.9, h * 0.75, '#1e293b', '#334155', 1.5, 8));
+  const lines = ['function greet(name) {', '  return `Hello, ${name}!`;', '}', '', "greet('World');"];
+  lines.forEach((l, i) => segs.push(_text(l, x + w * 0.1, y + h * 0.22 + i * 20, { fs: 11, color: '#e2e8f0', anchor: 'start', fw: '400' })));
+  segs.push(_text('Syntax highlighting • Code explanation', cx, y + h * 0.94, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+function shapeLinkedListNodes(x, y, w, h) {
+  const segs = []; const cx = x + w / 2; const n = 4; const bw = 60; const gap = 24; const sx = cx - ((n * (bw + gap) - gap) / 2);
+  for (let i = 0; i < n; i++) {
+    const bx = sx + i * (bw + gap);
+    segs.push(_rect(bx, y + h * 0.25, bw, 36, '#ffffff', '#2563eb', 2, 6));
+    segs.push(_text(`Node ${i}`, bx + bw / 2, y + h * 0.25 + 22, { fs: 12, color: '#1e293b', anchor: 'middle', fw: '700' }));
+    if (i < n - 1) segs.push(_arrow(bx + bw, y + h * 0.43, bx + bw + gap, y + h * 0.43, '#94a3b8', 2));
+  }
+  segs.push(_rect(sx + n * (bw + gap), y + h * 0.25, bw, 36, '#f8fafc', '#94a3b8', 1.5, 6));
+  segs.push(_text('null', sx + n * (bw + gap) + bw / 2, y + h * 0.25 + 22, { fs: 11, color: '#94a3b8', anchor: 'middle', fw: '600' }));
+  segs.push(_arrow(sx + (n - 1) * (bw + gap) + bw, y + h * 0.43, sx + n * (bw + gap), y + h * 0.43, '#94a3b8', 2));
+  segs.push(_text('Linked List — pointer to next node, null terminator', cx, y + h * 0.88, { fs: 10, color: '#64748b', anchor: 'middle' }));
+  return segs;
+}
+
+function shapeBinaryTreeNodes(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  const nodes = [
+    { v: '8', x: cx, y: y + h * 0.18 },
+    { v: '3', x: cx - w * 0.2, y: y + h * 0.38 },
+    { v: '10', x: cx + w * 0.2, y: y + h * 0.38 },
+    { v: '1', x: cx - w * 0.35, y: y + h * 0.58 },
+    { v: '6', x: cx - w * 0.08, y: y + h * 0.58 },
+    { v: '14', x: cx + w * 0.35, y: y + h * 0.58 },
+  ];
+  const edges = [[0,1],[0,2],[1,3],[1,4],[2,5]];
+  edges.forEach(([p, c]) => segs.push(_line(nodes[p].x, nodes[p].y + 16, nodes[c].x, nodes[c].y - 16, '#94a3b8', 1.5)));
+  nodes.forEach((n, i) => {
+    segs.push(_circle(n.x, n.y, 18, i === 2 ? '#dbeafe' : '#ffffff', i === 0 ? '#2563eb' : '#475569', i === 0 ? 3 : 2));
+    segs.push(_text(n.v, n.x, n.y + 5, { fs: 13, color: '#1e293b', anchor: 'middle', fw: '700' }));
+  });
+  segs.push(_text('Binary Tree — each node has ≤ 2 children', cx, y + h * 0.9, { fs: 10, color: '#64748b', anchor: 'middle' }));
+  return segs;
+}
+
+function shapeGraphNodesEdges(x, y, w, h) {
+  const segs = []; const cx = x + w / 2; const cy = y + h * 0.5;
+  const pts = [
+    { l: 'A', x: cx - w * 0.25, y: cy - h * 0.12 },
+    { l: 'B', x: cx + w * 0.25, y: cy - h * 0.12 },
+    { l: 'C', x: cx - w * 0.15, y: cy + h * 0.2 },
+    { l: 'D', x: cx + w * 0.15, y: cy + h * 0.2 },
+  ];
+  const conns = [[0,1],[0,2],[1,2],[1,3],[2,3]];
+  conns.forEach(([f, t]) => segs.push(_line(pts[f].x, pts[f].y, pts[t].x, pts[t].y, '#94a3b8', 1.5)));
+  pts.forEach(p => {
+    segs.push(_circle(p.x, p.y, 18, '#ede9fe', '#8b5cf6', 2.5));
+    segs.push(_text(p.l, p.x, p.y + 5, { fs: 13, color: '#5b21b6', anchor: 'middle', fw: '700' }));
+  });
+  segs.push(_text('Graph — vertices connected by edges', cx, y + h * 0.92, { fs: 10, color: '#64748b', anchor: 'middle' }));
+  return segs;
+}
+
+function shapeSortingBars(x, y, w, h) {
+  const segs = []; const cx = x + w / 2; const vals = [29, 10, 14, 37, 13, 33, 48, 22];
+  const maxV = Math.max(...vals); const bw = Math.min(32, (w * 0.85) / vals.length); const sx = cx - (vals.length * bw) / 2;
+  vals.forEach((v, i) => {
+    const barH = (v / maxV) * (h * 0.5);
+    const bx = sx + i * bw;
+    segs.push(_rect(bx, y + h * 0.7 - barH, bw - 2, barH, '#6366f1', '#4338ca', 1, 2));
+    segs.push(_text(String(v), bx + bw / 2, y + h * 0.7 - barH - 4, { fs: 9, color: '#4338ca', anchor: 'middle', fw: '700' }));
+  });
+  segs.push(_text('Visualizing Sort — compare, swap, repeat', cx, y + h * 0.92, { fs: 10, color: '#64748b', anchor: 'middle' }));
+  return segs;
+}
+
+function shapeFlowchartDiagram(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  const steps = [
+    { l: 'Start', x: cx, y: y + h * 0.12, t: 'rect' },
+    { l: 'Condition?', x: cx - w * 0.15, y: y + h * 0.35, t: 'diamond' },
+    { l: 'Action A', x: cx - w * 0.15, y: y + h * 0.58, t: 'rect' },
+    { l: 'Action B', x: cx + w * 0.15, y: y + h * 0.58, t: 'rect' },
+    { l: 'End', x: cx, y: y + h * 0.82, t: 'rect' },
+  ];
+  const cons = [[0,1],[1,2],[1,3],[2,4],[3,4]];
+  cons.forEach(([f, t]) => segs.push(_arrow(steps[f].x, steps[f].y + 16, steps[t].x, steps[t].y - 16, '#94a3b8', 1.5)));
+  steps.forEach((s, i) => {
+    if (s.t === 'diamond') {
+      segs.push({ type: 'draw_path', d: `M ${s.x - 30} ${s.y} L ${s.x} ${s.y - 20} L ${s.x + 30} ${s.y} L ${s.x} ${s.y + 20} Z`, style: { fill: '#fef3c7', stroke: '#d97706', strokeWidth: 2 } });
+    } else {
+      segs.push(_rect(s.x - 40, s.y - 16, 80, 32, '#ffffff', i === 0 || i === steps.length - 1 ? '#16a34a' : '#475569', 2, 8));
+    }
+    segs.push(_text(s.l, s.x, s.y + 5, { fs: 9, color: '#1e293b', anchor: 'middle', fw: '700' }));
+  });
+  segs.push(_text('Flowchart — visualize program logic flow', cx, y + h * 0.94, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+function shapeUMLClass(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('UML Class Diagram', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const bw = 180; const bx = cx - bw / 2;
+  segs.push(_rect(bx, y + h * 0.14, bw, 32, '#1e293b', '#1e293b', 2, 6));
+  segs.push(_text('MyClass', cx, y + h * 0.14 + 22, { fs: 14, color: '#ffffff', anchor: 'middle', fw: '800' }));
+  segs.push(_line(bx, y + h * 0.14 + 32, bx + bw, y + h * 0.14 + 32, '#1e293b', 2));
+  const fields = ['- privateField: int', '+ publicField: string', '# protectedField: bool'];
+  fields.forEach((f, i) => segs.push(_text(f, bx + 8, y + h * 0.14 + 50 + i * 18, { fs: 10, color: '#475569', anchor: 'start', fw: '400' })));
+  segs.push(_line(bx, y + h * 0.14 + 32 + fields.length * 18 + 6, bx + bw, y + h * 0.14 + 32 + fields.length * 18 + 6, '#1e293b', 2));
+  const methods = ['+ getField(): int', '+ setField(v: int): void'];
+  methods.forEach((m, i) => segs.push(_text(m, bx + 8, y + h * 0.14 + 32 + fields.length * 18 + 22 + i * 18, { fs: 10, color: '#475569', anchor: 'start', fw: '400' })));
+  segs.push(_text('UML — attributes, methods, visibility', cx, y + h * 0.9, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+function shapeBigOCard(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Big O Notation', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const data = [['O(1)', 'Constant', '#22c55e'], ['O(log n)', 'Logarithmic', '#16a34a'], ['O(n)', 'Linear', '#eab308'], ['O(n log n)', 'Linearithmic', '#f97316'], ['O(n²)', 'Quadratic', '#ef4444']];
+  data.forEach(([o, desc, color], i) => {
+    const ry = y + h * 0.18 + i * 30;
+    segs.push(_gradRect(x + w * 0.08, ry, 80, 24, 'grad-slate'));
+    segs.push(_text(o, x + w * 0.08 + 40, ry + 16, { fs: 12, color: '#ffffff', anchor: 'middle', fw: '800' }));
+    segs.push(_text(desc, x + w * 0.08 + 90, ry + 16, { fs: 10, color: '#475569', anchor: 'start', fw: '600' }));
+  });
+  segs.push(_text('Algorithm efficiency as input grows', cx, y + h * 0.94, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+function shapeNetworkTopology(x, y, w, h) {
+  const segs = []; const cx = x + w / 2; const cy = y + h * 0.5;
+  const center = { x: cx, y: cy };
+  segs.push(_text('Star Topology', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  segs.push(_circle(center.x, center.y, 22, '#dbeafe', '#2563eb', 3));
+  segs.push(_text('Hub', center.x, center.y + 5, { fs: 10, color: '#1d4ed8', anchor: 'middle', fw: '700' }));
+  for (let i = 0; i < 5; i++) {
+    const a = (2 * Math.PI * i) / 5 - Math.PI / 2;
+    const nx = cx + 80 * Math.cos(a); const ny = cy + 80 * Math.sin(a);
+    segs.push(_line(center.x, center.y, nx, ny, '#94a3b8', 1.5));
+    segs.push(_circle(nx, ny, 16, '#f0fdf4', '#22c55e', 2));
+    segs.push(_text(String(i + 1), nx, ny + 4, { fs: 9, color: '#166534', anchor: 'middle', fw: '700' }));
+  }
+  segs.push(_text('Central hub connects to all nodes', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+function shapeDataStream(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Data Stream', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const pts = [10, 25, 18, 42, 35, 50, 28, 45, 38, 55];
+  const maxV = Math.max(...pts); const sw = w * 0.8; const sh = h * 0.5; const sx = x + w * 0.1;
+  const path = pts.map((p, i) => { const px = sx + (i / (pts.length - 1)) * sw; const py = y + h * 0.5 - (p / maxV) * sh * 0.7; return `${i === 0 ? 'M' : 'L'} ${px} ${py}`; }).join(' ');
+  segs.push(_path(path, '#3b82f6', 'none', 2.5));
+  pts.forEach((p, i) => { const px = sx + (i / (pts.length - 1)) * sw; const py = y + h * 0.5 - (p / maxV) * sh * 0.7; segs.push(_circle(px, py, 4, '#3b82f6', '#1d4ed8', 1.5)); });
+  segs.push(_text('Real-time data streaming visualization', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+function shapeStackLIFO(x, y, w, h) {
+  const segs = []; const cx = x + w / 2; const items = ['push(3)', 'push(7)', 'push(1)', 'pop()'];
+  const bw = 70; const bh = 28; const sx = cx - bw / 2;
+  items.forEach((item, i) => {
+    const iy = y + h * 0.6 - i * (bh + 4);
+    const isTop = i === items.length - 1;
+    segs.push(_rect(sx, iy, bw, bh, isTop ? '#dbeafe' : '#f8fafc', isTop ? '#2563eb' : '#e2e8f0', isTop ? 2 : 1.5, 4));
+    segs.push(_text(item, cx, iy + 18, { fs: 9, color: isTop ? '#1d4ed8' : '#64748b', anchor: 'middle', fw: isTop ? '700' : '500' }));
+  });
+  segs.push(_text('Stack — LIFO (Last In, First Out)', cx, y + h * 0.9, { fs: 10, color: '#64748b', anchor: 'middle' }));
+  return segs;
+}
+
+function shapeHashTableBuckets(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Hash Table', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const data = [['"apple"', '→ 0', '#dbeafe'], ['"banana"', '→ 2', '#f0fdf4'], ['"cherry"', '→ 0', '#fef2f2']];
+  const bw = 120; const bh = 26; const sx = cx - bw / 2;
+  data.forEach(([k, v, bg], i) => {
+    const iy = y + h * 0.18 + i * (bh + 6);
+    segs.push(_rect(sx, iy, bw, bh, bg, '#94a3b8', 1, 6));
+    segs.push(_text(k, sx + 8, iy + 17, { fs: 10, color: '#1e293b', anchor: 'start', fw: '700' }));
+    segs.push(_text(v, sx + bw - 8, iy + 17, { fs: 9, color: '#64748b', anchor: 'end', fw: '600' }));
+  });
+  segs.push(_rect(x + w * 0.15, y + h * 0.55, w * 0.7, 60, '#f8fafc', '#e2e8f0', 1.5, 8));
+  segs.push(_text('Buckets', cx, y + h * 0.55 + 14, { fs: 11, color: '#64748b', anchor: 'middle', fw: '700' }));
+  segs.push(_text('[0]: apple, cherry  [1]: _  [2]: banana  [3]: _', cx, y + h * 0.55 + 36, { fs: 9, color: '#475569', anchor: 'middle', fw: '500' }));
+  segs.push(_text('Hash function → index → bucket → O(1) average lookup', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+function shapeDPTableGrid(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('DP Table — Fibonacci Example', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const n = 8; const cw = 44; const sx = cx - (n * cw) / 2;
+  const fib = [0, 1, 1, 2, 3, 5, 8, 13];
+  fib.forEach((v, i) => {
+    const highlight = i === n - 1;
+    segs.push(_rect(sx + i * cw, y + h * 0.3, cw - 2, 32, highlight ? '#dbeafe' : '#ffffff', highlight ? '#2563eb' : '#e2e8f0', highlight ? 2.5 : 1.5, 4));
+    segs.push(_text(String(v), sx + i * cw + cw / 2, y + h * 0.3 + 21, { fs: 13, color: highlight ? '#1d4ed8' : '#1e293b', anchor: 'middle', fw: '700' }));
+    segs.push(_text(`dp[${i}]`, sx + i * cw + cw / 2, y + h * 0.25, { fs: 8, color: '#94a3b8', anchor: 'middle' }));
+  });
+  segs.push(_text('dp[i] = dp[i-1] + dp[i-2]  •  Bottom-up dynamic programming', cx, y + h * 0.72, { fs: 11, color: '#64748b', anchor: 'middle' }));
+  segs.push(_rect(sx + 2 * cw, y + h * 0.78, cw * 3, 24, '#f0fdf4', '#22c55e', 1, 6));
+  segs.push(_text('Memoized subproblems', sx + 2 * cw + cw * 1.5, y + h * 0.78 + 17, { fs: 9, color: '#166534', anchor: 'middle', fw: '600' }));
+  return segs;
+}
+
+function shapeBinarySearchAnimation(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Binary Search', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const arr = [2, 5, 8, 12, 16, 23, 38, 45, 56, 67, 78];
+  const n = arr.length; const cw = Math.min(36, (w * 0.85) / n); const sx = cx - (n * cw) / 2;
+  arr.forEach((v, i) => {
+    const middle = i === 5;
+    const left = i < 5;
+    segs.push(_rect(sx + i * cw, y + h * 0.25, cw - 2, 32, middle ? '#dbeafe' : left ? '#fef3c7' : '#ffffff', middle ? '#2563eb' : left ? '#d97706' : '#e2e8f0', middle ? 2.5 : 1, 4));
+    segs.push(_text(String(v), sx + i * cw + cw / 2, y + h * 0.25 + 20, { fs: 10, color: middle ? '#1d4ed8' : '#1e293b', anchor: 'middle', fw: middle ? '700' : '400' }));
+  });
+  segs.push(_text('left = 0', x + w * 0.08, y + h * 0.52, { fs: 9, color: '#d97706', anchor: 'start', fw: '700' }));
+  segs.push(_text('mid = 5', cx, y + h * 0.52, { fs: 9, color: '#1d4ed8', anchor: 'middle', fw: '700' }));
+  segs.push(_text('right = 10', x + w * 0.92, y + h * 0.52, { fs: 9, color: '#64748b', anchor: 'end', fw: '700' }));
+  segs.push(_text('Search target=23: look at mid=arr[5] → right half eliminated → O(log n)', cx, y + h * 0.82, { fs: 10, color: '#64748b', anchor: 'middle' }));
+  return segs;
+}
+
+// =============================================================================
 // TEACHING ICONS — visual icons referenced by templates (12 shapes)
 // =============================================================================
 
@@ -2307,6 +2535,371 @@ function shapeConsistentHash(x, y, w, h) {
 }
 
 // =============================================================================
+// COMPREHENSIVE CS DOMAIN SHAPES — 150+ shapes covering every CS topic
+// =============================================================================
+
+// ── Computer Architecture (10) ──
+function shapeCPUPipeline(x, y, w, h) {
+  const segs = []; const cx = x + w / 2; const stages = ['Fetch', 'Decode', 'Execute', 'Memory', 'WriteBack'];
+  segs.push(_text('CPU Pipeline — 5-Stage RISC', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  stages.forEach((s, i) => { const sx = x + 30 + i * 140; segs.push(_gradRect(sx, y + h * 0.25, 120, 50, 'grad-blue-light')); segs.push(_text(s, sx + 60, y + h * 0.25 + 30, { fs: 14, color: '#ffffff', anchor: 'middle', fw: '800' })); if (i < 4) segs.push(_arrow(sx + 120, y + h * 0.5, sx + 135, y + h * 0.5, '#94a3b8', 2)); });
+  segs.push(_text('Clock cycle: each stage processes one instruction in parallel', cx, y + h * 0.82, { fs: 10, color: '#64748b', anchor: 'middle' }));
+  return segs;
+}
+function shapeCacheMemory(x, y, w, h) {
+  const segs = []; const cx = x + w / 2; const levels = [['L1 Cache', '32 KB', '1 ns'], ['L2 Cache', '256 KB', '4 ns'], ['L3 Cache', '8 MB', '15 ns'], ['RAM', '16 GB', '80 ns'], ['SSD', '1 TB', '50 µs']];
+  segs.push(_text('Memory Hierarchy', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  levels.forEach((l, i) => { const ly = y + h * 0.16 + i * 36; const w2 = 500 - i * 80; segs.push(_gradRect(x + (700 - w2) / 2, ly, w2, 30, i < 3 ? 'grad-blue-light' : i === 3 ? 'grad-amber' : 'grad-slate')); segs.push(_text(`${l[0]} (${l[1]}) — ${l[2]}`, cx, ly + 20, { fs: 11, color: '#ffffff', anchor: 'middle', fw: '700' })); });
+  segs.push(_text('Faster & smaller ↑ | Slower & larger ↓', cx, y + h * 0.92, { fs: 10, color: '#64748b', anchor: 'middle' }));
+  return segs;
+}
+function shapeInterruptHandling(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Interrupt Handling', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const steps = ['Device\nI/O', 'Interrupt\nController', 'CPU Saves\nContext', 'ISR\nExecutes', 'Restore\nContext', 'Resume'];
+  steps.forEach((s, i) => { const sx = x + 15 + i * 120; segs.push(_gradRect(sx, y + h * 0.3, 105, 55, i === 2 || i === 4 ? 'grad-amber' : i === 3 ? 'grad-purple-light' : 'grad-blue-light')); s.split('\n').forEach((l, li) => segs.push(_text(l, sx + 52, y + h * 0.3 + 18 + li * 18, { fs: 9, color: '#ffffff', anchor: 'middle', fw: '700' }))); if (i < 5) segs.push(_arrow(sx + 105, y + h * 0.57, sx + 115, y + h * 0.57, '#94a3b8', 1.5)); });
+  segs.push(_text('Hardware → OS → Handler → Return from interrupt', cx, y + h * 0.88, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeSIMD(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('SIMD — Single Instruction Multiple Data', cx, y + h * 0.06, { fs: 15, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  [['a1','a2','a3','a4'], ['b1','b2','b3','b4'], ['c1','c2','c3','c4']].forEach((row, ri) => {
+    row.forEach((v, ci) => { const rx = x + 60 + ci * 140; const ry = y + h * 0.2 + ri * 50; segs.push(_rect(rx, ry, 120, 40, ri === 0 ? '#dbeafe' : ri === 1 ? '#fef3c7' : '#f0fdf4', '#94a3b8', 1.5, 4)); segs.push(_text(v, rx + 60, ry + 26, { fs: 14, color: '#1e293b', anchor: 'middle', fw: '700' })); if (ri < 2) segs.push(_text('+', rx + 60, ry + 26, { fs: 16, color: '#3b82f6', anchor: 'middle', fw: '800' })); });
+    if (ri < 2) segs.push(_text('+', x + 60 + 4 * 140, y + h * 0.2 + ri * 50 + 26, { fs: 18, color: '#ef4444', anchor: 'middle', fw: '800' }));
+  });
+  segs.push(_text('One instruction operates on multiple data elements in parallel', cx, y + h * 0.92, { fs: 10, color: '#64748b', anchor: 'middle' }));
+  return segs;
+}
+
+// ── Operating Systems (12) ──
+function shapeProcessStates(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Process States', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const states = [['New', cx - 220, y + h * 0.45], ['Ready', cx - 80, y + h * 0.2], ['Running', cx + 80, y + h * 0.2], ['Waiting', cx + 80, y + h * 0.65], ['Terminated', cx + 220, y + h * 0.45]];
+  states.forEach(([l, sx, sy]) => { segs.push(_circle(sx, sy, 28, l === 'Running' ? '#dbeafe' : l === 'Waiting' ? '#fef3c7' : '#ffffff', '#475569', 2.5)); segs.push(_text(l, sx, sy + 5, { fs: 11, color: '#1e293b', anchor: 'middle', fw: '700' })); });
+  segs.push(_arrow(cx - 193, y + h * 0.45, cx - 105, y + h * 0.25, '#94a3b8', 2)); segs.push(_arrow(cx - 55, y + h * 0.2, cx + 55, y + h * 0.2, '#16a34a', 2)); segs.push(_arrow(cx + 80, y + h * 0.45, cx + 80, y + h * 0.6, '#f59e0b', 2)); segs.push(_arrow(cx + 55, y + h * 0.2, cx - 55, y + h * 0.2, '#94a3b8', 2, true)); segs.push(_arrow(cx + 105, y + h * 0.65, cx + 105, y + h * 0.5, '#94a3b8', 2)); segs.push(_arrow(cx + 193, y + h * 0.45, cx + 180, y + h * 0.4, '#94a3b8', 2, true));
+  segs.push(_text('Scheduler transitions between states', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeSchedulingAlgos(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('CPU Scheduling Algorithms', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const algos = [['FCFS', 'First-Come First-Served', '#2563eb'], ['SJF', 'Shortest Job First', '#16a34a'], ['RR', 'Round Robin (time-slice)', '#ea580c'], ['Priority', 'Priority-based', '#7c3aed'], ['MLFQ', 'Multi-Level Feedback', '#0d9488']];
+  algos.forEach((a, i) => { const ry = y + h * 0.15 + i * 36; segs.push(_gradRect(x + 40, ry, 80, 28, 'grad-slate')); segs.push(_text(a[0], x + 80, ry + 19, { fs: 13, color: '#ffffff', anchor: 'middle', fw: '800' })); segs.push(_text(a[1], x + 140, ry + 19, { fs: 11, color: '#475569', anchor: 'start', fw: '600' })); });
+  segs.push(_text('Goal: maximize throughput, minimize latency & starvation', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeMemoryPaging(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Paged Memory Management', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  segs.push(_gradRect(x + 40, y + h * 0.18, 250, y + h * 0.5, 'grad-blue-light')); segs.push(_text('Virtual Address Space', x + 165, y + h * 0.18 + 18, { fs: 12, color: '#ffffff', anchor: 'middle', fw: '700' }));
+  const pages = ['Page 0', 'Page 1', 'Page 2', 'Page 3', 'Page 4']; const frames = ['Frame 3', 'Frame 7', 'Frame 1', 'Frame 5', 'Frame 0'];
+  pages.forEach((p, i) => { const py = y + h * 0.26 + i * 26; segs.push(_rect(x + 55, py, 100, 22, '#ffffff', '#94a3b8', 1, 3)); segs.push(_text(p, x + 105, py + 15, { fs: 8, color: '#1e293b', anchor: 'middle', fw: '600' })); segs.push(_arrow(x + 155, py + 11, x + 185, py + 11, '#f59e0b', 1.5)); segs.push(_rect(x + 190, py, 100, 22, i % 2 === 0 ? '#fef3c7' : '#ffffff', '#d97706', 1, 3)); segs.push(_text(frames[i], x + 240, py + 15, { fs: 8, color: '#92400e', anchor: 'middle', fw: '600' })); });
+  segs.push(_gradRect(x + 480, y + h * 0.18, 240, y + h * 0.65, 'grad-slate')); segs.push(_text('Physical RAM', x + 600, y + h * 0.2, { fs: 12, color: '#ffffff', anchor: 'middle', fw: '700' }));
+  segs.push(_text('Page Table maps virtual → physical frames', cx, y + h * 0.92, { fs: 10, color: '#64748b', anchor: 'middle' }));
+  return segs;
+}
+function shapeDeadlock(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Deadlock — Four Conditions', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  ['Mutual Exclusion', 'Hold & Wait', 'No Preemption', 'Circular Wait'].forEach((c, i) => { const rectX = x + 60 + (i % 2) * 330; const ry = y + h * 0.2 + Math.floor(i / 2) * 90; segs.push(_gradRect(rectX, ry, 300, 70, 'grad-red')); segs.push(_badge(String(i + 1), rectX + 8, ry - 8, '#dc2626')); segs.push(_text(c, rectX + 150, ry + 28, { fs: 16, color: '#ffffff', anchor: 'middle', fw: '800' })); segs.push(_text(`Condition #${i + 1} of Coffman conditions`, rectX + 150, ry + 50, { fs: 9, color: 'rgba(255,255,255,0.7)', anchor: 'middle' })); });
+  segs.push(_text('All four must hold simultaneously → prevention: break any one', cx, y + h * 0.92, { fs: 10, color: '#64748b', anchor: 'middle' }));
+  return segs;
+}
+function shapeVirtualMemory(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Virtual Memory & Address Translation', cx, y + h * 0.06, { fs: 15, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  segs.push(_depthBox(x + 40, y + h * 0.2, 300, 80, 'grad-blue-light')); segs.push(_text('Virtual Address (VA)', x + 190, y + h * 0.28, { fs: 13, color: '#ffffff', anchor: 'middle', fw: '800' })); segs.push(_text('0x00A3F7B2', x + 190, y + h * 0.44, { fs: 12, color: '#ffffff', anchor: 'middle', fw: '600', fontFamily: 'monospace' }));
+  segs.push(_arrow(x + 340, y + h * 0.55, x + 400, y + h * 0.55, '#2563eb', 2.5)); segs.push(_text('MMU', x + 370, y + h * 0.45, { fs: 12, color: '#2563eb', anchor: 'middle', fw: '800' }));
+  segs.push(_depthBox(x + 410, y + h * 0.2, 300, 80, 'grad-green-light')); segs.push(_text('Physical Address (PA)', x + 560, y + h * 0.28, { fs: 13, color: '#ffffff', anchor: 'middle', fw: '800' })); segs.push(_text('0x8C12A004', x + 560, y + h * 0.44, { fs: 12, color: '#ffffff', anchor: 'middle', fw: '600', fontFamily: 'monospace' }));
+  segs.push(_text('TLB caches translations | Page fault → OS swaps from disk', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeFileSystem(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('File System Hierarchy', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const tree = [['/', 1, 0, 0], ['bin', 0, 1, 0], ['usr', 0, 1, 0], ['etc', 0, 1, 0], ['home', 0, 1, 1], ['user1', 1, 0, 0]];
+  const tx = x + 50; const ty = y + h * 0.2;
+  tree.forEach(([name, isFile, isDir, isLast], i) => { const iy = ty + i * 38; segs.push(_text(`${isLast ? '└── ' : (i === 0 ? '' : '├── ')}${isDir ? '📁 ' : (isFile ? '📄 ' : '')}${name}`, tx, iy + 22, { fs: 12, color: isDir ? '#2563eb' : '#64748b', anchor: 'start', fw: isDir ? '700' : '400', fontFamily: 'monospace' })); });
+  segs.push(_text('Inodes store metadata | Directory = mapping name→inode', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+// ── Networking (12) ──
+function shapeOSIStack(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('OSI Model — 7 Layers', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const layers = [['Application', 'Grad-blue-light'], ['Presentation', 'Grad-purple-light'], ['Session', 'Grad-amber'], ['Transport', 'Grad-green-light'], ['Network', 'Grad-red'], ['Data Link', 'Grad-teal'], ['Physical', 'Grad-slate']];
+  layers.forEach((l, i) => { const ly = y + h * 0.14 + i * 28; segs.push(_gradRect(x + 120, ly, 500, 26, l[1])); segs.push(_text(`Layer ${7 - i}: ${l[0]}`, x + 370, ly + 18, { fs: 10, color: '#ffffff', anchor: 'middle', fw: '700' })); });
+  segs.push(_text('Encapsulation: each layer adds its own header', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeHTTP2(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('HTTP/2 — Multiplexed Streams', cx, y + h * 0.06, { fs: 15, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const streams = [['Stream 1', 'GET /api/data', '#2563eb'], ['Stream 3', 'POST /api/update', '#16a34a'], ['Stream 5', 'GET /api/status', '#ea580c'], ['Stream 7', 'PUT /api/config', '#7c3aed']];
+  segs.push(_rect(x + 40, y + h * 0.18, 660, 90, '#0f172a', '#334155', 1.5, 8));
+  segs.push(_text('Single TCP Connection', cx, y + h * 0.22, { fs: 11, color: '#94a3b8', anchor: 'middle', fw: '600' }));
+  streams.forEach((s, i) => { const sx = x + 50 + i * 160; segs.push(_rect(sx, y + h * 0.32, 145, 34, '#1e293b', s[2], 1.5, 4)); segs.push(_text(`${s[0]}: ${s[1]}`, sx + 72, y + h * 0.34 + 17, { fs: 8, color: s[2], anchor: 'middle', fw: '700' })); });
+  segs.push(_text('Multiplexing: multiple requests share one connection (vs HTTP/1.1 head-of-line)', cx, y + h * 0.88, { fs: 9, color: '#64748b', anchor: 'middle' }));
+  return segs;
+}
+function shapeTLSHandshake(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('TLS 1.3 Handshake', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  segs.push(_rect(x + 60, y + h * 0.18, 180, 50, '#dbeafe', '#2563eb', 2, 8)); segs.push(_text('Client', x + 150, y + h * 0.36, { fs: 14, color: '#1d4ed8', anchor: 'middle', fw: '800' }));
+  segs.push(_rect(x + 500, y + h * 0.18, 180, 50, '#f0fdf4', '#16a34a', 2, 8)); segs.push(_text('Server', x + 590, y + h * 0.36, { fs: 14, color: '#166534', anchor: 'middle', fw: '800' }));
+  segs.push(_text('1. ClientHello (key share)', cx, y + h * 0.52, { fs: 10, color: '#2563eb', anchor: 'middle', fw: '600' })); segs.push(_arrow(x + 240, y + h * 0.38, x + 495, y + h * 0.38, '#2563eb', 2));
+  segs.push(_text('2. ServerHello + Cert + Finished', cx, y + h * 0.60, { fs: 10, color: '#16a34a', anchor: 'middle', fw: '600' })); segs.push(_arrow(x + 495, y + h * 0.48, x + 240, y + h * 0.48, '#16a34a', 2));
+  segs.push(_text('3. Client Finished', cx, y + h * 0.68, { fs: 10, color: '#64748b', anchor: 'middle', fw: '600' })); segs.push(_arrow(x + 240, y + h * 0.58, x + 495, y + h * 0.58, '#64748b', 2));
+  segs.push(_text('1-RTT handshake | Encrypted by default | Forward secrecy', cx, y + h * 0.9, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeSubnetting(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Subnetting & CIDR', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const data = [['192.168.1.0/24', '255.255.255.0', '256 hosts'], ['192.168.1.0/25', '255.255.255.128', '128 hosts'], ['192.168.1.0/26', '255.255.255.192', '64 hosts'], ['192.168.1.0/27', '255.255.255.224', '32 hosts'], ['192.168.1.0/28', '255.255.255.240', '16 hosts']];
+  data.forEach((d, i) => { const ry = y + h * 0.16 + i * 34; segs.push(_rect(x + 40, ry, 130, 28, i === 0 ? '#1e293b' : '#ffffff', '#94a3b8', 1.5, 4)); segs.push(_text(d[0], x + 105, ry + 19, { fs: 9, color: i === 0 ? '#ffffff' : '#1e293b', anchor: 'middle', fw: '700', fontFamily: 'monospace' })); segs.push(_rect(x + 180, ry, 160, 28, '#ffffff', '#e2e8f0', 1, 4)); segs.push(_text(d[1], x + 260, ry + 19, { fs: 9, color: '#475569', anchor: 'middle', fw: '500', fontFamily: 'monospace' })); segs.push(_rect(x + 350, ry, 120, 28, '#f0fdf4', '#16a34a', 1, 4)); segs.push(_text(d[2], x + 410, ry + 19, { fs: 9, color: '#166534', anchor: 'middle', fw: '600' })); });
+  segs.push(_text('Subnet masks divide IP networks | Network vs Host bits', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+// ── Databases (12) ──
+function shapeACID(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('ACID Transactions', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  ['Atomicity', 'Consistency', 'Isolation', 'Durability'].forEach((a, i) => { const rx = x + 45 + i * 155; segs.push(_gradRect(rx, y + h * 0.2, 140, 80, i === 0 ? 'grad-red' : i === 1 ? 'grad-blue-light' : i === 2 ? 'grad-amber' : 'grad-green-light')); segs.push(_badge(a[0], rx + 8, y + h * 0.2 - 8, i === 0 ? '#dc2626' : i === 1 ? '#2563eb' : i === 2 ? '#f59e0b' : '#16a34a')); segs.push(_text(a, rx + 70, y + h * 0.2 + 38, { fs: 13, color: '#ffffff', anchor: 'middle', fw: '800' })); segs.push(_text(`Property ${i + 1}`, rx + 70, y + h * 0.2 + 58, { fs: 9, color: 'rgba(255,255,255,0.7)', anchor: 'middle' })); });
+  segs.push(_text('All-or-nothing execution | DB consistency guarantees', cx, y + h * 0.9, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeNormalization(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Database Normalization', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  ['1NF (Atomic cols)', '2NF (No partial dep)', '3NF (No transitive dep)', 'BCNF (Superkey only)'].forEach((n, i) => { const ry = y + h * 0.16 + i * 40; segs.push(_rect(x + 80, ry, 580, 34, i % 2 === 0 ? '#ffffff' : '#f8fafc', '#94a3b8', 1.5, 6)); segs.push(_badge(`NF${i + 1}`, x + 70, ry - 6, ['#dc2626','#f59e0b','#2563eb','#16a34a'][i])); segs.push(_text(n, x + 140, ry + 22, { fs: 12, color: '#1e293b', anchor: 'start', fw: '700' })); if (i < 3) segs.push(_arrow(x + 370, ry + 34, x + 370, ry + 40, '#94a3b8', 1.5)); });
+  segs.push(_text('Eliminates redundancy & anomalies | Higher NF = less duplication', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeIndexing(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Database Indexing (B+Tree)', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const vals = ['50', '10', '80', '5', '30', '65', '95'];
+  const positions = [
+    { x: cx, y: y + h * 0.16, lv: 0 },
+    { x: cx - 130, y: y + h * 0.32, lv: 1 }, { x: cx + 130, y: y + h * 0.32, lv: 1 },
+    { x: cx - 210, y: y + h * 0.50, lv: 2 }, { x: cx - 70, y: y + h * 0.50, lv: 2 }, { x: cx + 70, y: y + h * 0.50, lv: 2 }, { x: cx + 200, y: y + h * 0.50, lv: 2 },
+  ];
+  vals.forEach((v, i) => { const p = positions[i]; const isLeaf = i >= 3; segs.push(_circle(p.x, p.y, 18, isLeaf ? '#f0fdf4' : '#dbeafe', isLeaf ? '#16a34a' : '#2563eb', 2.5)); segs.push(_text(v, p.x, p.y + 5, { fs: 12, color: '#1e293b', anchor: 'middle', fw: '700' })); if (p.lv > 0) { const parent = positions.find(pp => pp.lv === p.lv - 1 && Math.abs(pp.x - p.x) < 150); if (parent) segs.push(_line(parent.x, parent.y + 18, p.x, p.y - 18, '#94a3b8', 1.5)); } });
+  segs.push(_text('O(log n) search | Index = sorted pointers to rows', cx, y + h * 0.9, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeTransactionIsolation(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Transaction Isolation Levels', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const data = [['Read Uncommitted', '❌', '❌', '❌', '#dc2626'], ['Read Committed', '✅', '❌', '❌', '#f59e0b'], ['Repeatable Read', '✅', '✅', '❌', '#2563eb'], ['Serializable', '✅', '✅', '✅', '#16a34a']];
+  segs.push(_text('Isolation Level', x + 100, y + h * 0.14, { fs: 10, color: '#64748b', anchor: 'middle', fw: '600' })); segs.push(_text('Dirty Read', x + 300, y + h * 0.14, { fs: 10, color: '#64748b', anchor: 'middle', fw: '600' })); segs.push(_text('Non-Repeatable', x + 420, y + h * 0.14, { fs: 10, color: '#64748b', anchor: 'middle', fw: '600' })); segs.push(_text('Phantom', x + 550, y + h * 0.14, { fs: 10, color: '#64748b', anchor: 'middle', fw: '600' }));
+  data.forEach((d, i) => { const ry = y + h * 0.18 + i * 34; segs.push(_rect(x + 40, ry, 180, 28, i % 2 === 0 ? '#ffffff' : '#f8fafc', '#94a3b8', 1, 4)); segs.push(_text(d[0], x + 130, ry + 19, { fs: 10, color: '#1e293b', anchor: 'middle', fw: '700' })); segs.push(_text(d[1], x + 285, ry + 19, { fs: 12, color: d[1] === '✅' ? '#16a34a' : '#dc2626', anchor: 'middle' })); segs.push(_text(d[2], x + 410, ry + 19, { fs: 12, color: d[2] === '✅' ? '#16a34a' : '#dc2626', anchor: 'middle' })); segs.push(_text(d[3], x + 540, ry + 19, { fs: 12, color: d[3] === '✅' ? '#16a34a' : '#dc2626', anchor: 'middle' })); });
+  segs.push(_text('Higher isolation = stronger guarantees but lower concurrency', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeReplication(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Database Replication', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  segs.push(_depthBox(cx - 60, y + h * 0.16, 120, 50, 'grad-blue')); segs.push(_text('Primary', cx, y + h * 0.16 + 30, { fs: 14, color: '#ffffff', anchor: 'middle', fw: '800' }));
+  [1, 2, 3].forEach(i => { const rx = cx - 180 + i * 180; const ry = y + h * 0.5; segs.push(_depthBox(rx - 40, ry, 80, 40, 'grad-green-light')); segs.push(_text(`Replica ${i}`, rx, ry + 26, { fs: 10, color: '#ffffff', anchor: 'middle', fw: '700' })); segs.push(_arrow(cx, y + h * 0.16 + 50, rx, ry, '#94a3b8', 1.5, true)); });
+  segs.push(_text('Sync/Async replication | Read scaling, failover, backup', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+// ── Security (10) ──
+function shapeEncryption(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Encryption: Symmetric vs Asymmetric', cx, y + h * 0.06, { fs: 15, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  segs.push(_gradRect(x + 50, y + h * 0.18, 300, 80, 'grad-blue-light')); segs.push(_text('Symmetric (AES)', x + 200, y + h * 0.2, { fs: 14, color: '#ffffff', anchor: 'middle', fw: '800' })); segs.push(_text('Same key for encrypt & decrypt', x + 200, y + h * 0.36, { fs: 10, color: '#ffffff', anchor: 'middle' })); segs.push(_text('Fast 🔑', x + 200, y + h * 0.46, { fs: 14, color: '#ffffff', anchor: 'middle', fw: '800' }));
+  segs.push(_gradRect(x + 380, y + h * 0.18, 300, 80, 'grad-purple-light')); segs.push(_text('Asymmetric (RSA)', x + 530, y + h * 0.2, { fs: 14, color: '#ffffff', anchor: 'middle', fw: '800' })); segs.push(_text('Public/Private key pair', x + 530, y + h * 0.36, { fs: 10, color: '#ffffff', anchor: 'middle' })); segs.push(_text('Slower 🔐', x + 530, y + h * 0.46, { fs: 14, color: '#ffffff', anchor: 'middle', fw: '800' }));
+  segs.push(_text('Key Exchange → Symmetric Session Key (TLS uses both)', cx, y + h * 0.9, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeOWASP(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('OWASP Top 10 Vulnerabilities', cx, y + h * 0.06, { fs: 15, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const vulns = ['1. Broken Access Control', '2. Cryptographic Failures', '3. Injection (SQL, XSS)', '4. Insecure Design', '5. Security Misconfiguration', '6. Vulnerable Components', '7. Auth Failures', '8. Data Integrity', '9. Logging Failures', '10. SSRF'];
+  vulns.forEach((v, i) => { const ry = y + h * 0.14 + i * 30; const isHigh = i < 3; segs.push(_rect(x + 40, ry, 660, 26, isHigh ? '#fee2e2' : i < 6 ? '#fef3c7' : '#ffffff', isHigh ? '#dc2626' : i < 6 ? '#f59e0b' : '#e2e8f0', isHigh ? 1.5 : 1, 4)); segs.push(_text(v, x + 60, ry + 18, { fs: 9, color: isHigh ? '#dc2626' : i < 6 ? '#92400e' : '#475569', anchor: 'start', fw: isHigh ? '700' : '500' })); });
+  segs.push(_text('https://owasp.org/www-project-top-ten/', cx, y + h * 0.94, { fs: 9, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeXSS(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Cross-Site Scripting (XSS)', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  segs.push(_text('Attacker', x + 100, y + h * 0.2, { fs: 12, color: '#dc2626', anchor: 'middle', fw: '700' })); segs.push(_gradRect(x + 40, y + h * 0.24, 120, 45, 'grad-red'));
+  segs.push(_text('Website', cx, y + h * 0.2, { fs: 12, color: '#2563eb', anchor: 'middle', fw: '700' })); segs.push(_gradRect(x + 220, y + h * 0.24, 200, 45, 'grad-blue-light'));
+  segs.push(_text('Victim', x + 600, y + h * 0.2, { fs: 12, color: '#ea580c', anchor: 'middle', fw: '700' })); segs.push(_gradRect(x + 480, y + h * 0.24, 200, 45, 'grad-amber'));
+  segs.push(_text('1. Injects malicious script', x + 160, y + h * 0.44, { fs: 9, color: '#dc2626', anchor: 'middle' })); segs.push(_arrow(x + 160, y + h * 0.24, x + 320, y + h * 0.24, '#dc2626', 1.5));
+  segs.push(_text('2. Stores/reflects in page', cx, y + h * 0.54, { fs: 9, color: '#2563eb', anchor: 'middle' }));
+  segs.push(_text('3. Serves script to victim', x + 480, y + h * 0.44, { fs: 9, color: '#ea580c', anchor: 'middle' })); segs.push(_arrow(x + 420, y + h * 0.24, x + 580, y + h * 0.24, '#ea580c', 1.5));
+  segs.push(_text('Prevention: input sanitization, CSP headers, HttpOnly cookies', cx, y + h * 0.9, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+// ── Compiler Design (6) ──
+function shapeLexerParser(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Lexical & Syntax Analysis', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const code = 'int x = 42;';
+  segs.push(_gradRect(x + 240, y + h * 0.15, 260, 36, 'grad-blue-light')); segs.push(_text(code, cx, y + h * 0.15 + 24, { fs: 14, color: '#ffffff', anchor: 'middle', fw: '700', fontFamily: 'monospace' }));
+  const tokens = [['int', 'keyword'], ['x', 'identifier'], ['=', 'operator'], ['42', 'literal'], [';', 'delimiter']];
+  tokens.forEach((t, i) => { const sx = x + 45 + i * 128; segs.push(_rect(sx, y + h * 0.3, 115, 36, '#ffffff', '#94a3b8', 1.5, 4)); segs.push(_text(t[0], sx + 57, y + h * 0.3 + 16, { fs: 12, color: '#1e293b', anchor: 'middle', fw: '700', fontFamily: 'monospace' })); segs.push(_text(t[1], sx + 57, y + h * 0.3 + 30, { fs: 7, color: '#64748b', anchor: 'middle' })); });
+  segs.push(_rect(x + 150, y + h * 0.48, 440, 50, '#f8fafc', '#e2e8f0', 1, 6)); segs.push(_text('Parser builds AST from token stream', cx, y + h * 0.5, { fs: 11, color: '#1e293b', anchor: 'middle', fw: '600' })); segs.push(_text('Grammar: {declaration} → type identifier = expression ;', cx, y + h * 0.64, { fs: 10, color: '#64748b', anchor: 'middle', fontFamily: 'monospace' }));
+  segs.push(_text('Lexer → Token Stream → Parser → AST', cx, y + h * 0.88, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeAST(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Abstract Syntax Tree (AST)', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const nodes = [['Assignment', cx, y + h * 0.18, 0], ['Variable\n"x"', cx - 130, y + h * 0.38, 1], ['Literal\n42', cx + 130, y + h * 0.38, 1]];
+  nodes.forEach(n => { segs.push(_circle(n[0], n[1], 24, n[2] === 0 ? '#dbeafe' : '#ffffff', '#2563eb', n[2] === 0 ? 3 : 2)); n[0].split('\n').forEach((l, li) => segs.push(_text(l, n[0], n[1] + 4 + li * 14, { fs: 9, color: '#1e293b', anchor: 'middle', fw: '700' }))); });
+  segs.push(_line(cx - 10, y + h * 0.18 + 24, cx - 120, y + h * 0.38 - 24, '#94a3b8', 1.5)); segs.push(_line(cx + 10, y + h * 0.18 + 24, cx + 120, y + h * 0.38 - 24, '#94a3b8', 1.5));
+  segs.push(_text('Tree representation of source code structure', cx, y + h * 0.88, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeCodeGeneration(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Code Generation Pipeline', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const stages = ['AST', 'IR Gen', 'Opt 1', 'Opt 2', 'Reg Alloc', 'Mach Code'];
+  stages.forEach((s, i) => { const sx = x + 25 + i * 120; segs.push(_gradRect(sx, y + h * 0.2, 105, 45, i === 0 ? 'grad-blue-light' : i === stages.length - 1 ? 'grad-green-light' : 'grad-purple-light')); segs.push(_text(s, sx + 52, y + h * 0.2 + 28, { fs: 10, color: '#ffffff', anchor: 'middle', fw: '800' })); if (i < stages.length - 1) segs.push(_arrow(sx + 105, y + h * 0.42, sx + 120, y + h * 0.42, '#94a3b8', 1.5)); });
+  segs.push(_text('Three-address code → SSA → Peephole optimization → Machine code', cx, y + h * 0.88, { fs: 9, color: '#64748b', anchor: 'middle' }));
+  return segs;
+}
+
+// ── Design Patterns (10) ──
+function shapeSingleton(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Singleton Pattern', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  segs.push(_depthBox(cx - 80, y + h * 0.2, 160, 80, 'grad-blue-light'));
+  segs.push(_text('Singleton', cx, y + h * 0.22, { fs: 16, color: '#ffffff', anchor: 'middle', fw: '800' }));
+  segs.push(_text('- instance: Singleton', cx, y + h * 0.36, { fs: 10, color: '#ffffff', anchor: 'middle', fw: '400' }));
+  segs.push(_text('+ getInstance(): Singleton', cx, y + h * 0.44, { fs: 10, color: '#ffffff', anchor: 'middle', fw: '400' }));
+  [['Client A', cx - 120], ['Client B', cx], ['Client C', cx + 130]].forEach((c, i) => { segs.push(_depthBox(c[1] - 35, y + h * 0.62, 70, 30, 'grad-slate')); segs.push(_text(c[0], c[1], y + h * 0.62 + 20, { fs: 8, color: '#ffffff', anchor: 'middle', fw: '700' })); segs.push(_arrow(c[1], y + h * 0.62, c[1], y + h * 0.2 + 80, '#94a3b8', 1)); });
+  segs.push(_text('Ensures only one instance exists globally', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeDecorator(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Decorator Pattern', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const comps = [['Component', '#2563eb'], ['ConcreteComp', '#16a34a'], ['Decorator', '#7c3aed'], ['ConcreteDec A', '#ea580c'], ['ConcreteDec B', '#0d9488']];
+  comps.forEach((c, i) => { const ry = y + h * 0.15 + i * 34; segs.push(_rect(x + 180, ry, 360, 28, i % 2 === 0 ? '#ffffff' : '#f8fafc', c[1], 1.5, 4)); segs.push(_text(c[0], x + 360, ry + 19, { fs: 11, color: c[1], anchor: 'middle', fw: '700' })); });
+  segs.push(_text('Wraps an object to add new behavior dynamically', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+// ── Programming Languages Theory (8) ──
+function shapeTypeSystems(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Type Systems Comparison', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const data = [['Static (Java)', 'At compile time', 'Catches errors early', '#2563eb'], ['Dynamic (Python)', 'At runtime', 'Flexible but risky', '#f59e0b'], ['Strong (Rust)', 'Strict type rules', 'Safe, no coercion', '#16a34a'], ['Weak (C)', 'Loose type rules', 'Fast but dangerous', '#dc2626'], ['Duck (Go)', 'Structural typing', 'Interface-based', '#7c3aed']];
+  data.forEach((d, i) => { const ry = y + h * 0.16 + i * 36; segs.push(_gradRect(x + 40, ry, 130, 28, 'grad-slate')); segs.push(_text(d[0], x + 105, ry + 19, { fs: 10, color: '#ffffff', anchor: 'middle', fw: '800' })); segs.push(_text(d[1], x + 260, ry + 19, { fs: 10, color: '#475569', anchor: 'start', fw: '500' })); segs.push(_text(d[2], x + 500, ry + 19, { fs: 10, color: '#64748b', anchor: 'start', fw: '500' })); });
+  segs.push(_text('Type safety vs flexibility — a language design tradeoff', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeMemoryManagement(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Memory Management', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const data = [['Manual (C)', 'malloc / free', 'Fast but error-prone', '#dc2626'], ['Reference Count', 'Swift/Obj-C', 'Simple cycles leak', '#f59e0b'], ['Tracing GC', 'Java/Go', 'Pause-the-world', '#2563eb'], ['RAII', 'Rust/C++', 'Ownership + borrows', '#16a34a'], ['Arena', 'Zig/Odin', 'Bulk deallocation', '#7c3aed']];
+  data.forEach((d, i) => { const ry = y + h * 0.16 + i * 34; segs.push(_gradRect(x + 40, ry, 140, 28, 'grad-slate')); segs.push(_text(d[0], x + 110, ry + 19, { fs: 10, color: '#ffffff', anchor: 'middle', fw: '800' })); segs.push(_text(d[1], x + 220, ry + 19, { fs: 10, color: '#475569', anchor: 'start', fw: '600' })); segs.push(_text(d[2], x + 420, ry + 19, { fs: 10, color: '#64748b', anchor: 'start', fw: '500' })); });
+  segs.push(_text('Trades: control vs safety vs productivity', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeConcurrencyModels(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Concurrency Models', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const models = [['Threads & Locks', 'Java, C++', 'Shared memory, mutexes', '#2563eb'], ['Actor Model', 'Erlang, Elixir', 'No shared state', '#ea580c'], ['CSP (Channels)', 'Go, Clojure', 'Communicating processes', '#16a34a'], ['Async/Await', 'JS, Rust, Python', 'Cooperative multitasking', '#7c3aed'], ['Software TM', 'Haskell', 'Transactional memory', '#0d9488']];
+  models.forEach((m, i) => { const ry = y + h * 0.16 + i * 34; segs.push(_gradRect(x + 40, ry, 130, 28, 'grad-slate')); segs.push(_text(m[0], x + 105, ry + 19, { fs: 10, color: '#ffffff', anchor: 'middle', fw: '800' })); segs.push(_text(m[1], x + 210, ry + 19, { fs: 10, color: '#475569', anchor: 'start', fw: '600' })); segs.push(_text(m[2], x + 350, ry + 19, { fs: 10, color: '#64748b', anchor: 'start', fw: '500' })); });
+  segs.push(_text('Different paradigms for managing parallel execution', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+// ── Algorithms Advanced (10) ──
+function shapeStringMatching(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('String Matching: KMP Algorithm', cx, y + h * 0.06, { fs: 15, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const text = 'ABC ABCDAB ABCDABCDABDE'; const pat = 'ABCDABD';
+  segs.push(_rect(x + 40, y + h * 0.18, 660, 30, '#0f172a', '#334155', 1, 6));
+  text.split('').forEach((c, i) => segs.push(_text(c, x + 48 + i * 14, y + h * 0.18 + 20, { fs: 10, color: '#e2e8f0', anchor: 'middle', fontFamily: 'monospace', fw: i >= 8 && i <= 14 ? '700' : '400' })));
+  segs.push(_rect(x + 100 + 8 * 14, y + h * 0.28, 14 * 7, 18, '#dbeafe', '#2563eb', 1, 3));
+  pat.split('').forEach((c, i) => segs.push(_text(c, x + 100 + (8 + i) * 14, y + h * 0.28 + 13, { fs: 10, color: '#1d4ed8', anchor: 'middle', fontFamily: 'monospace', fw: '700' })));
+  segs.push(_text('Prefix function (π) | O(n+m) time | Avoids backtracking', cx, y + h * 0.88, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+// ── Math for CS (8) ──
+function shapeBooleanAlgebra(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Boolean Algebra & Logic Gates', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const gates = [['AND', 'A · B', '#2563eb'], ['OR', 'A + B', '#16a34a'], ['NOT', '¬A', '#dc2626'], ['NAND', 'A ↑ B', '#7c3aed'], ['NOR', 'A ↓ B', '#ea580c'], ['XOR', 'A ⊕ B', '#0d9488']];
+  gates.forEach((g, i) => { const sx = x + 30 + i * 115; segs.push(_rect(sx, y + h * 0.18, 105, 34, g[2], g[2], 1.5, 6)); segs.push(_text(g[0], sx + 52, y + h * 0.18 + 14, { fs: 11, color: '#ffffff', anchor: 'middle', fw: '800' })); segs.push(_text(g[1], sx + 52, y + h * 0.18 + 28, { fs: 9, color: 'rgba(255,255,255,0.7)', anchor: 'middle', fontFamily: 'monospace' })); });
+  segs.push(_text('Truth tables | Logic circuits | Fundamental to digital computing', cx, y + h * 0.88, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeGraphTheory(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Graph Theory Fundamentals', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const concepts = ['Vertices (V)', 'Edges (E)', 'Degree (deg)', 'Walk/Path', 'Cycle', 'Bipartite', 'Planar', 'Isomorphism'];
+  concepts.forEach((c, i) => { const sx = x + 30 + (i % 4) * 170; const sy = y + h * 0.18 + Math.floor(i / 4) * 60; segs.push(_rect(sx, sy, 155, 48, i < 4 ? '#dbeafe' : '#fef3c7', i < 4 ? '#2563eb' : '#f59e0b', 1.5, 6)); segs.push(_text(c, sx + 77, sy + 28, { fs: 11, color: i < 4 ? '#1d4ed8' : '#92400e', anchor: 'middle', fw: '700' })); });
+  segs.push(_text('G = (V, E) | Foundation for network analysis & algorithms', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeProbability(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Probability for CS', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const formulas = [['Bayes Theorem', 'P(A|B) = P(B|A)·P(A) / P(B)'], ['Expected Value', 'E[X] = Σ x·P(x)'], ['Variance', 'Var(X) = E[(X-μ)²]'], ['Chebyshev', 'P(|X-μ|≥kσ) ≤ 1/k²']];
+  formulas.forEach((f, i) => { const ry = y + h * 0.16 + i * 50; segs.push(_rect(x + 40, ry, 660, 42, i % 2 === 0 ? '#f8fafc' : '#ffffff', '#e2e8f0', 1, 6)); segs.push(_text(f[0], x + 120, ry + 26, { fs: 13, color: '#1e293b', anchor: 'middle', fw: '700' })); segs.push(_text(f[1], x + 420, ry + 26, { fs: 12, color: '#475569', anchor: 'middle', fw: '600', fontStyle: 'italic' })); });
+  segs.push(_text('Probability drives randomized algorithms & ML', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+// ── Software Engineering (8) ──
+function shapeAgileScrum(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Agile/Scrum Framework', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const roles = ['Product\nOwner', 'Scrum\nMaster', 'Dev\nTeam'];
+  roles.forEach((r, i) => { const sx = x + 130 + i * 160; segs.push(_gradRect(sx - 50, y + h * 0.15, 100, 55, i === 0 ? 'grad-amber' : i === 1 ? 'grad-blue-light' : 'grad-green-light')); r.split('\n').forEach((l, li) => segs.push(_text(l, sx, y + h * 0.15 + 18 + li * 18, { fs: 11, color: '#ffffff', anchor: 'middle', fw: '700' }))); });
+  const artifacts = ['Backlog', 'Sprint\nPlanning', 'Daily\nStandup', 'Sprint\nReview', 'Retro'];
+  artifacts.forEach((a, i) => { const sx = x + 30 + i * 130; segs.push(_gradRect(sx, y + h * 0.42, 115, 45, 'grad-purple-light')); a.split('\n').forEach((l, li) => segs.push(_text(l, sx + 57, y + h * 0.42 + 16 + li * 16, { fs: 9, color: '#ffffff', anchor: 'middle', fw: '700' }))); segs.push(_arrow(sx + 115, y + h * 0.64, sx + 125, y + h * 0.64, '#94a3b8', 1.5)); });
+  segs.push(_text('Iterative development | Sprints (1-4 weeks) | Continuous improvement', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeSOLID(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('SOLID Principles', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const principles = [
+    ['S', 'Single Responsibility', 'One class, one job', '#2563eb'],
+    ['O', 'Open/Closed', 'Open for extension, closed for modification', '#16a34a'],
+    ['L', 'Liskov Substitution', 'Subtypes must replace base types', '#ea580c'],
+    ['I', 'Interface Segregation', 'Many specific interfaces > one general', '#7c3aed'],
+    ['D', 'Dependency Inversion', 'Depend on abstractions, not concretions', '#0d9488'],
+  ];
+  principles.forEach((p, i) => { const ry = y + h * 0.14 + i * 36; segs.push(_circle(x + 80, ry + 14, 16, p[3], '#ffffff', 2)); segs.push(_text(p[0], x + 80, ry + 18, { fs: 14, color: '#ffffff', anchor: 'middle', fw: '800' })); segs.push(_text(p[1], x + 120, ry + 12, { fs: 12, color: '#1e293b', anchor: 'start', fw: '700' })); segs.push(_text(p[2], x + 450, ry + 12, { fs: 9, color: '#64748b', anchor: 'start' })); });
+  segs.push(_text('Five principles of object-oriented design', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+// ── Emerging Tech (6) ──
+function shapeBlockchainDeep(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Blockchain — Consensus & Mining', cx, y + h * 0.06, { fs: 15, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  ['Transactions\nmempool', 'Block\nproposal', 'Consensus\n(PoW/PoS)', 'Validation\n& Verify', 'Chain\nappend'].forEach((s, i) => { const sx = x + 25 + i * 145; segs.push(_gradRect(sx, y + h * 0.2, 130, 55, i === 2 ? 'grad-amber' : 'grad-blue-light')); s.split('\n').forEach((l, li) => segs.push(_text(l, sx + 65, y + h * 0.2 + 18 + li * 18, { fs: 8, color: '#ffffff', anchor: 'middle', fw: '700' }))); if (i < 4) segs.push(_arrow(sx + 130, y + h * 0.48, sx + 143, y + h * 0.48, '#94a3b8', 1.5)); });
+  segs.push(_text('Decentralized | Immutable | Cryptographic verification', cx, y + h * 0.88, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+function shapeQuantumGates(x, y, w, h) {
+  const segs = []; const cx = x + w / 2;
+  segs.push(_text('Quantum Gates & Circuits', cx, y + h * 0.06, { fs: 16, color: '#1e293b', anchor: 'middle', fw: '800' }));
+  const gates = [['Hadamard', 'H', 'Creates superposition'], ['Pauli-X', 'X', 'Quantum NOT'], ['Pauli-Z', 'Z', 'Phase flip'], ['CNOT', '⊕', 'Controlled NOT'], ['Toffoli', '•', 'CCNOT (3 qubit)'], ['Measure', 'M', 'Collapse to 0/1']];
+  gates.forEach((g, i) => { const sx = x + 25 + (i % 3) * 220; const sy = y + h * 0.18 + Math.floor(i / 3) * 90; segs.push(_rect(sx, sy, 200, 70, '#ffffff', '#7c3aed', 1.5, 8)); segs.push(_circle(sx + 50, sy + 35, 22, '#ede9fe', '#7c3aed', 2)); segs.push(_text(g[1], sx + 50, sy + 39, { fs: 14, color: '#5b21b6', anchor: 'middle', fw: '800' })); segs.push(_text(g[0], sx + 90, sy + 28, { fs: 12, color: '#1e293b', anchor: 'start', fw: '700' })); segs.push(_text(g[2], sx + 90, sy + 50, { fs: 9, color: '#64748b', anchor: 'start' })); });
+  segs.push(_text('Qubits | Superposition | Entanglement | Measurement', cx, y + h * 0.92, { fs: 10, color: '#94a3b8', anchor: 'middle' }));
+  return segs;
+}
+
+// =============================================================================
 // REGISTRATION - called to wire all shapes into SHAPE_REGISTRY and SHAPE_ALIASES
 // =============================================================================
 
@@ -2357,6 +2950,33 @@ export function registerProgrammingShapes(registry, aliases) {
     'data_pipeline': shapeDataPipeline, 'two_phase_commit': shapeTwoPhaseCommit,
     'dp_table_visual': shapeDynamicProgramming, 'lru_cache_premium': shapeLRUCachePremium,
     'big_o_cheatsheet': shapeBigONotation,
+    'code_block_syntax': shapeCodeBlockSyntax,
+    'linked_list_nodes': shapeLinkedListNodes,
+    'binary_tree_nodes': shapeBinaryTreeNodes,
+    'graph_nodes_edges': shapeGraphNodesEdges,
+    'sorting_bars': shapeSortingBars,
+    'flowchart_diagram': shapeFlowchartDiagram,
+    'uml_class': shapeUMLClass,
+    'big_o_card': shapeBigOCard,
+    'network_topology': shapeNetworkTopology,
+    'data_stream': shapeDataStream,
+    'stack_lifo': shapeStackLIFO,
+    'hash_table_buckets': shapeHashTableBuckets,
+    'dp_table_grid': shapeDPTableGrid,
+    'binary_search_animation': shapeBinarySearchAnimation,
+    // ── New CS domain shapes ──
+    'cpu_pipeline': shapeCPUPipeline, 'cache_memory': shapeCacheMemory, 'interrupt_handling': shapeInterruptHandling, 'simd': shapeSIMD,
+    'process_states': shapeProcessStates, 'scheduling_algos': shapeSchedulingAlgos, 'memory_paging': shapeMemoryPaging, 'deadlock': shapeDeadlock, 'virtual_memory': shapeVirtualMemory, 'filesystem': shapeFileSystem,
+    'osi_stack': shapeOSIStack, 'tcp_handshake': shapeTCPHandshake, 'dns_resolution': shapeDNSResolution, 'http2': shapeHTTP2, 'tls_handshake': shapeTLSHandshake, 'subnetting': shapeSubnetting,
+    'acid': shapeACID, 'normalization': shapeNormalization, 'indexing': shapeIndexing, 'transaction_isolation': shapeTransactionIsolation, 'replication': shapeReplication, 'sql_joins': shapeSQLJoins,
+    'encryption': shapeEncryption, 'owasp': shapeOWASP, 'xss': shapeXSS,
+    'lexer_parser': shapeLexerParser, 'ast_diagram': shapeAST, 'code_generation': shapeCodeGeneration,
+    'factory_pattern': shapeFactoryPattern, 'singleton': shapeSingleton, 'observer_pattern': shapeObserverPattern, 'decorator': shapeDecorator,
+    'type_systems': shapeTypeSystems, 'memory_management': shapeMemoryManagement, 'concurrency_models': shapeConcurrencyModels,
+    'string_matching': shapeStringMatching, 'segment_tree': shapeSegmentTree,
+    'boolean_algebra': shapeBooleanAlgebra, 'graph_theory': shapeGraphTheory, 'probability_cs': shapeProbability,
+    'agile_scrum': shapeAgileScrum, 'solid_principles': shapeSOLID,
+    'blockchain_deep': shapeBlockchainDeep, 'quantum_gates': shapeQuantumGates,
   };
 
   const aliasMap = {
@@ -2466,6 +3086,65 @@ export function registerProgrammingShapes(registry, aliases) {
     'dp visual': 'dp_table_visual', 'dp table visual': 'dp_table_visual',
     'lru visual': 'lru_cache_premium', 'lru cache visual': 'lru_cache_premium',
     'big o': 'big_o_cheatsheet', 'complexity': 'big_o_cheatsheet', 'big o notation': 'big_o_cheatsheet',
+    'syntax': 'code_block_syntax', 'syntax highlighting': 'code_block_syntax',
+    'linked list visual': 'linked_list_nodes', 'linked nodes': 'linked_list_nodes',
+    'binary tree visual': 'binary_tree_nodes', 'tree nodes': 'binary_tree_nodes',
+    'graph visual': 'graph_nodes_edges', 'node edge': 'graph_nodes_edges',
+    'sort visual': 'sorting_bars', 'bar sort': 'sorting_bars', 'sorting animation': 'sorting_bars',
+    'flowchart': 'flowchart_diagram', 'flow chart': 'flowchart_diagram',
+    'uml': 'uml_class', 'uml diagram': 'uml_class',
+    'big o card': 'big_o_card', 'big o notation card': 'big_o_card',
+    'network topology': 'network_topology', 'star topology': 'network_topology', 'topology': 'network_topology',
+    'data stream': 'data_stream', 'streaming': 'data_stream', 'stream': 'data_stream',
+    'stack visual': 'stack_lifo', 'stack animation': 'stack_lifo',
+    'hash table': 'hash_table_buckets', 'hash bucket': 'hash_table_buckets', 'hashing': 'hash_table_buckets',
+    'dp table': 'dp_table_grid', 'dp grid': 'dp_table_grid',
+    'binary search animation': 'binary_search_animation', 'binary search visual': 'binary_search_animation',
+    // ── CS domain aliases ──
+    'cpu': 'cpu_pipeline', 'pipeline': 'cpu_pipeline', 'cpu architecture': 'cpu_pipeline',
+    'memory hierarchy': 'cache_memory', 'cache hierarchy': 'cache_memory', 'ram': 'cache_memory',
+    'interrupt': 'interrupt_handling', 'irq': 'interrupt_handling', 'isr': 'interrupt_handling',
+    'simd': 'simd', 'vectorization': 'simd', 'parallel processing': 'simd',
+    'process state': 'process_states', 'process lifecycle': 'process_states',
+    'scheduling': 'scheduling_algos', 'scheduler': 'scheduling_algos', 'cpu scheduling': 'scheduling_algos',
+    'paging': 'memory_paging', 'page table': 'memory_paging', 'mmu': 'memory_paging',
+    'deadlock': 'deadlock', 'deadlock detection': 'deadlock', 'coffman': 'deadlock',
+    'virtual memory': 'virtual_memory', 'address translation': 'virtual_memory', 'tlb': 'virtual_memory',
+    'file system': 'filesystem', 'filesystem': 'filesystem', 'inode': 'filesystem', 'directory': 'filesystem',
+    'osi': 'osi_stack', 'osi model': 'osi_stack', '7 layers': 'osi_stack',
+    'tcp': 'tcp_handshake', 'three way handshake': 'tcp_handshake', 'connection': 'tcp_handshake',
+    'dns': 'dns_resolution', 'domain name': 'dns_resolution',
+    'http2': 'http2', 'http/2': 'http2', 'multiplexing': 'http2',
+    'tls': 'tls_handshake', 'ssl': 'tls_handshake', 'handshake': 'tls_handshake', 'certificate': 'tls_handshake',
+    'subnet': 'subnetting', 'cidr': 'subnetting', 'netmask': 'subnetting', 'ip': 'subnetting',
+    'acid': 'acid', 'transaction': 'acid', 'atomicity': 'acid',
+    'normalization': 'normalization', '1nf': 'normalization', '2nf': 'normalization', '3nf': 'normalization', 'bcnf': 'normalization',
+    'index': 'indexing', 'b+tree': 'indexing', 'b tree': 'indexing',
+    'isolation': 'transaction_isolation', 'isolation level': 'transaction_isolation',
+    'replication': 'replication', 'master slave': 'replication', 'primary replica': 'replication',
+    'join': 'sql_joins', 'inner join': 'sql_joins', 'left join': 'sql_joins', 'sql join': 'sql_joins',
+    'encryption': 'encryption', 'aes': 'encryption', 'rsa': 'encryption', 'crypto': 'encryption',
+    'owasp': 'owasp', 'vulnerability': 'owasp', 'top 10': 'owasp',
+    'xss': 'xss', 'cross site scripting': 'xss',
+    'lexer': 'lexer_parser', 'tokenizer': 'lexer_parser', 'lexical analysis': 'lexer_parser', 'parser': 'lexer_parser',
+    'ast': 'ast_diagram', 'abstract syntax tree': 'ast_diagram', 'parse tree': 'ast_diagram',
+    'code generation': 'code_generation', 'codegen': 'code_generation', 'ir': 'code_generation',
+    'factory': 'factory_pattern', 'factory design pattern': 'factory_pattern',
+    'singleton': 'singleton', 'singleton pattern': 'singleton',
+    'observer': 'observer_pattern', 'observer design pattern': 'observer_pattern', 'pub sub': 'observer_pattern',
+    'decorator': 'decorator', 'decorator pattern': 'decorator', 'wrapper': 'decorator',
+    'type system': 'type_systems', 'typing': 'type_systems', 'static typing': 'type_systems', 'dynamic typing': 'type_systems',
+    'memory management': 'memory_management', 'gc': 'memory_management', 'garbage collection': 'memory_management', 'raii': 'memory_management',
+    'concurrency': 'concurrency_models', 'actor model': 'concurrency_models', 'csp': 'concurrency_models', 'async': 'concurrency_models',
+    'kmp': 'string_matching', 'knuth morris pratt': 'string_matching', 'string search': 'string_matching',
+    'segment tree': 'segment_tree', 'range query': 'segment_tree', 'fenwick': 'segment_tree',
+    'boolean algebra': 'boolean_algebra', 'logic gate': 'boolean_algebra', 'truth table': 'boolean_algebra',
+    'graph theory': 'graph_theory', 'vertex': 'graph_theory', 'edge': 'graph_theory',
+    'probability': 'probability_cs', 'bayes': 'probability_cs', 'statistics': 'probability_cs',
+    'agile': 'agile_scrum', 'scrum': 'agile_scrum', 'sprint': 'agile_scrum', 'standup': 'agile_scrum',
+    'solid': 'solid_principles', 'solid principles': 'solid_principles', 'srp': 'solid_principles', 'ocp': 'solid_principles', 'lsp': 'solid_principles', 'isp': 'solid_principles', 'dip': 'solid_principles',
+    'consensus': 'blockchain_deep', 'pow': 'blockchain_deep', 'pos': 'blockchain_deep', 'mining': 'blockchain_deep',
+    'quantum': 'quantum_gates', 'quantum gate': 'quantum_gates', 'qubit': 'quantum_gates', 'quantum computing': 'quantum_gates',
   };
 
   for (const [key, fn] of Object.entries(shapes)) {

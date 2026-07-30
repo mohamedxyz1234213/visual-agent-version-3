@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { generateAILesson } from "@/features/teacher/api";
+import { generateAILesson, generateTemplateLesson } from "@/features/teacher/api";
 import { fetchDashboard, pollUploadStatus, getLesson } from "@/lib/api";
 import type { DashboardLesson, Lesson } from "@/lib/types";
 import {
@@ -191,14 +191,24 @@ export default function AILessonsPage() {
     stepStartedAtRef.current = { queued: 0 };
 
     try {
-      const res = await generateAILesson(topic.trim(), subjectId || undefined);
+      // Try template-based generation first (no AI calls needed)
+      const res = await generateTemplateLesson(topic.trim(), subjectId || undefined);
       setGenLessonId(res.id);
-    } catch (err: any) {
-      setGenError(err.message || "Failed to start lesson generation");
-      setIsError(true);
+      setGenStep("done");
       setGenerating(false);
+      loadLessons();
+    } catch (templateErr: any) {
+      // Fall back to AI generation
+      try {
+        const res = await generateAILesson(topic.trim(), subjectId || undefined);
+        setGenLessonId(res.id);
+      } catch (err: any) {
+        setGenError(err.message || "Failed to start lesson generation");
+        setIsError(true);
+        setGenerating(false);
+      }
     }
-  }, [topic, subjectId]);
+  }, [topic, subjectId, loadLessons]);
 
   // Poll for status
   useEffect(() => {
@@ -250,18 +260,20 @@ export default function AILessonsPage() {
   }
 
   async function handleOpenPreview(id: string) {
-    // Open modal immediately with the DashboardLesson data we already have
-    const existing = lessons.find((l) => l.id === id);
-    if (!existing) { handleViewLesson(id); return; }
     setPreviewLessonId(id);
-    setPreviewData(existing);
+    setPreviewData(null);
     setPreviewLesson(null);
     setPreviewLoading(true);
+
+    // Try to find existing data in the lessons list
+    const existing = lessons.find((l) => l.id === id);
+    if (existing) setPreviewData(existing);
 
     // Fetch full lesson with parts in the background
     try {
       const full = await getLesson(id);
       setPreviewLesson(full);
+      if (!existing) setPreviewData({ id, title: full.title, status: full.status, created_at: full.created_at, subject: full.subject, parts_count: full.parts?.length ?? 0, series_id: full.series_id, lesson_index: full.lesson_index, total_lessons: full.total_lessons, source_filename: full.source_filename, summary: full.summary } as DashboardLesson);
     } catch {
       // Parts will remain a loading skeleton — user can still view
     } finally {
@@ -288,9 +300,12 @@ export default function AILessonsPage() {
   }
 
   const currentStageIdx = getStageIdx(genStep);
+  const isReady = genStep === "done";
   const progress = isError
     ? Math.round((Math.max(0, currentStageIdx) / (STAGES.length - 1)) * 100)
-    : Math.min(99, Math.round(((currentStageIdx + 0.5) / (STAGES.length - 1)) * 100));
+    : isReady
+      ? 100
+      : Math.min(99, Math.round(((currentStageIdx + 0.5) / (STAGES.length - 1)) * 100));
 
   // ── Processing screen ─────────────────────────────────────────────────────
   if (generating || genLessonId) {
@@ -298,15 +313,15 @@ export default function AILessonsPage() {
       <div className="w-full rounded-[28px] border border-slate-200/90 bg-white/95 px-4 py-5 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur sm:px-5">
         <div className="w-full max-w-lg mx-auto py-6 px-2 flex flex-col items-center gap-6">
           <div className="text-center">
-            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3 ${isError ? "bg-red-100 text-red-500" : "bg-blue-100 text-blue-600"}`}>
-              {isError ? <IconAlert /> : <IconSpinner className="w-7 h-7" />}
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3 ${isError ? "bg-red-100 text-red-500" : isReady ? "bg-emerald-100 text-emerald-500" : "bg-blue-100 text-blue-600"}`}>
+              {isError ? <IconAlert /> : isReady ? <IconCheck className="w-7 h-7" /> : <IconSpinner className="w-7 h-7" />}
             </div>
             <h2 className="text-xl font-bold text-slate-800">
-              {isError ? "Generation Failed" : "Building Your Lesson"}
+              {isError ? "Generation Failed" : isReady ? "Lesson Ready!" : "Building Your Lesson"}
             </h2>
             <p className="text-sm text-slate-500 mt-1 font-mono">
               {topic}
-              {!isError && (
+              {!isError && !isReady && (
                 <>
                   <span className="mx-2 text-slate-300">·</span>
                   <span className="text-blue-500 font-medium">{formatElapsed(elapsed)}</span>
@@ -319,7 +334,7 @@ export default function AILessonsPage() {
             <div className="w-full">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-xs text-slate-500 truncate pr-2">
-                  {STAGES[Math.min(currentStageIdx, STAGES.length - 1)]?.desc}
+                  {isReady ? "Complete" : STAGES[Math.min(currentStageIdx, STAGES.length - 1)]?.desc}
                 </span>
                 <span className="text-sm font-bold text-blue-600 font-mono tabular-nums shrink-0">{progress}%</span>
               </div>
@@ -334,8 +349,8 @@ export default function AILessonsPage() {
 
           <div className="w-full flex flex-col gap-1.5">
             {STAGES.map((stage, idx) => {
-              const isDone   = idx < currentStageIdx;
-              const isActive = !isError && idx === currentStageIdx;
+              const isDone   = isReady || idx < currentStageIdx;
+              const isActive = !isError && !isReady && idx === currentStageIdx;
               const isFailed = isError && idx === currentStageIdx;
 
               return (
@@ -365,7 +380,7 @@ export default function AILessonsPage() {
                     </p>
                   </div>
                   {isActive && <span className="text-xs text-blue-400 animate-pulse shrink-0">running…</span>}
-                  {isDone && (
+                  {isDone && !isReady && (
                     <span className="text-xs text-emerald-500 shrink-0"><IconCheck className="w-4 h-4" /></span>
                   )}
                 </div>
@@ -379,6 +394,25 @@ export default function AILessonsPage() {
               <button onClick={resetGen} className="px-5 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition">
                 Try Again
               </button>
+            </div>
+          ) : isReady ? (
+            <div className="flex flex-col items-center gap-3 text-center">
+              <p className="text-xs text-slate-400">Your lesson was created successfully and is ready to assign.</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { if (genLessonId) handleOpenPreview(genLessonId); }}
+                  className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 transition"
+                >
+                  <IconEye size={16} />
+                  View Lesson
+                </button>
+                <button
+                  onClick={resetGen}
+                  className="px-5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition"
+                >
+                  Generate Another
+                </button>
+              </div>
             </div>
           ) : (
             <p className="text-xs text-slate-400 text-center">
@@ -811,19 +845,12 @@ export default function AILessonsPage() {
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t border-slate-200/80 flex items-center justify-between">
+            <div className="px-6 py-4 border-t border-slate-200/80 flex items-center justify-end">
               <button
                 onClick={closePreview}
                 className="px-5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition"
               >
                 Close
-              </button>
-              <button
-                onClick={() => handleViewLesson(previewLesson?.id || previewLessonId || "")}
-                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 transition"
-              >
-                <IconEye size={16} />
-                View Full Lesson
               </button>
             </div>
           </div>
