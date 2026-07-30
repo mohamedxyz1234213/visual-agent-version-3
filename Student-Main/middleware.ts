@@ -10,10 +10,3 @@ import type { NextRequest } from "next/server";
 export function middleware(_request: NextRequest) {}
 
 export const config = { matcher: [] };
-
-export const config = {
-  matcher: [
-    // Match all routes except static files
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-  ],
-};
