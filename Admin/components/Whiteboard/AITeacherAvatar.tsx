@@ -16,7 +16,7 @@ export default function AITeacherAvatar({ viewWidth, viewHeight, zoom, isActive 
   const pixW = viewWidth * zoom;
   const pixH = viewHeight * zoom;
   const avatarW = Math.round(pixW * 0.16);
-  const avatarH = Math.round(avatarW * (1264 / 848));
+  const avatarH = avatarW;
   const pos = useMemo(() => ({ x: pixW - avatarW - 24, y: pixH - avatarH - 24 }), [pixW, pixH, avatarW, avatarH]);
 
   if (!isActive) return null;

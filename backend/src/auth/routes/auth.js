@@ -145,17 +145,17 @@ router.post('/complete-signup', async (req, res, next) => {
       return bad(res, 'Too many attempts. Try again shortly.', 429);
     }
 
-    const token = String(req.body?.token || '').trim();
+    const inviteToken = String(req.body?.token || '').trim();
     const email = String(req.body?.email || '').trim().toLowerCase();
     const username = String(req.body?.username || '').trim().toLowerCase();
     const password = String(req.body?.password || '');
 
-    if (!token) return bad(res, 'Missing invite token.', 400);
+    if (!inviteToken) return bad(res, 'Missing invite token.', 400);
     if (!EMAIL_RE.test(email)) return bad(res, 'Please provide a valid email address.');
     if (!USERNAME_RE.test(username)) return bad(res, 'Username must be 3–32 characters: lowercase letters, digits, dot, dash, or underscore.');
     if (password.length < 8) return bad(res, 'Password must be at least 8 characters.');
 
-    const invite = await EarlyAccessRequest.findOne({ inviteToken: token });
+    const invite = await EarlyAccessRequest.findOne({ inviteToken });
     if (!invite) return bad(res, 'Invite link is invalid or has been revoked.', 404);
     if (invite.status !== 'approved') return bad(res, 'This invite is no longer active.', 410);
     if (!invite.inviteExpiresAt || new Date(invite.inviteExpiresAt) < new Date()) {
