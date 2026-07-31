@@ -9,6 +9,8 @@ const TOPICS = process.env.TOPICS
   ? process.env.TOPICS.split('||').map((topic) => topic.trim()).filter(Boolean)
   : [TOPIC];
 const OUT_DIR = process.env.OUT_DIR || '/tmp/visual-agent-lessons';
+const MAX_POLLS = Math.max(1, Number(process.env.MAX_POLLS) || 600);
+const POLL_INTERVAL_MS = Math.max(500, Number(process.env.POLL_INTERVAL_MS) || 2500);
 const { mkdirSync, writeFileSync } = await import('node:fs');
 const { join } = await import('node:path');
 
@@ -33,8 +35,8 @@ async function generateLesson(topic, outputPath) {
 
   let last = '';
   let ready = false;
-  for (let i = 0; i < 180; i++) {
-    await sleep(2500);
+  for (let i = 0; i < MAX_POLLS; i++) {
+    await sleep(POLL_INTERVAL_MS);
     const s = await fetch(`${BASE}/upload/status/${id}`, { headers: authHeaders }).then((r) => r.json()).catch(() => ({}));
     if (s.processing_step && s.processing_step !== last) { last = s.processing_step; process.stdout.write(`  · ${last}\n`); }
     if (s.status === 'ready') { ready = true; break; }

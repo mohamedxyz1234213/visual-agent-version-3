@@ -691,11 +691,14 @@ export function composeStoryboard(pscenes, ctx, durationSeconds) {
       });
       let ci = 0;
       let captionCursor = winStart;
+      const visualTimes = out
+        .filter((scene) => scene.time >= winStart && !['camera', 'clear', 'draw_caption'].includes(scene.type))
+        .map((scene) => scene.time);
       clausesByUnit.forEach((clauses, ui) => {
         if (!clauses.length) return;
         const base = unitStartTimes[ui] != null ? unitStartTimes[ui] : winStart + (ui / units.length) * span;
         captionCursor = Math.max(captionCursor, base);
-        clauses.forEach((cap) => {
+        clauses.forEach((cap, clauseIndex) => {
           const captionTime = captionCursor;
           out.push({
             type: 'draw_caption',
@@ -707,6 +710,21 @@ export function composeStoryboard(pscenes, ctx, durationSeconds) {
             estimatedDurationSeconds: round(sayDwellSeconds(cap)),
             time: round(captionTime),
           });
+          // Every spoken clause must have a visible teaching response. When a
+          // template has fewer drawable fragments than narration clauses, add
+          // a brief underline pulse beneath the clause's current concept. This
+          // preserves the exact caption/TTS clock while preventing a completed
+          // board from sitting frozen through the rest of the explanation.
+          const hasCoupledDraw = visualTimes.some((time) => Math.abs(time - captionTime) <= 0.65);
+          if (!hasCoupledDraw) {
+            const emphasis = emphasisLineForUnit(units[ui], clauseIndex);
+            out.push({
+              ...emphasis,
+              time: round(captionTime),
+              narration_emphasis: true,
+            });
+            visualTimes.push(captionTime);
+          }
           captionCursor += dwellForCaptionChunk(cap) * segMult;
           ci += 1;
         });
@@ -962,6 +980,45 @@ function distributeCaptions(units, captions) {
 
 function countConnectors(units) {
   return units.filter((u) => u.role === 'connector').length;
+}
+
+function emphasisLineForUnit(unit, pulseIndex = 0) {
+  const fragments = Array.isArray(unit?.fragments) ? unit.fragments : [];
+  const label = fragments.find((frag) => frag.type === 'draw_text' && Array.isArray(frag.position));
+  if (label) {
+    const [x, y] = label.position;
+    const fontSize = Number(label.style?.fontSize) || 14;
+    const width = Math.min(180, Math.max(54, String(label.content || '').length * fontSize * 0.38));
+    const anchor = label.style?.textAnchor || 'start';
+    const startX = anchor === 'middle' ? x - width / 2 : anchor === 'end' ? x - width : x;
+    const lineY = Math.min(CAPTION_TOP - 12, y + 7 + (pulseIndex % 2));
+    return {
+      type: 'draw_line',
+      from: [Math.max(24, startX), lineY],
+      to: [Math.min(CANVAS.w - 24, startX + width), lineY],
+      style: { color: '#f59e0b', strokeWidth: 3, opacity: 0.82 },
+    };
+  }
+
+  const container = fragments.find((frag) => frag.type === 'draw_rect');
+  if (container) {
+    const startX = Number(container.x) || 80;
+    const width = Math.min(180, Math.max(54, Number(container.width) || 120));
+    const lineY = Math.min(CAPTION_TOP - 12, (Number(container.y) || 120) + 8);
+    return {
+      type: 'draw_line',
+      from: [Math.max(24, startX), lineY],
+      to: [Math.min(CANVAS.w - 24, startX + width), lineY],
+      style: { color: '#f59e0b', strokeWidth: 3, opacity: 0.82 },
+    };
+  }
+
+  return {
+    type: 'draw_line',
+    from: [310, CAPTION_TOP - 14],
+    to: [490, CAPTION_TOP - 14],
+    style: { color: '#f59e0b', strokeWidth: 3, opacity: 0.82 },
+  };
 }
 
 // Split a beat's narration into short, readable caption breaths (≤ 6 words)

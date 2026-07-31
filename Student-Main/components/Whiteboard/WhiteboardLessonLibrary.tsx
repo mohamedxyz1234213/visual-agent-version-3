@@ -138,7 +138,7 @@ export function WhiteboardLessonLibrary({ icon, title, subtitle, teacher }: { ic
 
       {/* Stats row */}
       {stats && (
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard label="Total" value={stats.total} color="#0F0F0F" bg="#F5F5F5" />
           <StatCard label="Ready" value={stats.ready} color="#059669" bg="#ECFDF5" />
           <StatCard label="Processing" value={stats.processing} color="#D97706" bg="#FFFBEB" />

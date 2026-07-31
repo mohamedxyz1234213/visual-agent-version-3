@@ -3789,7 +3789,7 @@ function gen(recipe) {
       // Left-side figure for splitList layouts (a real diagram when the text
       // hints one, else a thematic icon) — fills the reserved left half.
       if (skeleton === 'splitList') {
-        const fig = pickDiagramForText(ctx.title, d.headline, ...(items.map((it) => it.title)));
+        const fig = d.diagram || pickDiagramForText(ctx.title, d.headline, ...(items.map((it) => it.title)));
         if (fig) s.push(...shape(fig, 70, 170, 200, 200));
         else s.push(obj('lightbulb', 96, 210, 150, 150, { label: anchor(ctx.title || '', 3) }));
       }

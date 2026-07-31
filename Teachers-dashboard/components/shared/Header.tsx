@@ -59,9 +59,9 @@ export function Header({ title, subtitle, username, onLogout, onToggleSidebar, s
   };
 
   return (
-    <header className="sticky top-0 z-40 flex items-center justify-between px-0 py-4 mb-6">
+    <header className="sticky top-0 z-40 flex items-center justify-between gap-2 px-0 py-4 mb-6">
       {/* Left: Hamburger + Page Title */}
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <button
           onClick={onToggleSidebar}
           className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-black/5 transition-colors"
@@ -73,18 +73,18 @@ export function Header({ title, subtitle, username, onLogout, onToggleSidebar, s
             <line x1="3" y1="18" x2="21" y2="18" />
           </svg>
         </button>
-        <div>
-          <h1 className="text-[28px] font-bold text-[#0F0F0F] tracking-tight leading-tight">
+        <div className="min-w-0">
+          <h1 className="truncate text-xl font-bold text-[#0F0F0F] tracking-tight leading-tight sm:text-[28px]">
             {title}
           </h1>
           {subtitle && (
-            <p className="text-[13px] text-[#6B6B6B] mt-0.5">{subtitle}</p>
+            <p className="hidden truncate text-[13px] text-[#6B6B6B] mt-0.5 sm:block">{subtitle}</p>
           )}
         </div>
       </div>
 
       {/* Right: Notifications + Message + Profile */}
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         {/* Date label */}
         <span className="text-[13px] text-[#6B6B6B] hidden lg:block">
           {new Date().toLocaleDateString("en-US", {
@@ -123,7 +123,7 @@ export function Header({ title, subtitle, username, onLogout, onToggleSidebar, s
           {showNotifications && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-              <div className="absolute right-0 mt-2 w-[380px] bg-white rounded-2xl shadow-xl border border-slate-200 z-50 max-h-[500px] flex flex-col">
+              <div className="absolute right-0 mt-2 flex max-h-[min(500px,70vh)] w-[calc(100vw-24px)] max-w-[380px] flex-col rounded-2xl border border-slate-200 bg-white shadow-xl z-50">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white">Notifications</h3>
                   {unreadCount > 0 && (

@@ -90,7 +90,7 @@ export function AdminShell({ children, pageTitle, pageKicker, pageActions }: {
         </div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-[1400px] gap-6 px-4 py-6 sm:px-6">
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 px-4 py-4 sm:px-6 sm:py-6 lg:flex-row lg:gap-6">
         {/* ── Sidebar ──────────────────────────────────────────────────── */}
         <aside
           className={`${mobileOpen ? "block" : "hidden"} lg:block w-full lg:w-60 lg:shrink-0`}

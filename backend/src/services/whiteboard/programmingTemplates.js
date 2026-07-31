@@ -522,7 +522,7 @@ define({
       s.push(rect(x, y, boxW, boxH, { fill: colors[i], stroke: colors[i], rx: 10 }));
       s.push(txt(lb, x + 80, y + boxH / 2 + 5, { fontSize: 15, fontWeight: '800', color: '#ffffff' }));
       const detail = layers[i] ? itemText(layers[i]) : '';
-      if (detail) s.push(txt(anchor(detail, 8), x + 100, y + boxH / 2 + 5, { fontSize: 11, fontWeight: '500', color: '#e2e8f0', textAnchor: 'start' }));
+      if (detail) s.push(txt(anchor(detail, 8), x + 190, y + boxH / 2 + 5, { fontSize: 11, fontWeight: '500', color: '#e2e8f0', textAnchor: 'start' }));
       if (i < n - 1) s.push(arrow([W / 2, y + boxH], [W / 2, y + boxH + gap], { color: '#94a3b8', strokeWidth: 2, dashed: true }));
     });
     s.push(txt('\u2191 User action flows through controller to model', 140, 445, { fontSize: 11, color: '#64748b', fontStyle: 'italic' }));
@@ -576,15 +576,15 @@ define({
     s.push(badge('Git History', 56, 104, { bg: p.accent }));
     const branches = (d.branches || d.items || []).slice(0, 4);
     const n = Math.max(branches.length, 1);
-    const baseY = 200;
+    const baseY = 390;
     const colors = ['#2563eb', '#ea580c', '#7c3aed', '#16a34a'];
     // Horizontal baseline (main)
     s.push(line([60, baseY], [740, baseY], { color: '#94a3b8', strokeWidth: 3 }));
     s.push(circle(100, baseY, 10, { fill: '#ffffff', stroke: '#1e293b', strokeWidth: 2.5 }));
     s.push(txt('main', 100, baseY + 26, { fontSize: 11, fontWeight: '800', color: '#475569', textAnchor: 'middle' }));
     branches.forEach((br, i) => {
-      const branchY = baseY - 50 - i * 60;
-      const startX = 200 + i * 60;
+      const branchY = 140 + i * 62;
+      const startX = 130 + i * 70;
       const col = colors[i % colors.length];
       const title = itemText(br.title || br);
       s.push(circle(startX, baseY, 8, { fill: col, stroke: col }));
@@ -653,7 +653,7 @@ define({
     const defs = ['Reproduce Bug', 'Isolate Cause', 'Fix Code', 'Test Fix', 'Deploy'];
     const list = steps.length ? steps : defs.map((t) => ({ title: t }));
     const n = Math.max(list.length, 1);
-    const boxW = 160, boxH = 80, gap = 20;
+    const boxW = 124, boxH = 80, gap = 16;
     const total = boxW * n + gap * (n - 1);
     const x0 = (W - total) / 2, y = 230;
     s.push(obj('bug', 40, 140, 80, 80, { accent: '#dc2626' }));
@@ -1939,8 +1939,8 @@ define({
     list.slice(0, 3).forEach((st, i) => {
       s.push(circle(cx[i], 240, 48, { fill: cols[i], stroke: cols[i] }));
       s.push(txt(anchor(itemText(st.title || st), 4), cx[i], 245, { fontSize: 14, fontWeight: '800', color: '#ffffff', textAnchor: 'middle' }));
-      s.push(obj(icons[i], cx[i] - 14, 270, 28, 28, { accent: '#ffffff' }));
-      if (st.detail) s.push(txt(anchor(st.detail, 8), cx[i], 320, { fontSize: 10, fontWeight: '500', color: '#475569', textAnchor: 'middle' }));
+      s.push(obj(icons[i], cx[i] - 14, 300, 28, 28, { accent: cols[i] }));
+      if (st.detail) s.push(txt(anchor(st.detail, 8), cx[i], 350, { fontSize: 10, fontWeight: '500', color: '#475569', textAnchor: 'middle' }));
     });
     s.push(arrow([228, 240], [352, 240], { color: '#16a34a', strokeWidth: 2.5 }));
     s.push(arrow([228, 240], [352, 240], { color: '#dc2626', strokeWidth: 2.5, dashed: true }));
@@ -2035,7 +2035,7 @@ define({
     s.push(callout('Same key encrypts & decrypts', 60, 163, 330));
     s.push(callout('Different keys for each direction', 420, 163, 330));
     list.slice(0, 4).forEach((pt, i) => {
-      const y = 195 + i * 56;
+      const y = 232 + i * 50;
       s.push(rect(50, y, 340, 44, { stroke: '#f59e0b', strokeWidth: 1.4, fill: i % 2 === 0 ? '#fffbeb' : '#ffffff', rx: 4 }));
       s.push(txt(anchor(pt.sym || '', 10), 220, y + 26, { fontSize: 12, fontWeight: '600', color: '#1e293b', textAnchor: 'middle' }));
       s.push(rect(410, y, 340, 44, { stroke: '#7c3aed', strokeWidth: 1.4, fill: i % 2 === 0 ? '#f5f3ff' : '#ffffff', rx: 4 }));
@@ -2152,9 +2152,8 @@ define({
     const defs = ['myObject', 'Object.prototype', 'null'];
     const list = chain.length ? chain : defs.map((t) => ({ title: t }));
     const n = Math.min(list.length, 4);
-    const boxW = 260, boxH = 60, gap = 50;
-    const total = boxH * n + gap * (n - 1);
-    const y0 = (500 - total) / 2 + 30;
+    const boxW = 260, boxH = 60, gap = 30;
+    const y0 = 112;
     const cols = ['#2563eb', '#16a34a', '#f59e0b', '#dc2626'];
     list.slice(0, n).forEach((c, i) => {
       const y = y0 + i * (boxH + gap);
@@ -2913,7 +2912,7 @@ define({
 
 // ── P85. WEB STORAGE COMPARISON ─────────────────────────────────────────────────
 define({
-  id: 'prog_web_storage', intent: 'compare', label: 'localStorage vs sessionStorage vs cookies',
+  id: 'prog_web_storage', intent: 'compare', label: 'Browser storage options',
   capacity: { points: 5 },
   fill(d, ctx) {
     const p = PALETTES[3];
@@ -3448,7 +3447,7 @@ define({
     s.push(txt('Pipeline States', 400, 282, { fontSize: 13, fontWeight: '700', color: '#94a3b8', textAnchor: 'middle' }));
     const stagesList = ['IF', 'ID', 'EX', 'MEM', 'WB'];
     stagesList.forEach((st, i) => {
-      const x = 100 + i * 140;
+      const x = 85 + i * 130;
       s.push(rect(x, 294, 110, 30, { fill: p.soft, stroke: p.accent, strokeWidth: 1, rx: 4 }));
       s.push(txt(st, x + 55, 314, { fontSize: 11, fontWeight: '700', color: p.accent, textAnchor: 'middle' }));
     });
@@ -3592,7 +3591,7 @@ define({
     });
     s.push(txt('Tape (infinite →)', 400, 188, { fontSize: 11, fontWeight: '600', color: '#64748b', textAnchor: 'middle' }));
     s.push(rect(tapeX0 + 3 * cellW - 8, 260, cellW + 16, 20, { fill: p.accent, stroke: p.accent, rx: 4 }));
-    s.push(txt('Read/Write Head', tapeX0 + 3 * cellW, 275, { fontSize: 8, fontWeight: '700', color: '#ffffff', textAnchor: 'middle' }));
+    s.push(txt('Read/Write Head', tapeX0 + 3 * cellW + cellW / 2, 275, { fontSize: 8, fontWeight: '700', color: '#ffffff', textAnchor: 'middle' }));
     s.push(arrow([tapeX0 + 3 * cellW + cellW / 2, 248], [tapeX0 + 3 * cellW + cellW / 2, 262], { color: p.accent, strokeWidth: 2 }));
     s.push(rect(200, 310, 400, 60, { fill: p.soft, stroke: p.accent, strokeWidth: 1.5, rx: 8 }));
     s.push(txt('Finite Control (States)', 400, 330, { fontSize: 12, fontWeight: '700', color: p.deep, textAnchor: 'middle' }));
@@ -3701,7 +3700,7 @@ define({
     const list = changes.length ? changes : defs;
     const n = Math.min(list.length, 8);
     const lineH = 28;
-    const startY = 120;
+    const startY = 138;
     const diffW = 600;
     const diffX = (W - diffW) / 2;
     s.push(rect(diffX, 100, diffW, 30, { fill: '#0f172a', stroke: '#334155', rx: 6 }));

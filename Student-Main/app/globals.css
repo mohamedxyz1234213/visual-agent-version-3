@@ -23,6 +23,9 @@
 
 html, body {
   overflow-x: hidden;
+  width: 100%;
+  min-height: 100%;
+  -webkit-text-size-adjust: 100%;
   color: var(--flux-text-primary);
   background-color: var(--flux-canvas);
   font-feature-settings: 'cv11', 'ss01';
@@ -39,10 +42,34 @@ html, body {
 
 img, svg, video, canvas {
   max-width: 100%;
+  height: auto;
 }
 
 button, input, select, textarea {
   max-width: 100%;
+}
+
+main, section, article, header, footer, nav, aside, form, fieldset,
+.flex, .grid {
+  min-width: 0;
+}
+
+p, h1, h2, h3, h4, h5, h6, li, dd, dt, a, button, label {
+  overflow-wrap: anywhere;
+}
+
+pre, code {
+  max-width: 100%;
+}
+
+pre {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.overflow-x-auto {
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 :focus-visible {

@@ -442,5 +442,27 @@ console.log('\n[13] Caption timestamps reserve the complete spoken window');
   ok(noSpeechOverlap, `no caption starts before the previous caption can finish speaking${overlapDetail}`);
 }
 
+console.log('\n[14] Long narration stays visually active through its final spoken clause');
+{
+  const longSay = 'A node stores one value and one pointer. The pointer identifies the next node in the chain. The head variable identifies the first node. Traversal follows each pointer in order. The final pointer is null, which clearly marks the end of the list.';
+  const seq = composeStoryboard([{
+    intent: 'define',
+    goal: 'explain a linked-list node',
+    data: { headline: 'Linked-list node', definition: 'Value plus next pointer', points: ['Value', 'Next pointer'] },
+    say: longSay,
+  }], { title: 'Linked Lists', lessonTitle: 'Data Structures' }, 120);
+  const captions = seq.filter((scene) => scene.type === 'draw_caption');
+  const draws = seq
+    .filter((scene) => !['camera', 'clear', 'draw_caption'].includes(scene.type))
+    .map((scene) => Number(scene.time) || 0)
+    .sort((a, b) => a - b);
+  const speechEnd = captions.reduce((end, caption) => Math.max(end, caption.time + caption.estimatedDurationSeconds), 0);
+  let worstGap = draws.length ? draws[0] : speechEnd;
+  for (let i = 1; i < draws.length; i++) worstGap = Math.max(worstGap, draws[i] - draws[i - 1]);
+  worstGap = Math.max(worstGap, speechEnd - (draws[draws.length - 1] || 0));
+  ok(worstGap <= 3.2, `caption-coupled visual emphasis prevents frozen narration gaps (worst=${worstGap.toFixed(1)}s)`);
+  ok(seq.some((scene) => scene.narration_emphasis === true), 'long narration emits semantic emphasis pulses when template fragments run out');
+}
+
 console.log(`\n${failures === 0 ? '✅ ALL PIPELINE TESTS PASSED' : `❌ ${failures} CHECK(S) FAILED`}\n`);
 process.exit(failures === 0 ? 0 : 1);
