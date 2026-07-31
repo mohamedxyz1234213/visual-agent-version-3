@@ -115,6 +115,15 @@ function pickAnimation(id: string, pool: string[]): string {
   return pool[Math.abs(hash) % pool.length];
 }
 
+function isCaptionSpeechActive(scenes: StoryboardScene[], elapsed: number): boolean {
+  const captions = scenes.filter((scene) => scene.action_type === "draw_caption");
+  if (!captions.length) return true;
+  return captions.some((scene) => {
+    const duration = Math.max(0.25, Number(scene.payload.estimatedDurationSeconds) || 1.2);
+    return elapsed >= scene.time_offset && elapsed < scene.time_offset + duration;
+  });
+}
+
 export interface WhiteboardProps {
   scenes: StoryboardScene[];
   elapsed: number;
@@ -154,6 +163,7 @@ export default function Whiteboard({
   const renderedIds = useRef<Set<string>>(new Set());
   const prevElapsed = useRef<number>(-1);
   const sandboxNotified = useRef<Set<string>>(new Set());
+  const avatarIsSpeaking = isSpeaking && isCaptionSpeechActive(scenes, elapsed);
 
   // Reset when the scene list changes (new lesson part loaded)
   useEffect(() => {
@@ -498,7 +508,7 @@ export default function Whiteboard({
         viewHeight={height}
         zoom={zoom}
         isActive={showAvatar}
-        isSpeaking={isSpeaking}
+        isSpeaking={avatarIsSpeaking}
       />
 
       {/* Sandbox question overlay — HTML overlay on top of the SVG */}
@@ -2465,51 +2475,90 @@ function DrawHighlight({ id, p }: { id: string; p: DrawHighlightP }) {
 
 interface DrawCodeBlockP {
   code: string;
-  language: string;
-  position: [number, number];
+  language?: string;
+  position?: [number, number];
+  x?: number;
+  y?: number;
   width?: number;
   height?: number;
   highlight_lines?: number[];
   title?: string;
+  filename?: string;
+  visible_lines?: number;
+  active_line?: number;
+  command?: string;
+  output?: string;
+  execution_status?: "idle" | "running" | "success" | "error";
+  test_results?: Array<{ name: string; status: "pass" | "fail"; message?: string }>;
 }
 
 function DrawCodeBlock({ id, p }: { id: string; p: DrawCodeBlockP }) {
-  const [x, y] = p.position ?? [50, 50];
-  const w = p.width ?? 400;
-  const h = p.height ?? 160;
+  const [x, y] = p.position ?? [p.x ?? 50, p.y ?? 50];
+  const w = p.width ?? 520;
+  const h = p.height ?? 280;
   const lang = p.language ?? "javascript";
   const code = p.code ?? "";
   const highlightLines = p.highlight_lines ?? [];
-  const title = p.title;
+  const filename = p.filename ?? p.title ?? `main.${lang === "python" ? "py" : lang === "typescript" ? "ts" : lang === "javascript" ? "js" : lang}`;
+  const status = p.execution_status ?? (p.output ? "success" : "idle");
+  const statusColor = status === "error" ? "#f87171" : status === "running" ? "#fbbf24" : status === "success" ? "#4ade80" : "#94a3b8";
+  const hasTerminal = Boolean(p.command || p.output || p.test_results?.length);
+  const terminalH = hasTerminal ? Math.min(104, Math.max(70, h * 0.34)) : 0;
+  const statusH = 16;
+  const editorTop = y + 52;
+  const editorBottom = y + h - terminalH - statusH;
+  const lineHeight = 16;
   const codeLines = code.split("\n");
-  const maxVisibleLines = Math.min(codeLines.length, Math.floor((h - 40) / 18));
-  const visibleLines = codeLines.slice(0, maxVisibleLines);
+  const requestedLines = p.visible_lines ?? codeLines.length;
+  const maxVisibleLines = Math.max(1, Math.floor((editorBottom - editorTop - 8) / lineHeight));
+  const visibleLines = codeLines.slice(0, Math.min(requestedLines, maxVisibleLines));
+  const activeLine = p.active_line ?? highlightLines[0];
+  const terminalLines = [
+    ...(p.command ? [`$ ${p.command}`] : []),
+    ...String(p.output ?? "").split("\n").filter(Boolean),
+    ...(p.test_results ?? []).map((test) => `${test.status === "pass" ? "✓" : "✗"} ${test.name}${test.message ? ` — ${test.message}` : ""}`),
+  ].slice(0, 4);
+  const clipId = `wb-code-clip-${id}`;
 
   return (
-    <g key={id} className="wb-code-type">
-      <rect x={x} y={y} width={w} height={h} rx={8} fill="#1e293b" stroke="#334155" strokeWidth={1.5} filter="url(#wb-shadow)" />
-      <rect x={x} y={y} width={w} height={28} rx={8} fill="#0f172a" />
-      <rect x={x} y={y + 18} width={w} height={10} fill="#0f172a" />
-      <circle cx={x + 16} cy={y + 14} r={4.5} fill="#ef4444" />
-      <circle cx={x + 32} cy={y + 14} r={4.5} fill="#eab308" />
-      <circle cx={x + 48} cy={y + 14} r={4.5} fill="#22c55e" />
-      {title && (
-        <text x={x + w / 2} y={y + 18} textAnchor="middle" fontSize={11} fill="#94a3b8" fontWeight="600">{title}</text>
-      )}
-      <text x={x + 12} y={y + 48} fontFamily="monospace" fontSize={12} fill="#e2e8f0">
+    <g key={id} className="wb-code-type" role="img" aria-label={`${filename} code editor with ${status} execution status`}>
+      <defs><clipPath id={clipId}><rect x={x} y={y} width={w} height={h} rx={8} /></clipPath></defs>
+      <g clipPath={`url(#${clipId})`}>
+        <rect x={x} y={y} width={w} height={h} rx={8} fill="#1e1e1e" stroke="#3c3c3c" strokeWidth={1.5} filter="url(#wb-shadow)" />
+        <rect x={x} y={y} width={w} height={26} fill="#181818" />
+        <circle cx={x + 14} cy={y + 13} r={4} fill="#ff5f57" /><circle cx={x + 28} cy={y + 13} r={4} fill="#febc2e" /><circle cx={x + 42} cy={y + 13} r={4} fill="#28c840" />
+        <text x={x + w / 2} y={y + 17} textAnchor="middle" fontSize={9} fill="#a0a0a0" fontFamily="monospace">Visual Studio Code</text>
+        <rect x={x} y={y + 26} width={w} height={26} fill="#252526" />
+        <rect x={x + 30} y={y + 26} width={Math.min(180, w * 0.42)} height={26} fill="#1e1e1e" />
+        <text x={x + 40} y={y + 43} fontSize={10} fill="#e4e4e7" fontFamily="monospace">● {filename}</text>
+        <text x={x + w - 12} y={y + 43} textAnchor="end" fontSize={9} fill="#858585" fontFamily="monospace">{lang}</text>
+        <rect x={x} y={editorTop} width={32} height={Math.max(0, editorBottom - editorTop)} fill="#181818" />
         {visibleLines.map((line, i) => {
           const lineNum = i + 1;
-          const isHighlighted = highlightLines.includes(lineNum);
+          const lineY = editorTop + 14 + i * lineHeight;
+          const isHighlighted = highlightLines.includes(lineNum) || activeLine === lineNum;
           return (
-            <tspan key={i} x={x + 12} dy={i === 0 ? 0 : 18}>
-              {isHighlighted && (
-                <tspan fill="#fbbf24" fontWeight="700">{"\u25B6 "}</tspan>
-              )}
-              <tspan fill={isHighlighted ? "#fde68a" : "#e2e8f0"}>{line}</tspan>
-            </tspan>
+            <g key={i} className="wb-line-reveal" style={{ animationDelay: `${Math.min(i * 0.08, 0.56)}s` }}>
+              {isHighlighted && <rect x={x + 32} y={lineY - 12} width={w - 32} height={lineHeight} fill={activeLine === lineNum ? "#094771" : "#2a2d2e"} />}
+              <text x={x + 24} y={lineY} textAnchor="end" fontFamily="monospace" fontSize={10} fill="#858585">{lineNum}</text>
+              <text x={x + 40} y={lineY} fontFamily="monospace" fontSize={11} fill={isHighlighted ? "#ffffff" : "#d4d4d4"} xmlSpace="preserve">{line || " "}</text>
+              {activeLine === lineNum && <rect x={Math.min(x + w - 12, x + 40 + line.length * 6.6)} y={lineY - 11} width={1.5} height={13} fill="#aeafad" />}
+            </g>
           );
         })}
-      </text>
+        {hasTerminal && (
+          <g className="wb-line-reveal">
+            <rect x={x} y={editorBottom} width={w} height={terminalH} fill="#181818" stroke="#3c3c3c" strokeWidth={1} />
+            <text x={x + 12} y={editorBottom + 16} fontSize={9} fill="#cccccc" fontWeight="700" letterSpacing="0.08em">TERMINAL</text>
+            <line x1={x + 10} y1={editorBottom + 22} x2={x + 68} y2={editorBottom + 22} stroke="#007acc" strokeWidth={2} />
+            {terminalLines.map((line, i) => <text key={i} x={x + 12} y={editorBottom + 38 + i * 14} fontFamily="monospace" fontSize={10} fill={line.startsWith("✗") ? "#f87171" : line.startsWith("✓") ? "#4ade80" : "#d4d4d4"}>{line}</text>)}
+          </g>
+        )}
+        <rect x={x} y={y + h - statusH} width={w} height={statusH} fill={status === "error" ? "#7f1d1d" : "#007acc"} />
+        <circle cx={x + 10} cy={y + h - 8} r={3} fill={statusColor} />
+        <text x={x + 18} y={y + h - 5} fontSize={8.5} fill="#ffffff" fontFamily="monospace">{status === "running" ? "Running…" : status === "success" ? "Run completed" : status === "error" ? "Execution failed" : "Ready"}</text>
+        <text x={x + w - 10} y={y + h - 5} textAnchor="end" fontSize={8.5} fill="#ffffff" fontFamily="monospace">{lang}</text>
+      </g>
     </g>
   );
 }

@@ -182,22 +182,27 @@ function fitText(content, cx, boxTopY, boxW, boxH, opts = {}) {
 
 // ── Code block renderer ──────────────────────────────────────────────────────
 function codeBlock(lines, x, y, w, h, lang, opts = {}) {
-  const out = [];
-  const list = (lines || []).slice(0, 10).map(itemText);
-  const panelH = Math.max(60, 30 + list.length * 26 + 16);
-  const actualH = Math.min(panelH, h || panelH);
-  out.push(rect(x, y, w, actualH, { fill: '#0f172a', stroke: '#0f172a', rx: 10 }));
-  out.push(circle(x + 18, y + 18, 5, { fill: '#ef4444', stroke: '#ef4444' }));
-  out.push(circle(x + 36, y + 18, 5, { fill: '#f59e0b', stroke: '#f59e0b' }));
-  out.push(circle(x + 54, y + 18, 5, { fill: '#22c55e', stroke: '#22c55e' }));
-  if (lang) out.push(txt(lang, x + w - 16, y + 18, { fontSize: 10, color: '#475569', fontWeight: '600', textAnchor: 'end' }));
-  list.forEach((ln, i) => {
-    const ly = y + 46 + i * 26;
-    out.push(txt(String(i + 1), x + 16, ly, { fontSize: 11, color: '#475569', fontWeight: '600', textAnchor: 'end' }));
-    const color = opts.highlightLine === i ? '#fef08a' : '#e2e8f0';
-    out.push(txt(anchor(ln, 12), x + 28, ly, { fontSize: 12, color, fontWeight: '500' }));
-  });
-  return out;
+  const list = Array.isArray(lines) ? lines.map(itemText) : String(lines || '').split('\n');
+  const highlightLine = Number(opts.highlightLine);
+  return [{
+    type: 'draw_code_block',
+    code: list.slice(0, 14).join('\n'),
+    language: lang || 'javascript',
+    filename: opts.filename,
+    title: opts.title,
+    position: [x, y],
+    width: w,
+    height: h,
+    active_line: Number(opts.activeLine) || (Number.isInteger(highlightLine) ? highlightLine + 1 : undefined),
+    highlight_lines: Array.isArray(opts.highlightLines)
+      ? opts.highlightLines
+      : (Number.isInteger(highlightLine) ? [highlightLine + 1] : []),
+    visible_lines: opts.visibleLines,
+    command: opts.command,
+    output: opts.output,
+    execution_status: opts.executionStatus,
+    test_results: opts.testResults,
+  }];
 }
 
 // ── Method badge colors ──────────────────────────────────────────────────────
@@ -216,9 +221,19 @@ define({
   fill(d, ctx) {
     const p = PALETTES[0];
     const s = [...header(ctx, p.accent)];
-    const lines = (d.lines || d.code || []).slice(0, 8);
+    const lines = Array.isArray(d.lines) ? d.lines : String(d.code || '').split('\n');
     const codeX = 50, codeY = 120, codeW = 420;
-    s.push(...codeBlock(lines, codeX, codeY, codeW, 290, d.lang || 'code', { highlightLine: d.highlight_line }));
+    s.push(...codeBlock(lines, codeX, codeY, codeW, 290, d.language || d.lang || 'javascript', {
+      highlightLine: d.highlight_line,
+      highlightLines: d.highlight_lines,
+      activeLine: d.active_line,
+      visibleLines: d.visible_lines,
+      filename: d.filename,
+      command: d.command,
+      output: d.output,
+      executionStatus: d.execution_status,
+      testResults: d.test_results,
+    }));
     const anns = (d.annotations || d.notes || []).slice(0, 3);
     anns.forEach((an, i) => {
       const y = 140 + i * 92;
@@ -238,13 +253,13 @@ define({
   fill(d, ctx) {
     const p = PALETTES[2];
     const s = [...header(ctx, p.accent)];
-    const left = (d.left_lines || d.left || []).slice(0, 6);
-    const right = (d.right_lines || d.right || []).slice(0, 6);
+    const left = String(d.left_code || '').split('\n').filter(Boolean).length ? String(d.left_code).split('\n') : (d.left_lines || d.left || []).slice(0, 6);
+    const right = String(d.right_code || '').split('\n').filter(Boolean).length ? String(d.right_code).split('\n') : (d.right_lines || d.right || []).slice(0, 6);
     const boxW = 340, gap = 20, y = 120;
     s.push(badge(d.left_title || 'Before', 56, 106, { bg: '#dc2626' }));
-    s.push(...codeBlock(left, 50, y, boxW, 310, d.lang, { highlightLine: d.left_highlight }));
+    s.push(...codeBlock(left, 50, y, boxW, 310, d.language || d.lang, { highlightLine: d.left_highlight, filename: d.left_title }));
     s.push(badge(d.right_title || 'After', 404, 106, { bg: '#16a34a' }));
-    s.push(...codeBlock(right, 410, y, boxW, 310, d.lang, { highlightLine: d.right_highlight }));
+    s.push(...codeBlock(right, 410, y, boxW, 310, d.language || d.lang, { highlightLine: d.right_highlight, filename: d.right_title }));
     return s;
   },
 });
@@ -316,28 +331,15 @@ define({
     const p = PALETTES[3];
     const s = [...header(ctx, p.accent)];
     const nodes = (d.nodes || d.items || d.values || []).slice(0, 6).map(itemText);
-    const n = Math.max(nodes.length, 1);
-    const boxW = 80, boxH = 50, gap = 50;
-    const total = boxW * n + gap * (n - 1);
-    const x0 = (W - total) / 2, y = 240;
-    nodes.forEach((nd, i) => {
-      const x = x0 + i * (boxW + gap);
-      s.push(rect(x, y, boxW, boxH, { stroke: p.accent, strokeWidth: 2, fill: i % 2 === 0 ? p.soft : '#ffffff', rx: 6 }));
-      s.push(txt(nd, x + boxW / 2, y + boxH / 2 + 5, { fontSize: 13, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
-      // Arrow pointer segment
-      const ptrX = x + boxW - 10;
-      s.push(line([ptrX, y + 6], [ptrX, y + boxH - 6], { color: '#94a3b8', strokeWidth: 1 }));
-      if (i < n - 1) {
-        const nx = x0 + (i + 1) * (boxW + gap);
-        s.push(arrow([x + boxW + 2, y + boxH / 2], [nx - 2, y + boxH / 2], { color: p.accent, strokeWidth: 2 }));
-      }
-      s.push(txt(String(i), x + boxW / 2, y + boxH + 18, { fontSize: 9, fontWeight: '600', color: '#94a3b8', textAnchor: 'middle' }));
+    s.push({
+      type: 'draw_linked_list',
+      values: nodes.length ? nodes : ['head'],
+      position: [110, 220],
+      direction: 'horizontal',
+      highlight_indices: asArr(d.highlight_indices).map(Number).filter(Number.isInteger),
+      show_null: true,
     });
-    if (d.head_label) s.push(txt(d.head_label, x0 - 20, y + boxH / 2 + 5, { fontSize: 11, fontWeight: '700', color: p.accent, textAnchor: 'end' }));
-    if (n > 0) {
-      const lastX = x0 + (n - 1) * (boxW + gap);
-      s.push(txt('null', lastX + boxW + 20, y + boxH / 2 + 5, { fontSize: 11, fontWeight: '600', color: '#94a3b8', fontStyle: 'italic' }));
-    }
+    s.push(badge(d.head_label || 'HEAD', 62, 220, { bg: p.accent }));
     return s;
   },
 });
@@ -427,21 +429,14 @@ define({
     const p = PALETTES[0];
     const s = [...header(ctx, p.accent)];
     const items = (d.items || d.values || []).slice(0, 8);
-    const n = Math.max(items.length, 1);
     s.push(badge(d.algorithm || 'Sorting', 56, 104, { bg: p.accent }));
-    const barW = Math.min(70, (W - 120) / n);
-    const gap = 12;
-    const total = barW * n + gap * (n - 1);
-    const x0 = (W - total) / 2;
-    const baseY = 380;
-    items.forEach((it, i) => {
-      const x = x0 + i * (barW + gap);
-      const val = Number(it.value ?? it) || 50;
-      const height = Math.max(20, (val / 100) * 240);
-      const color = it.highlight ? p.accent : (it.pivot ? '#dc2626' : (it.sorted ? '#16a34a' : p.soft));
-      s.push(rect(x, baseY - height, barW, height, { stroke: p.accent, strokeWidth: 1.8, fill: color, rx: 4 }));
-      s.push(txt(String(val), x + barW / 2, baseY - height - 10, { fontSize: 11, fontWeight: '700', color: '#1e293b', textAnchor: 'middle' }));
-      if (it.label) s.push(txt(anchor(it.label, 2), x + barW / 2, baseY + 18, { fontSize: 10, fontWeight: '600', color: '#64748b', textAnchor: 'middle' }));
+    s.push({
+      type: 'draw_sorting',
+      array: items.map((item) => Number(item?.value ?? item) || 0),
+      position: [90, 150],
+      highlight_indices: items.map((item, index) => item?.highlight || item?.pivot ? index : -1).filter((index) => index >= 0),
+      sort_type: d.algorithm || 'sorting',
+      title: d.pass_label || d.algorithm || 'Compare and swap',
     });
     if (d.pass_label) s.push(txt(anchor(d.pass_label, 6), W / 2, 420, { fontSize: 13, fontWeight: '700', color: p.accent, textAnchor: 'middle', fontStyle: 'italic' }));
     return s;

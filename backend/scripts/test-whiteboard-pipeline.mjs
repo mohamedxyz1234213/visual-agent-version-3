@@ -170,6 +170,47 @@ console.log('\n[5] Degrades gracefully when board_scenes is missing');
   ok(Array.isArray(seq) && seq.length > 0, `fallback still produces a sequence (got ${seq.length})`);
 }
 
+console.log('\n[5b] Programming scenes preserve runnable IDE data and semantic shapes');
+{
+  const programmingPart = validatePart({
+    title: 'Linked list traversal',
+    part_type: 'content',
+    duration_seconds: 240,
+    board_scenes: [
+      {
+        intent: 'process',
+        template: 'prog_linked_list',
+        say: 'Each node stores a value and a pointer to the next node. Traversal follows those arrows until the pointer becomes null.',
+        nodes: ['12', '27', '35'],
+        highlight_indices: [1],
+      },
+      {
+        intent: 'example',
+        template: 'prog_code_annotated',
+        say: 'This loop starts at head and prints one value at a time. The terminal confirms the exact order reached by following next pointers.',
+        code: 'let node = head;\nwhile (node) {\n  console.log(node.value);\n  node = node.next;\n}',
+        language: 'javascript',
+        filename: 'linked-list.js',
+        active_line: 3,
+        highlight_lines: [3, 4],
+        command: 'node linked-list.js',
+        output: '12\n27\n35',
+        execution_status: 'success',
+        test_results: [{ name: 'visits every node', status: 'pass', message: '3 values printed' }],
+      },
+    ],
+  });
+  ok(programmingPart.board_scenes[1].code.includes('\n  console.log'), 'code indentation and newlines survive validation');
+  ok(programmingPart.board_scenes[1].output === '12\n27\n35', 'terminal output survives validation');
+  const seq = buildWhiteboardForPart(programmingPart, { lessonTitle: 'Data Structures', field: 'programming' });
+  const linkedList = seq.find((scene) => scene.type === 'draw_linked_list');
+  const ide = seq.find((scene) => scene.type === 'draw_code_block');
+  ok(Boolean(linkedList), 'linked-list lesson emits semantic node/pointer scene');
+  ok(Boolean(ide), 'code example emits VS Code-style editor scene');
+  ok(ide?.filename === 'linked-list.js' && ide?.command === 'node linked-list.js', 'IDE scene carries filename and run command');
+  ok(ide?.output === '12\n27\n35' && ide?.execution_status === 'success', 'IDE scene carries execution output and status');
+}
+
 console.log('\n[6] Every template renders without throwing & owns its geometry');
 {
   const ids = allTemplateIds();

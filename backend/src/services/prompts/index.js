@@ -887,6 +887,23 @@ CRITICAL RULES FOR board_scenes:
   intent="sandbox" and provide a "sandbox" object with title, detailed instructions,
   language, editable starterCode, and 2-4 meaningful testCases. Never emit an empty
   editor, placeholder code, or a sandbox outside board_scenes.
+13a. PROGRAMMING VISUAL GRAMMAR — every non-sandbox programming part must also use
+  at least TWO concept-specific visual beats, not generic bullet cards. Name the
+  matching template explicitly: prog_linked_list for nodes/pointers; prog_stack or
+  prog_queue for LIFO/FIFO; prog_binary_tree or prog_recursion_tree for trees/calls;
+  prog_hash_table for buckets; prog_sorting_viz for compare/swap passes;
+  prog_event_loop for call stack/Web APIs/queues; prog_sql_joins or prog_db_schema
+  for relational data; prog_api_routes or prog_client_server for HTTP; and the
+  matching prog_* template for graphs, memory, networks, state, security, compilers,
+  distributed systems, or architecture. The shapes must show the relationship being
+  explained (pointer, edge, queue order, data flow, state transition), not decorate it.
+13b. Every programming part must include one intent="example" code-execution beat
+  using template="prog_code_annotated". Provide code as a newline-preserving string,
+  language, filename, active_line, highlight_lines, command, output, execution_status
+  (idle|running|success|error), and 1-4 test_results [{name,status,message}]. The code
+  must be a small runnable example of the exact concept. The visual sequence is:
+  code types in → active line runs → terminal command appears → output/tests appear.
+  Never put prose, Markdown fences, ellipses, or fake placeholder code in the editor.
 14. SIMPLE, CLEAR EXPLANATIONS: teach like you're explaining to a 12-year-old.
     Define every jargon term the first time it appears. Use analogies from everyday
     life ("think of it like a post office — letters go in, letters come out").
@@ -918,6 +935,16 @@ Return ONLY valid JSON with this schema:
           "say": "2-5 spoken sentences for this beat — REQUIRED",
           "headline": "main concept",
           "points": ["short keyword anchor", "short keyword anchor", "short keyword anchor"],
+          "template": "optional semantic prog_* template id",
+          "code": "optional newline-preserving runnable source code",
+          "language": "javascript|python|typescript|java|cpp|c|go|rust|html|css|sql",
+          "filename": "optional source filename",
+          "active_line": 1,
+          "highlight_lines": [1],
+          "command": "optional run command",
+          "output": "optional exact terminal output",
+          "execution_status": "idle|running|success|error",
+          "test_results": [{"name": "example test", "status": "pass|fail", "message": "expected result"}],
           "focus": "optional zoom target"
         }
       ],

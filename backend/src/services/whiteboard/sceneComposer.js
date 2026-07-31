@@ -313,7 +313,7 @@ function isHeaderOnly(fragments) {
   );
   // header contributes 1 title text (+ maybe a subtitle). Anything teaching
   // adds rects/circles/objects/badges/arrows/multiple texts.
-  const hasShape = fragments.some((f) => /rect|circle|object|badge|callout|graph|table|equation|coordinate|physics|path/.test(f.type));
+  const hasShape = fragments.some((f) => /rect|circle|object|badge|callout|graph|table|equation|coordinate|physics|path|code_block|linked_list|sorting|tree_struct|flowchart|uml|big_o|network|datastream|db_schema|state_machine|api|architecture/.test(f.type));
   return !hasShape && meaningful.length <= 3;
 }
 
@@ -457,7 +457,8 @@ function composeScene(pscene, ctx, used, seed) {
 
   const hasDiagram = fragments.some(
     (f) => f.type === 'draw_path' || f.type === 'draw_physics_shape'
-      || (f.type === 'draw_object' && f.object_type),
+      || (f.type === 'draw_object' && f.object_type)
+      || /^draw_(code_block|linked_list|sorting|tree_struct|flowchart|uml|big_o|network|datastream|network_packet|db_schema|state_machine|api|architecture_diagram)$/.test(String(f.type)),
   );
 
   return { fragments, templateId, intent, say: pscene.say, segment: pscene.segment, headerOnly: isHeaderOnly(fragments), hasDiagram, fragmentCount: fragments.length };
@@ -783,6 +784,7 @@ export function groupIntoUnits(fragments) {
     if (f.type === 'draw_object') return !!(f.object_type);
     if (f.type === 'draw_physics_shape') return !!(f.shape_type);
     if (f.type === 'draw_callout') return true;
+    if (/^draw_(code_block|linked_list|sorting|tree_struct|flowchart|uml|big_o|network|datastream|network_packet|db_schema|state_machine|api|architecture_diagram)$/.test(String(f.type))) return true;
     return false;
   };
 

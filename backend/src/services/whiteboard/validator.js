@@ -399,7 +399,8 @@ function cleanTemplateEdit(scene) {
 const SANDBOX_LANGUAGES = new Set(['javascript', 'python', 'java', 'cpp']);
 
 function cleanCode(value, maxLen = 8000) {
-  return String(value || '')
+  const source = Array.isArray(value) ? value.join('\n') : value;
+  return String(source || '')
     .replace(/\r\n?/g, '\n')
     .replace(/\u0000/g, '')
     .slice(0, maxLen)
@@ -472,6 +473,42 @@ export function validateBoardScene(scene) {
     if (!sandbox) return null;
     cleaned.sandbox = sandbox;
     return cleaned;
+  }
+
+  // Programming example fields are source code and terminal data, not drawn
+  // prose. Preserve indentation/newlines exactly while bounding payload size.
+  const code = cleanCode(scene.code ?? scene.lines);
+  if (code) cleaned.code = code;
+  const leftCode = cleanCode(scene.left_code ?? scene.left_lines, 5000);
+  const rightCode = cleanCode(scene.right_code ?? scene.right_lines, 5000);
+  if (leftCode) cleaned.left_code = leftCode;
+  if (rightCode) cleaned.right_code = rightCode;
+  const requestedLanguage = String(scene.language || scene.lang || '').trim().toLowerCase();
+  if (requestedLanguage) cleaned.language = SANDBOX_LANGUAGES.has(requestedLanguage) ? requestedLanguage : 'javascript';
+  const filename = cleanString(scene.filename, 100);
+  if (filename) cleaned.filename = filename;
+  const command = cleanCode(scene.command, 240);
+  const output = cleanCode(scene.output, 2400);
+  if (command) cleaned.command = command;
+  if (output) cleaned.output = output;
+  const executionStatus = String(scene.execution_status || '').toLowerCase();
+  if (['idle', 'running', 'success', 'error'].includes(executionStatus)) cleaned.execution_status = executionStatus;
+  for (const field of ['active_line', 'visible_lines']) {
+    const value = Number(scene[field]);
+    if (Number.isInteger(value) && value > 0) cleaned[field] = Math.min(value, 200);
+  }
+  if (Array.isArray(scene.highlight_lines)) {
+    cleaned.highlight_lines = scene.highlight_lines
+      .map(Number)
+      .filter((value) => Number.isInteger(value) && value > 0)
+      .slice(0, 20);
+  }
+  if (Array.isArray(scene.test_results)) {
+    cleaned.test_results = scene.test_results.slice(0, 4).map((result, index) => ({
+      name: cleanString(result?.name, 80) || `Test ${index + 1}`,
+      status: String(result?.status || '').toLowerCase() === 'fail' ? 'fail' : 'pass',
+      message: cleanString(result?.message, 160),
+    }));
   }
 
   // Copy over all slot-bearing fields

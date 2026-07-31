@@ -28,12 +28,13 @@ function getActiveCaption(scenes: StoryboardScene[], elapsed: number, lastClear:
 }
 
 function captionSlotSeconds(scenes: StoryboardScene[], active: StoryboardScene): number {
+  const payload = active.payload as Record<string, unknown>;
+  const estimated = Math.max(0.25, Number(payload.estimatedDurationSeconds) || 1.2);
   const next = scenes
     .filter((scene) => scene.action_type === "draw_caption" && scene.time_offset > active.time_offset)
     .sort((a, b) => a.time_offset - b.time_offset)[0];
-  if (next) return Math.max(0.25, next.time_offset - active.time_offset);
-  const payload = active.payload as Record<string, unknown>;
-  return Math.max(0.25, Number(payload.estimatedDurationSeconds) || 1.2);
+  if (next) return Math.max(0.25, Math.min(estimated, next.time_offset - active.time_offset));
+  return estimated;
 }
 
 export default function AnimationEngine({ part, onPartComplete }: AnimationEngineProps) {
