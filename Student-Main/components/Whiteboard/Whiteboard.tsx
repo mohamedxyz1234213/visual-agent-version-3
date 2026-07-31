@@ -13,7 +13,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import type { StoryboardScene } from "@/lib/types";
-import AITeacherAvatar from "./AITeacherAvatar";
+import AITeacherAvatar from "./AvatarAssetMotion";
 
 function useContainerWidth(ref: React.RefObject<HTMLDivElement | null>) {
   const [width, setWidth] = useState(0);
@@ -134,6 +134,7 @@ export interface WhiteboardProps {
   height?: number;
   zoom?: number;
   showAvatar?: boolean;
+  isSpeaking?: boolean;
   onSandboxOpen?: (payload: Record<string, unknown>, sceneId: string) => void;
   onSandboxResult?: (passed: boolean, sceneId: string) => void;
 }
@@ -154,6 +155,7 @@ export default function Whiteboard({
   height = 500,
   zoom = 1,
   showAvatar = false,
+  isSpeaking = false,
   onSandboxOpen,
   onSandboxResult,
 }: WhiteboardProps) {
@@ -514,6 +516,7 @@ export default function Whiteboard({
         viewHeight={height}
         zoom={responsiveScale}
         isActive={showAvatar}
+        isSpeaking={isSpeaking}
       />
 
       {/* Sandbox question overlay — HTML overlay on top of the SVG */}

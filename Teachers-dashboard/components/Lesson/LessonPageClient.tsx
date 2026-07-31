@@ -280,7 +280,8 @@ export default function LessonPageClient({
                 scenes={currentPart.scenes}
                 elapsed={elapsed}
                 zoom={zoom}
-                showAvatar={!!currentPart.audio_url}
+                showAvatar={!!currentPart.audio_url || currentPart.scenes.some((scene) => scene.action_type === "draw_caption")}
+                isSpeaking={status === "playing"}
                 onSandboxOpen={() => useLessonStore.getState().pause()}
                 onSandboxResult={(passed) => { if (passed) useLessonStore.getState().play(); }}
               />

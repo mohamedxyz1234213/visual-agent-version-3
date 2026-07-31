@@ -56,8 +56,8 @@ function Body() {
       ) : items.length === 0 ? (
         <EmptyState title="No users found" hint="Try a different search or add a user above." />
       ) : (
-        <Card className="!p-0 overflow-hidden">
-          <div className="grid grid-cols-[1.5fr_1fr_0.6fr_0.7fr_0.5fr_auto] gap-3 border-b border-slate-200 bg-slate-50/60 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+        <Card className="!p-0 overflow-x-auto">
+          <div className="grid min-w-[760px] grid-cols-[1.5fr_1fr_0.6fr_0.7fr_0.5fr_auto] gap-3 border-b border-slate-200 bg-slate-50/60 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
             <span>User</span>
             <span>Email</span>
             <span>Role</span>
@@ -67,7 +67,7 @@ function Body() {
           </div>
           <ul className="divide-y divide-slate-100">
             {items.map((u) => (
-              <li key={u.id} className="grid grid-cols-[1.5fr_1fr_0.6fr_0.7fr_0.5fr_auto] items-center gap-3 px-4 py-3 hover:bg-slate-50/60">
+              <li key={u.id} className="grid min-w-[760px] grid-cols-[1.5fr_1fr_0.6fr_0.7fr_0.5fr_auto] items-center gap-3 px-4 py-3 hover:bg-slate-50/60">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="truncate text-sm font-semibold text-slate-900">{u.username}</span>
                   {u.status === "disabled" && <Badge color="red">Disabled</Badge>}

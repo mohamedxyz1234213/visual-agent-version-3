@@ -276,7 +276,13 @@ export default function LessonPageClient({
 
           {status !== "quiz" ? (
             <div className="app-surface flex flex-1 items-center justify-center rounded-[32px] p-4 md:p-5">
-              <Whiteboard scenes={currentPart.scenes} elapsed={elapsed} zoom={zoom} />
+              <Whiteboard
+                scenes={currentPart.scenes}
+                elapsed={elapsed}
+                zoom={zoom}
+                showAvatar={!!currentPart.audio_url || currentPart.scenes.some((scene) => scene.action_type === "draw_caption")}
+                isSpeaking={status === "playing"}
+              />
             </div>
           ) : (
             activeQuiz && (

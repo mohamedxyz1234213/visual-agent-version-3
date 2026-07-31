@@ -33,6 +33,9 @@ import type { AdaptivePathResponse, AdaptiveRecommendation } from "@/features/st
 import { fetchDashboard } from "@/lib/api";
 import type { DashboardLesson } from "@/lib/types";
 
+interface ProgressBarItem { name: string; pct: number; color: string }
+interface WeeklyEntry { day: number; count: number }
+
 export default function StudentDashboard() {
   const { data, loading } = useStudentDashboard();
 
@@ -84,9 +87,6 @@ export default function StudentDashboard() {
     );
   }
 
-  interface ProgressBarItem { name: string; pct: number; color: string }
-  interface WeeklyEntry { day: number; count: number }
-
   const progressBars: ProgressBarItem[] = (data?.progress || []).map((p: any, i: number) => ({
     name: p.subjectId?.name || `Subject ${i + 1}`,
     pct: p.completion || 0,
@@ -106,7 +106,7 @@ export default function StudentDashboard() {
   return (
     <div className="space-y-4">
       {/* Student ID Banner */}
-      <div className="flex items-center justify-between bg-white rounded-2xl px-5 py-3 shadow-sm border border-[#E5E5E5]">
+      <div className="flex flex-col gap-3 bg-white rounded-2xl px-4 py-3 shadow-sm border border-[#E5E5E5] sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-[#D6F63E] flex items-center justify-center">
             <IconTarget size={18} className="text-[#0F0F0F]" />
@@ -116,7 +116,7 @@ export default function StudentDashboard() {
             <p className="text-lg font-bold text-[#0F0F0F] tracking-wider">{s.studentCode || '—'}</p>
           </div>
         </div>
-        <div className="text-[11px] text-[#A0A0A0] text-right">
+        <div className="text-[11px] text-[#A0A0A0] sm:text-right">
           <p>Share this code with your teacher</p>
           <p className="text-[10px]">to connect to your class</p>
         </div>
@@ -256,6 +256,9 @@ export default function StudentDashboard() {
             Quick Actions
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              {
+                icon: <IconCompass size={22} className="text-[#0F0F0F]" />,
                 label: "Learn",
                 href: "/student/learn",
               },
@@ -315,7 +318,7 @@ export default function StudentDashboard() {
         </div>
 
         {wbLoading ? (
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="h-[120px] bg-[#F5F5F5] rounded-xl animate-pulse" />
             ))}

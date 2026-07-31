@@ -37,6 +37,28 @@ html, body {
   box-sizing: border-box;
 }
 
+img, svg, video, canvas {
+  max-width: 100%;
+}
+
+button, input, select, textarea {
+  max-width: 100%;
+}
+
+:focus-visible {
+  outline: 2px solid #0f172a;
+  outline-offset: 3px;
+}
+
+@media (max-width: 639px) {
+  .flux-card, .flux-card-dark { padding: 16px; border-radius: 16px; }
+  .flux-stat-number, .flux-stat-number-dark { font-size: 28px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
+}
+
 /* ── Flux Card System ───────────────────────────────────────────────────── */
 .flux-card {
   background: var(--flux-card-bg);

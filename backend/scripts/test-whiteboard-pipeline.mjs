@@ -9,9 +9,9 @@
 // Exits non-zero on failure so it can gate CI.
 // -----------------------------------------------------------------------------
 
-import { validateBoardScenes, validateLessonPlan } from '../src/services/whiteboard/validator.js';
+import { validateBoardScenes, validateLessonPlan, validatePart } from '../src/services/whiteboard/validator.js';
 import { buildWhiteboardForPart } from '../src/services/whiteboard/index.js';
-import { composeStoryboard } from '../src/services/whiteboard/sceneComposer.js';
+import { composeStoryboard, previewPartComposition } from '../src/services/whiteboard/sceneComposer.js';
 import { allTemplateIds, allTemplates, renderTemplate } from '../src/services/whiteboard/templateLibrary.js';
 import { buildVisualPlaybook } from '../src/services/aiPlanner.js';
 
@@ -287,18 +287,8 @@ console.log('\n[8] Beat-synced timing — per-unit dwell scales with the caption
     const byCapLen = [...captions].sort((a, b) => a.content.length - b.content.length);
     const shortCapUnit = byCapLen[0];
     const longCapUnit = byCapLen[byCapLen.length - 1];
-    // Find the next unit's start after each one — that gives its dwell.
-    const sorted = [...seq].sort((a, b) => a.time - b.time);
-    const dwellOf = (target) => {
-      const idx = sorted.findIndex((s) => s === target);
-      // Find the next distinct time after this caption.
-      for (let j = idx + 1; j < sorted.length; j++) {
-        if (sorted[j].time > target.time) return sorted[j].time - target.time;
-      }
-      return 0;
-    };
-    const shortDwell = dwellOf(shortCapUnit);
-    const longDwell = dwellOf(longCapUnit);
+    const shortDwell = Number(shortCapUnit.estimatedDurationSeconds) || 0;
+    const longDwell = Number(longCapUnit.estimatedDurationSeconds) || 0;
     ok(longDwell >= shortDwell, `long-caption unit gets ≥ short-caption unit dwell (short=${shortDwell.toFixed(1)}s, long=${longDwell.toFixed(1)}s)`);
   }
 }
@@ -337,6 +327,78 @@ console.log('\n[10] Subject-aware visual playbook biases each field toward domai
   }
   const general = buildVisualPlaybook('general');
   ok(typeof general === 'string' && general.length > 0, 'unknown/general field still yields a usable playbook');
+}
+
+console.log('\n[11] Programming sandboxes survive validation and enter the canonical caption timeline');
+{
+  const starterCode = 'function add(a, b) {\n  // Write your code here\n  return 0;\n}';
+  const sandboxScene = {
+    segment: 'reinforcement',
+    intent: 'sandbox',
+    goal: 'practice addition',
+    say: 'Now you will make the function return the sum. Change only the return value, then run both tests to check positive and negative numbers.',
+    sandbox: {
+      title: 'Build add()',
+      instructions: 'Complete add so it returns the sum of its two inputs.',
+      language: 'javascript',
+      starterCode,
+      testCases: [
+        { input: '2, 3', expectedOutput: '5', description: 'positive numbers' },
+        { input: '-2, 1', expectedOutput: '-1', description: 'negative number' },
+      ],
+    },
+  };
+  const cleanPart = validatePart({
+    title: 'Functions',
+    part_type: 'content',
+    board_scenes: [],
+    sandbox_question_scene: sandboxScene,
+  });
+  const cleanSandbox = cleanPart.board_scenes.find((scene) => scene.intent === 'sandbox');
+  ok(!!cleanSandbox, 'standalone sandbox schema is merged into board_scenes');
+  ok(cleanSandbox?.sandbox?.starterCode === starterCode, 'starter-code newlines and indentation are preserved');
+  ok(cleanSandbox?.sandbox?.testCases?.length === 2, 'two runnable test cases survive validation');
+
+  const seq = composeStoryboard([{
+    ...sandboxScene,
+    data: { sandbox: sandboxScene.sandbox },
+  }], { title: 'Functions', lessonTitle: 'JavaScript Functions', field: 'programming' }, 300);
+  const question = seq.find((scene) => scene.type === 'sandbox_question');
+  const caption = seq.find((scene) => scene.type === 'draw_caption');
+  ok(!!question, 'sandbox_question is emitted into the storyboard');
+  ok(!!caption && caption.time === question.time, 'sandbox instruction voice/caption starts with the visible editor');
+  ok(caption?.narrationText === sandboxScene.say, 'sandbox voice reads the exact visible canonical caption');
+}
+
+console.log('\n[12] Programming beats select the component matching the taught concept');
+{
+  const preview = previewPartComposition([{
+    intent: 'process',
+    goal: 'show how a linked list connects nodes',
+    title: 'Linked List',
+    say: 'A linked list stores values in separate nodes. Each node points to the next node, like train cars coupled in order.',
+    data: { nodes: ['Head', 'Node A', 'Node B', 'Null'] },
+  }], { title: 'Linked Lists', lessonTitle: 'Data Structures', field: 'computer science' });
+  ok(preview.boards[0]?.templateId === 'prog_linked_list', `linked-list lesson chooses prog_linked_list (got ${preview.boards[0]?.templateId})`);
+}
+
+console.log('\n[13] Caption timestamps reserve the complete spoken window');
+{
+  const seq = buildWhiteboardForPart(photosynthesisPart, { lessonTitle: 'Biology 101', field: 'biology' });
+  const captions = seq.filter((scene) => scene.type === 'draw_caption');
+  let noSpeechOverlap = true;
+  let overlapDetail = '';
+  for (let i = 0; i < captions.length - 1; i++) {
+    const current = captions[i];
+    const next = captions[i + 1];
+    const reserved = Number(current.estimatedDurationSeconds) || 0;
+    if (next.time + 0.15 < current.time + reserved) {
+      noSpeechOverlap = false;
+      overlapDetail = `: #${i} ${current.time}s + ${reserved}s > #${i + 1} ${next.time}s`;
+      break;
+    }
+  }
+  ok(noSpeechOverlap, `no caption starts before the previous caption can finish speaking${overlapDetail}`);
 }
 
 console.log(`\n${failures === 0 ? '✅ ALL PIPELINE TESTS PASSED' : `❌ ${failures} CHECK(S) FAILED`}\n`);

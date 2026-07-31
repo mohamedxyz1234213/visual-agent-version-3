@@ -140,7 +140,7 @@ const LINE_MAX = 90;     // short supporting clauses
 // GROWABLE boxes — the template wraps them and `growBoxesToFitText` stretches
 // the container to fit, so we keep the whole sentence instead of chopping it
 // to a fragment. This is what kills the "first few words then nothing" collapse.
-const PROSE_MAX = 240;
+const PROSE_MAX = 90;
 
 const ANCHOR_KEYS = /^(title|label|name|symbol|term|headline|head|caption|tag|key|word|point|step|item)$/i;
 const LINE_KEYS = /^(detail|text|sub|meaning|note|desc|description|content|body|definition|explanation|value|answer)$/i;
@@ -396,6 +396,41 @@ function cleanTemplateEdit(scene) {
   return out;
 }
 
+const SANDBOX_LANGUAGES = new Set(['javascript', 'python', 'java', 'cpp']);
+
+function cleanCode(value, maxLen = 8000) {
+  return String(value || '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/\u0000/g, '')
+    .slice(0, maxLen)
+    .trimEnd();
+}
+
+function cleanSandbox(value) {
+  if (!value || typeof value !== 'object') return null;
+  const title = cleanString(value.title, 100) || 'Coding Challenge';
+  const instructions = cleanString(value.instructions || value.description, 1200);
+  const requestedLanguage = String(value.language || 'javascript').trim().toLowerCase();
+  const language = SANDBOX_LANGUAGES.has(requestedLanguage) ? requestedLanguage : 'javascript';
+  const starterCode = cleanCode(value.starterCode ?? value.starter_code ?? value.code);
+  const rawTests = Array.isArray(value.testCases) ? value.testCases : Array.isArray(value.test_cases) ? value.test_cases : [];
+  const testCases = rawTests.slice(0, 4).map((testCase, index) => {
+    const tc = testCase && typeof testCase === 'object' ? testCase : {};
+    return {
+      id: cleanString(tc.id, 40) || `tc${index + 1}`,
+      input: cleanCode(tc.input, 1000),
+      expectedOutput: cleanCode(tc.expectedOutput ?? tc.expected_output ?? tc.expected, 1000),
+      description: cleanString(tc.description || tc.name, 180) || `Test case ${index + 1}`,
+    };
+  });
+
+  // A runnable exercise needs a clear task, editable code, and enough tests to
+  // teach more than one happy-path example. Invalid sandboxes are dropped
+  // rather than rendering a decorative editor that cannot be assessed.
+  if (!instructions || !starterCode || testCases.length < 2) return null;
+  return { title, instructions, language, starterCode, testCases };
+}
+
 /**
  * Validate and clean a single board scene.
  * Returns a cleaned scene or null if it's unsalvageable.
@@ -431,6 +466,13 @@ export function validateBoardScene(scene) {
 
   const segment = cleanString(scene.segment, 20);
   if (segment) cleaned.segment = segment;
+
+  if (intent === 'sandbox') {
+    const sandbox = cleanSandbox(scene.sandbox || scene);
+    if (!sandbox) return null;
+    cleaned.sandbox = sandbox;
+    return cleaned;
+  }
 
   // Copy over all slot-bearing fields
   // ANCHOR fields are keyword headlines/labels; LINE fields are brief one-line
@@ -593,8 +635,12 @@ export function validatePart(part) {
   const cleaned = { ...part };
 
   // Validate board_scenes if present
-  if (Array.isArray(part.board_scenes)) {
-    cleaned.board_scenes = validateBoardScenes(part.board_scenes);
+  if (Array.isArray(part.board_scenes) || part.sandbox_question_scene) {
+    const boardScenes = Array.isArray(part.board_scenes) ? [...part.board_scenes] : [];
+    if (part.sandbox_question_scene && typeof part.sandbox_question_scene === 'object') {
+      boardScenes.push({ ...part.sandbox_question_scene, intent: 'sandbox' });
+    }
+    cleaned.board_scenes = validateBoardScenes(boardScenes);
   }
 
   // Ensure required fields

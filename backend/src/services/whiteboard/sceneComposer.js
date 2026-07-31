@@ -59,6 +59,35 @@ function hashStr(s) {
   return Math.abs(h);
 }
 
+const TEMPLATE_MATCH_STOPWORDS = new Set([
+  'prog', 'programming', 'visualization', 'diagram', 'overview', 'concept',
+  'pattern', 'flow', 'model', 'types', 'comparison', 'architecture',
+]);
+
+function matchTokens(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(/\s+/)
+    .filter((token) => token.length >= 3 && !TEMPLATE_MATCH_STOPWORDS.has(token))
+    .map((token) => token.length > 4 && token.endsWith('s') ? token.slice(0, -1) : token);
+}
+
+function programmingTemplateScore(template, pscene, data) {
+  if (!String(template?.id || '').startsWith('prog_')) return 0;
+  const corpus = matchTokens(`${pscene.title || ''} ${pscene.goal || ''} ${pscene.say || ''} ${JSON.stringify(data || {})}`);
+  const corpusSet = new Set(corpus);
+  const idPhrase = String(template.id).replace(/^prog_/, '').replace(/_/g, ' ');
+  const labelPhrase = String(template.label || '').toLowerCase();
+  const source = ` ${corpus.join(' ')} `;
+  let score = source.includes(` ${idPhrase} `) ? 30 : 0;
+  if (labelPhrase && source.includes(` ${labelPhrase} `)) score += 24;
+  for (const token of matchTokens(`${idPhrase} ${labelPhrase}`)) {
+    if (corpusSet.has(token)) score += token.length >= 7 ? 6 : 3;
+  }
+  return score;
+}
+
 // Templates that render real SVG scientific figures (atom, cell, DNA, etc.)
 const SCIENCE_DIAGRAM_TEMPLATES = new Set([
   'labeled_science_diagram', 'figure_with_facts', 'anatomy_callouts',
@@ -307,14 +336,15 @@ function composeScene(pscene, ctx, used, seed) {
       instructions: String(sandboxData.instructions || ''),
       language: String(sandboxData.language || 'javascript'),
       starterCode: String(sandboxData.starterCode || sandboxData.code || ''),
-      testCases: Array.isArray(sandboxData.testCases) ? sandboxData.testCases.map(tc => ({
-        id: String(tc.id || Math.random().toString(36).slice(2, 8)),
+      testCases: Array.isArray(sandboxData.testCases) ? sandboxData.testCases.map((tc, index) => ({
+        id: String(tc.id || `tc${index + 1}`),
         input: String(tc.input ?? ''),
         expectedOutput: String(tc.expectedOutput ?? tc.expected ?? ''),
         description: String(tc.description || tc.name || ''),
       })) : [],
     };
-    return { fragments: [sandboxFrag], templateId: 'sandbox_question', intent, say: pscene.say, segment: pscene.segment };
+    const say = String(pscene.say || sandboxData.instructions || '').trim();
+    return { fragments: [sandboxFrag], templateId: 'sandbox_question', intent, say, segment: pscene.segment };
   }
 
   const baseData = enrichData(intent, coerceData(intent, pscene.data), {
@@ -341,11 +371,28 @@ function composeScene(pscene, ctx, used, seed) {
   if (pscene.template && getTemplate(pscene.template)) order.push(getTemplate(pscene.template));
   for (const t of [...fresh, ...stale]) if (!order.includes(t)) order.push(t);
 
+  // Programming has many semantically distinct boards (tree, stack, cache,
+  // event loop, SQL join, API map...). Seed rotation alone can choose a pretty
+  // but unrelated board. Rank the programming candidates by the actual beat
+  // vocabulary, while preserving the seeded order for equal scores.
+  const field = String(ctx.field || '').toLowerCase();
+  const isProgrammingField = /program|coding|software|computer|\bcs\b|devops|web|data structure|algorithm/.test(field);
+  if (isProgrammingField) {
+    const ranked = order.map((template, index) => ({
+      template,
+      index,
+      score: programmingTemplateScore(template, pscene, baseData),
+    }));
+    ranked.sort((a, b) => (b.score - a.score) || (a.index - b.index));
+    order.length = 0;
+    order.push(...ranked.map(({ template }) => template));
+  }
+
   // Boost diagram templates when the scene carries figure hints or the intent
   // is inherently visual — so biology/math lessons get SVG figures, not bullets.
   const hasFigureHint = !!(baseData.diagram || baseData.shape || baseData.figure);
   const wantsDiagram = hasFigureHint || intent === 'map' || intent === 'formula';
-  if (wantsDiagram && order.length > 1) {
+  if (!isProgrammingField && wantsDiagram && order.length > 1) {
     const diagramFirst = order.filter((t) => SCIENCE_DIAGRAM_TEMPLATES.has(t.id));
     const flowNext = order.filter((t) => FLOW_DIAGRAM_TEMPLATES.has(t.id) && !SCIENCE_DIAGRAM_TEMPLATES.has(t.id));
     const rest = order.filter((t) => !SCIENCE_DIAGRAM_TEMPLATES.has(t.id) && !FLOW_DIAGRAM_TEMPLATES.has(t.id));
@@ -353,7 +400,7 @@ function composeScene(pscene, ctx, used, seed) {
       order.length = 0;
       for (const t of [...diagramFirst, ...flowNext, ...rest]) if (!order.includes(t)) order.push(t);
     }
-  } else if ((intent === 'cluster' || intent === 'cause' || intent === 'process') && order.length > 1) {
+  } else if (!isProgrammingField && (intent === 'cluster' || intent === 'cause' || intent === 'process') && order.length > 1) {
     const flowFirst = order.filter((t) => FLOW_DIAGRAM_TEMPLATES.has(t.id));
     const rest = order.filter((t) => !FLOW_DIAGRAM_TEMPLATES.has(t.id));
     if (flowFirst.length) {
@@ -417,7 +464,10 @@ function composeScene(pscene, ctx, used, seed) {
 }
 
 // Reading speed for caption dwell (~240 wpm) and segment pacing multipliers.
-const WORDS_PER_MINUTE = 240;
+// Must match caption TTS timing. A conversational teacher voice averages close
+// to 145 wpm; the old 240 wpm clock advanced to the next caption while the
+// current audio clip was still speaking.
+const WORDS_PER_MINUTE = 145;
 const SEGMENT_PACE = { hook: 1.0, prerequisite: 1.05, core: 1.0, mechanism: 1.35, example: 1.15, reinforcement: 1.4, recap: 1.1 };
 const SEGMENT_TAIL = { hook: 0.7, prerequisite: 0.8, core: 0.8, mechanism: 1.0, example: 0.9, reinforcement: 1.0, recap: 0.9 };
 
@@ -427,8 +477,7 @@ function sayDwellSeconds(say) {
 }
 
 function dwellForCaptionChunk(chunk) {
-  const words = String(chunk || '').split(/\s+/).filter(Boolean).length;
-  return Math.max(1.2, (words / WORDS_PER_MINUTE) * 60);
+  return sayDwellSeconds(chunk);
 }
 
 /**
@@ -470,7 +519,9 @@ export function composeStoryboard(pscenes, ctx, durationSeconds) {
   // shape + its label(s) all share the same timestamp so they appear in
   // lockstep rather than the box being drawn, then the label 1.2s later.
   const UNIT_MIN = 1.1;
-  const UNIT_MAX = 3.2;
+  // A caption can contain up to one natural spoken breath. Do not advance to
+  // the next teaching beat before that caption can actually be read aloud.
+  const UNIT_MAX = 12;
   const CONNECTOR_TIME = 0.55;
 
   const out = [];
@@ -487,6 +538,20 @@ export function composeStoryboard(pscenes, ctx, durationSeconds) {
       t += CAMERA;
       const sandboxFrag = { ...board.fragments[0], time: round(t), step_index: out.length };
       out.push(sandboxFrag);
+      const sandboxNarration = String(board.say || sandboxFrag.instructions || '').trim();
+      if (sandboxNarration) {
+        out.push({
+          type: 'draw_caption',
+          content: sandboxNarration,
+          narrationText: sandboxNarration,
+          index: 0,
+          total: 1,
+          sequenceIndex: 0,
+          estimatedDurationSeconds: round(sayDwellSeconds(sandboxNarration)),
+          time: round(t),
+          step_index: out.length,
+        });
+      }
       t += SANDBOX_DURATION;
       out.push({ time: round(t), type: 'camera', mode: 'reset', zoom: 1.0 });
       t += CAMERA;
@@ -529,8 +594,8 @@ export function composeStoryboard(pscenes, ctx, durationSeconds) {
       // line) are quick — they don't carry teaching content, so giving
       // them a full UNIT_MIN would leave 1.1s of dead air. Pin them to a
       // short dwell so the next content unit appears promptly.
-      const isDecorative = u.fragments.length === 1
-        && /^draw_(line|path)$/.test(String(u.fragments[0].type));
+      const isDecorative = u.role === 'decoration' || (u.fragments.length === 1
+        && /^draw_(line|path)$/.test(String(u.fragments[0].type)));
       if (isDecorative) return 0.3;
       // Each unit gets at least UNIT_MIN; bigger `say` → up to UNIT_MAX.
       const dwell = sayDwellSeconds(cap) * segMult;
@@ -549,29 +614,29 @@ export function composeStoryboard(pscenes, ctx, durationSeconds) {
     // first, then its primary label as ONE tight beat; any extra fragments
     // (badge, detail line) trickle across the dwell so the board keeps moving.
     //
-    // Critical for MUTED playback: a unit that draws everything early (e.g. the
-    // header, or a bare box+label) must NOT then hold for its full narration
-    // dwell — that reads as a frozen board. So we advance to the next unit no
-    // later than MAX_DEAD_GAP past the unit's actual LAST draw (accounting for
-    // the connector lead-in), even if the spoken budget is longer. Units rich
-    // enough to keep drawing through their dwell are unaffected.
+    // The unit remains active for its complete narration dwell. Rich templates
+    // spread supporting fragments through that interval while the avatar and
+    // caption keep the explanation active between marks.
     const FRAG_STAGGER = 0.16;
-    const MAX_DEAD_GAP = 2.6;   // ceiling on frozen-board time between draws
     let prevUnitEnd = t;
     const unitStartTimes = [];
     units.forEach((unit, ui) => {
-      if (ui > 0) prevUnitEnd += CONNECTOR_TIME;
+      if (ui > 0 && unit.role === 'connector') prevUnitEnd += CONNECTOR_TIME;
       const uTime = prevUnitEnd;
       unitStartTimes[ui] = uTime;
       const uDwell = perUnitTime[ui] * scale;
-      // Order: containers (rect/circle/callout/object) first, then labels
-      // (text/badge) — "draw the box, then label it", not "label a void".
+      // Draw the complete container cluster first, immediately followed by its
+      // primary label. Supporting details can then unfold through the dwell.
       const ordered = unit.fragments.slice().sort((a, b) => {
         const aw = /draw_(rect|circle|callout|object|physics_shape)/.test(String(a.type)) ? 0 : 1;
         const bw = /draw_(rect|circle|callout|object|physics_shape)/.test(String(b.type)) ? 0 : 1;
         return aw - bw;
       });
-      const HEAD = Math.min(2, ordered.length);            // container + primary label
+      const primaryLabelIndex = ordered.findIndex((frag) => frag.type === 'draw_text');
+      const HEAD = Math.min(
+        ordered.length,
+        Math.max(2, primaryLabelIndex >= 0 ? primaryLabelIndex + 1 : 2),
+      );
       const head = ordered.slice(0, HEAD);
       const tail = ordered.slice(HEAD);
       const headEnd = (HEAD - 1) * FRAG_STAGGER;
@@ -590,24 +655,12 @@ export function composeStoryboard(pscenes, ctx, durationSeconds) {
           lastOffset = offset;
         });
       }
-      // Hold for the narration, but cap the frozen tail so the board never
-      // sits longer than MAX_DEAD_GAP after its last draw (minus the connector
-      // lead-in to the next unit's first draw). The LAST unit gets a tighter
-      // cap because the board-level SEGMENT_TAIL + clear + camera already add a
-      // read pause after it — without this the board freezes ~7s at the seam.
-      const isLastUnit = ui === units.length - 1;
-      const deadGap = isLastUnit ? 1.2 : MAX_DEAD_GAP;
-      const maxAdvance = lastOffset + deadGap - CONNECTOR_TIME;
-      prevUnitEnd = uTime + Math.min(uDwell, Math.max(lastOffset, maxAdvance));
+      // The spoken caption is the canonical clock for the teaching beat. Keep
+      // the board on this unit for its full speech dwell so caption N, voice N,
+      // and visual N always finish before beat N+1 begins.
+      prevUnitEnd = uTime + Math.max(lastOffset, uDwell);
     });
     const finalT = prevUnitEnd;
-    // The board's last REAL draw (excludes the narration hold). Captions must
-    // not land after this — a caption with nothing drawing under it is dead air
-    // and would inflate the part's content-driven duration past the last shape.
-    const lastRealDraw = out.reduce((m, s) => (
-      /^draw_/.test(String(s.type)) && s.type !== 'draw_caption' ? Math.max(m, Number(s.time) || 0) : m
-    ), t);
-
     // Lay the narration caption chunks evenly across the board's draw window so
     // the subtitle band updates continuously — one short clause at a time, at a
     // readable pace — instead of dumping a paragraph at one unit and freezing.
@@ -620,39 +673,47 @@ export function composeStoryboard(pscenes, ctx, durationSeconds) {
     // owns which clause; we anchor that clause to that unit's start time.
     // Any clause not owned by a drawn unit (extras folded into the last unit)
     // is spread across the remaining window so nothing is dropped silently.
+    let finalCaptionEnd = finalT;
     if (captions.length) {
       const winStart = t;
       const span = Math.max(0.001, finalT - winStart);
       // Build unit→clauses map from the same distribution used for dwell.
       const clausesByUnit = units.map(() => []);
       const contentIdx = [];
-      units.forEach((u, ui) => { if (u.role !== 'connector') contentIdx.push(ui); });
+      units.forEach((u, ui) => {
+        if (u.role !== 'connector' && u.role !== 'decoration') contentIdx.push(ui);
+      });
       if (!contentIdx.length) contentIdx.push(0);
       captions.forEach((cap, ci) => {
         const ui = contentIdx[Math.min(ci, contentIdx.length - 1)];
         clausesByUnit[ui].push(cap);
       });
       let ci = 0;
+      let captionCursor = winStart;
       clausesByUnit.forEach((clauses, ui) => {
         if (!clauses.length) return;
         const base = unitStartTimes[ui] != null ? unitStartTimes[ui] : winStart + (ui / units.length) * span;
-        const nextStart = unitStartTimes[ui + 1] != null ? unitStartTimes[ui + 1] : finalT;
-        const slot = Math.max(0.001, nextStart - base);
-        clauses.forEach((cap, k) => {
-          const frac = clauses.length > 1 ? k / clauses.length : 0;
+        captionCursor = Math.max(captionCursor, base);
+        clauses.forEach((cap) => {
+          const captionTime = captionCursor;
           out.push({
             type: 'draw_caption',
             content: cap,
             index: ci,
             total: captions.length,
-            time: round(Math.min(base + frac * slot, lastRealDraw)),
+            narrationText: cap,
+            sequenceIndex: ci,
+            estimatedDurationSeconds: round(sayDwellSeconds(cap)),
+            time: round(captionTime),
           });
+          captionCursor += dwellForCaptionChunk(cap) * segMult;
           ci += 1;
         });
       });
+      finalCaptionEnd = Math.max(finalCaptionEnd, captionCursor);
     }
 
-    t = finalT;
+    t = Math.max(finalT, finalCaptionEnd);
 
     if (board.focus && typeof board.focus === 'string' && board.focus.length > 1) {
       out.push({ time: round(t), type: 'camera', mode: 'focus', zoom: 1.15, hint: board.focus });
@@ -662,7 +723,13 @@ export function composeStoryboard(pscenes, ctx, durationSeconds) {
     t += CAMERA;
   });
 
-  return out;
+  // Captions are emitted after their visual units are composed, so insertion
+  // order is not necessarily chronological. Persist one stable canonical
+  // timeline for rendering, captions, TTS, seeking, and avatar gestures.
+  return out
+    .map((scene, insertionIndex) => ({ scene, insertionIndex }))
+    .sort((a, b) => (a.scene.time - b.scene.time) || (a.insertionIndex - b.insertionIndex))
+    .map(({ scene }, sequenceIndex) => ({ ...scene, step_index: sequenceIndex }));
 }
 
 /**
@@ -847,6 +914,18 @@ export function groupIntoUnits(fragments) {
     units.unshift({ role: 'header', fragments: headerFragments });
   }
 
+  // Filled circles and accent rectangles are often decorative pieces inside
+  // a larger diagram. If a unit has no label or teaching content of its own,
+  // keep it in the drawing but do not give it a full narrated teaching beat.
+  for (const unit of units) {
+    if (unit.role !== 'content') continue;
+    const hasMeaning = unit.fragments.some((frag) => {
+      if (String(frag.label || '').trim()) return true;
+      return !/^(draw_rect|draw_circle|draw_path|draw_line|highlight|underline)$/.test(String(frag.type));
+    });
+    if (!hasMeaning) unit.role = 'decoration';
+  }
+
   // If the result is one giant unit (e.g. a single-shape template), still
   // return it — the timing loop will pace it normally.
   return units;
@@ -867,7 +946,9 @@ function distributeCaptions(units, captions) {
   // Identify the content units (skip connectors for caption placement — the
   // student is reading the explanation, not the arrow between concepts).
   const contentIdx = [];
-  units.forEach((u, i) => { if (u.role !== 'connector') contentIdx.push(i); });
+  units.forEach((u, i) => {
+    if (u.role !== 'connector' && u.role !== 'decoration') contentIdx.push(i);
+  });
   if (!contentIdx.length) contentIdx.push(0);
 
   captions.forEach((cap, ci) => {
@@ -881,20 +962,19 @@ function countConnectors(units) {
   return units.filter((u) => u.role === 'connector').length;
 }
 
-// Split a beat's narration into short, readable caption clauses (≤ ~12 words)
+// Split a beat's narration into short, readable caption breaths (≤ 6 words)
 // that scroll along the bottom band as the board draws. These ARE the narration
 // the student reads (no audio), so we keep enough chunks to avoid truncating
 // the explanation, but each chunk stays short so the band never becomes a wall.
 function splitCaption(say) {
   const text = String(say || '').replace(/\s+/g, ' ').trim();
   if (!text) return [];
-  // Keep whole sentences when they read as one breath (≤18 words) so the
-  // student gets a full, talkative explanation per beat rather than choppy
-  // 11-word fragments. Longer sentences split on clause boundaries (commas /
+  // Keep each breath below the ~3.2 second visual-continuity budget at the
+  // canonical 145 WPM speech rate. Longer sentences split on clause boundaries (commas /
   // semicolons / dashes) first, then on word count as a fallback — this keeps
   // each caption a coherent clause. The cap is generous so a rich narration is
   // shown in full instead of being cut off mid-explanation.
-  const MAX_WORDS = 18;
+  const MAX_WORDS = 6;
   const sentences = text.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
   const chunks = [];
   for (const sentence of sentences) {
@@ -910,7 +990,7 @@ function splitCaption(say) {
       const cw = clause.split(' ');
       if (cw.length > MAX_WORDS) {
         flush();
-        for (let i = 0; i < cw.length; i += 15) chunks.push(cw.slice(i, i + 15).join(' '));
+        for (let i = 0; i < cw.length; i += MAX_WORDS) chunks.push(cw.slice(i, i + MAX_WORDS).join(' '));
         continue;
       }
       const combined = buf ? `${buf} ${clause}` : clause;
@@ -993,17 +1073,17 @@ function teacherVoiceCaptions(captions, { segment, topic, boardIndex, isFirstBoa
   const pick = pool[Math.abs((seed || 0) + boardIndex) % pool.length];
   const t = String(topic || 'this').replace(/\s+/g, ' ').trim() || 'this';
   const lead = pick.replace('{t}', t);
-  const out = captions.slice();
+  let voicedFirst;
   // A lead that ends a sentence (. ! ?) keeps the original clause as its own
   // capitalised sentence. A lead that trails off (comma / colon / dash, or no
   // punctuation) flows straight into the clause, so we lower-case its first
   // letter — "So, to wrap up, the energy…" not "…up, The energy…".
   if (/[.!?]$/.test(lead)) {
-    out[0] = `${lead} ${first}`;
+    voicedFirst = `${lead} ${first}`;
   } else {
-    out[0] = `${lead} ${first.charAt(0).toLowerCase()}${first.slice(1)}`;
+    voicedFirst = `${lead} ${first.charAt(0).toLowerCase()}${first.slice(1)}`;
   }
-  return out;
+  return [...splitCaption(voicedFirst), ...captions.slice(1)];
 }
 
 /**

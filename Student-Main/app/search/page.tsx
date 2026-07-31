@@ -179,7 +179,7 @@ function StudentInsights({ data, onBack }: { data: any; onBack: () => void }) {
       </div>
 
       {/* Weekly Activity + Subject Progress */}
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <div className="col-span-3 bg-white rounded-2xl p-5 border border-[#E5E5E5]">
           <div className="flex items-center gap-2 mb-4">
             <IconBarChart className="w-4 h-4 text-[#6B6B6B]" />
@@ -221,7 +221,7 @@ function StudentInsights({ data, onBack }: { data: any; onBack: () => void }) {
       </div>
 
       {/* Strengths & Weaknesses */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="bg-white rounded-2xl p-5 border border-[#E5E5E5]">
           <div className="flex items-center gap-2 mb-3">
             <IconTarget className="w-4 h-4 text-green-600" />

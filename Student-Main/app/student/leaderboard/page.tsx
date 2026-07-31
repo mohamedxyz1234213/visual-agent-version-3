@@ -241,9 +241,9 @@ export default function LeaderboardPage() {
           ))}
         </div>
       ) : (
-        <div className="bg-white rounded-2xl shadow-sm border border-[#E5E5E5] overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-[#E5E5E5] overflow-x-auto">
           {/* Table header */}
-          <div className="grid grid-cols-[48px_1fr_100px_80px] gap-3 border-b border-[#E5E5E5] px-5 py-3 text-[10px] font-semibold uppercase tracking-wider text-[#A0A0A0]">
+          <div className="grid min-w-[480px] grid-cols-[48px_1fr_100px_80px] gap-3 border-b border-[#E5E5E5] px-5 py-3 text-[10px] font-semibold uppercase tracking-wider text-[#A0A0A0]">
             <span>Rank</span>
             <span>Student</span>
             <span className="text-right">{activeTab === "streak" ? "Streak" : "XP"}</span>
@@ -258,7 +258,7 @@ export default function LeaderboardPage() {
               return (
                 <div
                   key={i}
-                  className={`grid grid-cols-[48px_1fr_100px_80px] gap-3 items-center px-5 py-3.5 transition-all ${
+                  className={`grid min-w-[480px] grid-cols-[48px_1fr_100px_80px] gap-3 items-center px-5 py-3.5 transition-all ${
                     isMe ? "bg-[#D6F63E]/10 border-l-2 border-l-[#D6F63E]" : "hover:bg-[#F5F5F5]"
                   }`}
                   onMouseEnter={() => setHoveredRow(i)}

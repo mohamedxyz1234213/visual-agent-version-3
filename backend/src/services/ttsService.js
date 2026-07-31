@@ -19,16 +19,23 @@ export async function generateCaptionAudio(partId) {
   const captionScenes = await StoryboardScene.find({
     partId,
     actionType: 'draw_caption',
-  });
-  for (const scene of captionScenes) {
-    const text = scene.payload?.content;
+  }).sort({ timeOffset: 1, _id: 1 });
+  for (let index = 0; index < captionScenes.length; index += 1) {
+    const scene = captionScenes[index];
+    const text = String(scene.payload?.narrationText || scene.payload?.content || '').trim();
     if (!text || scene.payload?.audioUrl) continue;
     try {
       const audio = await synthesizeCaptionText(text);
       if (audio) {
         const url = await uploadAudio(audio, `cap-${scene._id}`);
         if (url) {
+          scene.payload.content = text;
+          scene.payload.narrationText = text;
+          scene.payload.sequenceIndex = index;
+          scene.payload.total = captionScenes.length;
+          scene.payload.estimatedDurationSeconds = estimateSpeechDurationSeconds(text);
           scene.payload.audioUrl = url;
+          scene.markModified('payload');
           await scene.save();
         }
       }
@@ -36,6 +43,11 @@ export async function generateCaptionAudio(partId) {
       console.warn(`[tts] Caption TTS failed scene ${scene._id}: ${err.message}`);
     }
   }
+}
+
+function estimateSpeechDurationSeconds(text) {
+  const words = String(text || '').split(/\s+/).filter(Boolean).length;
+  return Math.max(1.2, Math.round(((words / 145) * 60) * 10) / 10);
 }
 
 /** Synthesize a single short caption text (no speech enhancement — already conversational). */

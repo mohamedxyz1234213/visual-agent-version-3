@@ -31,7 +31,7 @@ export default function TeacherAnalyticsPage() {
 
       {loading ? (
         <div className="space-y-4">
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             {[1, 2, 3, 4].map((i) => <div key={i} className="h-24 bg-white rounded-2xl shadow-sm animate-pulse" />)}
           </div>
         </div>
@@ -70,8 +70,8 @@ export default function TeacherAnalyticsPage() {
           </div>
 
           {/* Student Table */}
-          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-            <table className="w-full">
+          <div className="bg-white rounded-2xl shadow-sm overflow-x-auto">
+            <table className="w-full min-w-[680px]">
               <thead>
                 <tr className="border-b border-gray-100">
                   <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Student</th>

@@ -882,9 +882,11 @@ CRITICAL RULES FOR board_scenes:
 11. For problems/equations, give each solution step its own beat
 12. EVERY visual must MEAN something for THIS topic — restructure bullet lists into
     diagrams showing how pieces relate (flow, hierarchy, cause→effect, labeled figure)
-13. For programming/coding topics, include at least one sandbox_question scene per
-    part where students write real code. Set intent="sandbox" and provide a "sandbox"
-    object with title, instructions, language, starterCode, and 2-4 testCases.
+13. For programming/coding topics, put at least one sandbox scene DIRECTLY INSIDE
+  every content part's "board_scenes" array. Students must write real code. Set
+  intent="sandbox" and provide a "sandbox" object with title, detailed instructions,
+  language, editable starterCode, and 2-4 meaningful testCases. Never emit an empty
+  editor, placeholder code, or a sandbox outside board_scenes.
 14. SIMPLE, CLEAR EXPLANATIONS: teach like you're explaining to a 12-year-old.
     Define every jargon term the first time it appears. Use analogies from everyday
     life ("think of it like a post office — letters go in, letters come out").
@@ -919,21 +921,6 @@ Return ONLY valid JSON with this schema:
           "focus": "optional zoom target"
         }
       ],
-      "sandbox_question_scene": {
-        "segment": "mechanism|example|reinforcement",
-        "intent": "sandbox",
-        "goal": "coding challenge",
-        "say": "spoken instruction for the coding challenge",
-        "sandbox": {
-          "title": "challenge title",
-          "instructions": "detailed problem description",
-          "language": "javascript|python|java|cpp",
-          "starterCode": "initial code template",
-          "testCases": [
-            { "id": "tc1", "input": "test input", "expectedOutput": "expected output", "description": "what this tests" }
-          ]
-        }
-      },
       "animation_sequence": ["hook", "concept", "relationship", "example", "mini_recap"]
     },
     {

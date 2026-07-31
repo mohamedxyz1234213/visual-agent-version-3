@@ -91,8 +91,8 @@ function Body() {
       ) : items.length === 0 ? (
         <EmptyState title="No lessons match these filters" />
       ) : (
-        <Card className="!p-0 overflow-hidden">
-          <div className="grid grid-cols-[1.5fr_0.7fr_0.6fr_0.4fr_0.7fr_auto] gap-3 border-b border-slate-200 bg-slate-50/60 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+        <Card className="!p-0 overflow-x-auto">
+          <div className="grid min-w-[720px] grid-cols-[1.5fr_0.7fr_0.6fr_0.4fr_0.7fr_auto] gap-3 border-b border-slate-200 bg-slate-50/60 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
             <span>Lesson</span>
             <span>Owner</span>
             <span>Status</span>
@@ -102,7 +102,7 @@ function Body() {
           </div>
           <ul className="divide-y divide-slate-100">
             {items.map((l) => (
-              <li key={l.id} className="grid grid-cols-[1.5fr_0.7fr_0.6fr_0.4fr_0.7fr_auto] items-center gap-3 px-4 py-3 hover:bg-slate-50/60">
+              <li key={l.id} className="grid min-w-[720px] grid-cols-[1.5fr_0.7fr_0.6fr_0.4fr_0.7fr_auto] items-center gap-3 px-4 py-3 hover:bg-slate-50/60">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-slate-900">{l.title || "Untitled"}</p>
                   <p className="truncate text-[11px] text-slate-500">{l.source_filename}</p>
