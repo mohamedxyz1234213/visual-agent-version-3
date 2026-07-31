@@ -43,46 +43,46 @@ export default function AvatarAssetMotion({ scenes, elapsed, viewWidth, viewHeig
       data-gesture={beatIndex % 3}
     >
       <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes avatar-float { 0%,100%{transform:translate3d(0,0,0) rotate(0deg)} 50%{transform:translate3d(0,-4px,0) rotate(-.35deg)} }
-        @keyframes avatar-shadow { 0%,100%{transform:scaleX(1);opacity:.18} 50%{transform:scaleX(.88);opacity:.11} }
-        @keyframes avatar-torso { 0%,100%{transform:rotate(-.5deg) scaleX(1)} 50%{transform:rotate(.7deg) scaleX(.992)} }
-        @keyframes avatar-head { 0%,100%{transform:translate(0,0) rotate(-1deg)} 35%{transform:translate(1px,-1px) rotate(1.2deg)} 70%{transform:translate(-1px,0) rotate(.2deg)} }
+        @keyframes avatar-float { 0%,100%{transform:translate3d(0,0,0) rotate(-.2deg)} 26%{transform:translate3d(-1px,-4px,0) rotate(.15deg)} 55%{transform:translate3d(1px,-9px,0) rotate(.45deg)} 78%{transform:translate3d(0,-5px,0) rotate(0deg)} }
+        @keyframes avatar-shadow { 0%,100%{transform:scaleX(1);opacity:.18} 55%{transform:scaleX(.78);opacity:.08} 78%{transform:scaleX(.88);opacity:.12} }
+        @keyframes avatar-torso { 0%,100%{transform:translateY(0) rotate(-.35deg) scaleX(1)} 30%{transform:translateY(.5px) rotate(.15deg) scaleX(.996)} 58%{transform:translateY(1px) rotate(.45deg) scaleX(.99)} 82%{transform:translateY(.4px) rotate(0deg) scaleX(.997)} }
+        @keyframes avatar-head { 0%,100%{transform:translate(0,0) rotate(-.55deg)} 30%{transform:translate(.5px,-1px) rotate(.35deg)} 58%{transform:translate(1px,-2px) rotate(.75deg)} 82%{transform:translate(-.5px,-.5px) rotate(-.1deg)} }
         @keyframes avatar-blink { 0%,44%,47%,78%,81%,100%{transform:scaleY(1)} 45.5%,79.5%{transform:scaleY(.08)} }
-        @keyframes avatar-jaw-talk { 0%,7%,100%{transform:translateY(0) scaleY(.2) scaleX(1.08)} 13%{transform:translateY(2px) scaleY(.72) scaleX(.96)} 20%{transform:translateY(3px) scaleY(1.02) scaleX(.88)} 28%{transform:translateY(1px) scaleY(.38) scaleX(1.1)} 34%{transform:translateY(2px) scaleY(.64) scaleX(1)} 41%{transform:translateY(.5px) scaleY(.28) scaleX(1.12)} 50%{transform:translateY(4px) scaleY(1.12) scaleX(.86)} 59%{transform:translateY(2px) scaleY(.55) scaleX(1.02)} 67%{transform:translateY(3px) scaleY(.88) scaleX(.92)} 76%{transform:translateY(.5px) scaleY(.3) scaleX(1.1)} 84%{transform:translateY(2px) scaleY(.74) scaleX(.97)} 92%{transform:translateY(1px) scaleY(.42) scaleX(1.05)} }
-        @keyframes avatar-lip-talk { 0%,7%,41%,76%,100%{transform:translateY(0) scaleX(1)} 20%{transform:translateY(-1px) scaleX(.84)} 28%{transform:translateY(1px) scaleX(1.08)} 50%{transform:translateY(-2px) scaleX(.8)} 67%{transform:translateY(-1px) scaleX(.88)} 84%{transform:translateY(-1px) scaleX(.9)} }
-        @keyframes avatar-mouth-corners { 0%,7%,41%,76%,100%{transform:scaleX(1) translateY(0)} 20%,50%{transform:scaleX(.9) translateY(1px)} 28%,67%{transform:scaleX(1.08) translateY(-.5px)} }
-        @keyframes avatar-upper-left { 0%,10%,100%{transform:rotate(-10deg)} 25%{transform:rotate(18deg)} 38%{transform:rotate(24deg)} 49%{transform:rotate(17deg)} 66%{transform:rotate(-24deg)} 78%{transform:rotate(-27deg)} 91%{transform:rotate(-8deg)} }
-        @keyframes avatar-upper-right { 0%,14%,100%{transform:rotate(10deg)} 31%{transform:rotate(-23deg)} 45%{transform:rotate(-27deg)} 58%{transform:rotate(-18deg)} 74%{transform:rotate(24deg)} 86%{transform:rotate(27deg)} 95%{transform:rotate(11deg)} }
-        @keyframes avatar-elbow-left { 0%,12%,100%{transform:rotate(20deg)} 28%,44%{transform:rotate(34deg)} 53%{transform:rotate(29deg)} 69%,81%{transform:rotate(24deg)} 93%{transform:rotate(21deg)} }
-        @keyframes avatar-elbow-right { 0%,16%,100%{transform:rotate(-20deg)} 34%,49%{transform:rotate(-34deg)} 61%{transform:rotate(-29deg)} 77%,89%{transform:rotate(-24deg)} 96%{transform:rotate(-21deg)} }
-        @keyframes avatar-wrist-left { 0%,15%,100%{transform:rotate(-4deg)} 32%{transform:rotate(11deg)} 43%{transform:rotate(15deg)} 57%{transform:rotate(4deg)} 72%{transform:rotate(-12deg)} 84%{transform:rotate(-8deg)} }
-        @keyframes avatar-wrist-right { 0%,18%,100%{transform:rotate(3deg)} 36%{transform:rotate(-13deg)} 49%{transform:rotate(-16deg)} 63%{transform:rotate(-4deg)} 79%{transform:rotate(12deg)} 90%{transform:rotate(8deg)} }
-        @keyframes avatar-fingers-left { 0%,20%,100%{transform:rotate(0deg) scaleY(1)} 38%,48%{transform:rotate(3deg) scaleY(.94)} 72%,82%{transform:rotate(-2deg) scaleY(1.03)} }
-        @keyframes avatar-fingers-right { 0%,24%,100%{transform:rotate(0deg) scaleY(1)} 42%,53%{transform:rotate(-4deg) scaleY(.94)} 76%,87%{transform:rotate(2deg) scaleY(1.03)} }
+        @keyframes avatar-jaw-talk { 0%,100%{transform:translateY(0) scaleY(.18) scaleX(1.03)} 10%{transform:translateY(.7px) scaleY(.4) scaleX(1)} 22%{transform:translateY(1.8px) scaleY(.7) scaleX(.95)} 34%{transform:translateY(.5px) scaleY(.29) scaleX(1.04)} 47%{transform:translateY(2.2px) scaleY(.82) scaleX(.93)} 59%{transform:translateY(1px) scaleY(.45) scaleX(1)} 71%{transform:translateY(1.7px) scaleY(.66) scaleX(.96)} 83%{transform:translateY(.4px) scaleY(.25) scaleX(1.04)} 93%{transform:translateY(1px) scaleY(.48) scaleX(.99)} }
+        @keyframes avatar-lip-talk { 0%,34%,83%,100%{transform:translateY(0) scaleX(1)} 22%,71%{transform:translateY(-.4px) scaleX(.96)} 47%{transform:translateY(-.7px) scaleX(.93)} 59%,93%{transform:translateY(.25px) scaleX(1.02)} }
+        @keyframes avatar-mouth-corners { 0%,34%,83%,100%{transform:scaleX(1) translateY(0)} 22%,71%{transform:scaleX(.97) translateY(.35px)} 47%{transform:scaleX(.94) translateY(.55px)} 59%,93%{transform:scaleX(1.02) translateY(0)} }
+        @keyframes avatar-upper-left { 0%,100%{transform:rotate(-7deg)} 18%{transform:rotate(-2deg)} 40%{transform:rotate(13deg)} 57%{transform:rotate(16deg)} 76%{transform:rotate(3deg)} 90%{transform:rotate(-5deg)} }
+        @keyframes avatar-upper-right { 0%,100%{transform:rotate(7deg)} 22%{transform:rotate(2deg)} 43%{transform:rotate(-12deg)} 62%{transform:rotate(-15deg)} 80%{transform:rotate(-3deg)} 93%{transform:rotate(5deg)} }
+        @keyframes avatar-elbow-left { 0%,14%,100%{transform:rotate(18deg)} 34%{transform:rotate(23deg)} 52%,66%{transform:rotate(37deg)} 82%{transform:rotate(25deg)} 94%{transform:rotate(19deg)} }
+        @keyframes avatar-elbow-right { 0%,17%,100%{transform:rotate(-18deg)} 37%{transform:rotate(-23deg)} 55%,69%{transform:rotate(-37deg)} 85%{transform:rotate(-25deg)} 96%{transform:rotate(-19deg)} }
+        @keyframes avatar-wrist-left { 0%,18%,100%{transform:rotate(0deg)} 38%{transform:rotate(3deg)} 56%,69%{transform:rotate(14deg)} 84%{transform:rotate(7deg)} 95%{transform:rotate(1deg)} }
+        @keyframes avatar-wrist-right { 0%,21%,100%{transform:rotate(0deg)} 41%{transform:rotate(-3deg)} 59%,72%{transform:rotate(-14deg)} 87%{transform:rotate(-7deg)} 96%{transform:rotate(-1deg)} }
+        @keyframes avatar-fingers-left { 0%,24%,100%{transform:rotate(0deg) scaleY(1)} 45%{transform:rotate(2deg) scaleY(.99)} 61%,72%{transform:rotate(7deg) scaleY(.96)} 88%{transform:rotate(3deg) scaleY(.985)} }
+        @keyframes avatar-fingers-right { 0%,27%,100%{transform:rotate(0deg) scaleY(1)} 48%{transform:rotate(-2deg) scaleY(.99)} 64%,75%{transform:rotate(-7deg) scaleY(.96)} 90%{transform:rotate(-3deg) scaleY(.985)} }
         @keyframes avatar-joint-glow { 0%,100%{opacity:.45} 50%{opacity:.86} }
-        .avatar-rig { animation:avatar-float 5.2s cubic-bezier(.4,0,.2,1) infinite; transform-origin:50% 100%; filter:drop-shadow(0 14px 15px rgba(15,23,42,.18)); shape-rendering:geometricPrecision; }
-        .avatar-ground-shadow { animation:avatar-shadow 5.2s cubic-bezier(.4,0,.2,1) infinite; transform-box:fill-box; transform-origin:center; }
-        .avatar-torso { animation:avatar-torso 5.2s cubic-bezier(.4,0,.2,1) infinite; transform-box:view-box; transform-origin:124px 318px; }
-        .avatar-head { animation:avatar-head 4.8s cubic-bezier(.4,0,.2,1) infinite; transform-box:view-box; transform-origin:124px 205px; will-change:transform; }
+        .avatar-rig { animation:avatar-float 6.4s cubic-bezier(.37,0,.23,1) infinite; transform-origin:50% 100%; filter:drop-shadow(0 16px 18px rgba(15,23,42,.17)); shape-rendering:geometricPrecision; }
+        .avatar-ground-shadow { animation:avatar-shadow 6.4s cubic-bezier(.37,0,.23,1) infinite; transform-box:fill-box; transform-origin:center; }
+        .avatar-torso { animation:avatar-torso 6.4s cubic-bezier(.37,0,.23,1) infinite; transform-box:view-box; transform-origin:124px 318px; }
+        .avatar-head { animation:avatar-head 6.4s cubic-bezier(.37,0,.23,1) -.12s infinite; transform-box:view-box; transform-origin:124px 205px; will-change:transform; }
         .avatar-eye { animation:avatar-blink 6.8s ease-in-out infinite; transform-box:fill-box; transform-origin:center; }
         .avatar-jaw,.avatar-upper-lip,.avatar-mouth-corners { transform-box:fill-box; transform-origin:center top; will-change:transform; }
-        .avatar-jaw { transform:scaleY(.24) scaleX(1.08); }
-        [data-speaking="true"] .avatar-jaw { animation:avatar-jaw-talk 1.18s cubic-bezier(.4,0,.2,1) infinite; }
-        [data-speaking="true"] .avatar-upper-lip { animation:avatar-lip-talk 1.18s cubic-bezier(.4,0,.2,1) infinite; }
-        [data-speaking="true"] .avatar-mouth-corners { animation:avatar-mouth-corners 1.18s cubic-bezier(.4,0,.2,1) infinite; }
+        .avatar-jaw { transform:scaleY(.18) scaleX(1.03); }
+        [data-speaking="true"] .avatar-jaw { animation:avatar-jaw-talk 1.42s cubic-bezier(.37,0,.23,1) infinite; }
+        [data-speaking="true"] .avatar-upper-lip { animation:avatar-lip-talk 1.42s cubic-bezier(.37,0,.23,1) infinite; }
+        [data-speaking="true"] .avatar-mouth-corners { animation:avatar-mouth-corners 1.42s cubic-bezier(.37,0,.23,1) infinite; }
         .avatar-upper-arm,.avatar-forearm,.avatar-hand,.avatar-fingers { transform-box:view-box; will-change:transform; }
-        .avatar-upper-left { transform-origin:70px 224px; animation:avatar-upper-left 5.4s cubic-bezier(.4,0,.2,1) infinite; }
-        .avatar-upper-right { transform-origin:178px 224px; animation:avatar-upper-right 5.9s cubic-bezier(.4,0,.2,1) -.8s infinite; }
-        .avatar-forearm-left { transform-origin:39px 255px; animation:avatar-elbow-left 5.4s cubic-bezier(.4,0,.2,1) -.16s infinite; }
-        .avatar-forearm-right { transform-origin:209px 255px; animation:avatar-elbow-right 5.9s cubic-bezier(.4,0,.2,1) -.98s infinite; }
-        .avatar-hand-left { transform-origin:31px 297px; animation:avatar-wrist-left 5.4s cubic-bezier(.4,0,.2,1) -.3s infinite; }
-        .avatar-hand-right { transform-origin:217px 297px; animation:avatar-wrist-right 5.9s cubic-bezier(.4,0,.2,1) -1.12s infinite; }
-        .avatar-fingers-left { transform-origin:27px 318px; animation:avatar-fingers-left 5.4s ease-in-out -.38s infinite; }
-        .avatar-fingers-right { transform-origin:221px 318px; animation:avatar-fingers-right 5.9s ease-in-out -1.2s infinite; }
-        [data-speaking="true"] .avatar-upper-left { animation-duration:4.45s; }
-        [data-speaking="true"] .avatar-upper-right { animation-duration:4.8s; }
-        [data-speaking="true"] .avatar-forearm-left { animation-duration:4.45s; }
-        [data-speaking="true"] .avatar-forearm-right { animation-duration:4.8s; }
+        .avatar-upper-left { transform-origin:70px 224px; animation:avatar-upper-left 6.8s cubic-bezier(.37,0,.23,1) infinite; }
+        .avatar-upper-right { transform-origin:178px 224px; animation:avatar-upper-right 7.3s cubic-bezier(.37,0,.23,1) -.9s infinite; }
+        .avatar-forearm-left { transform-origin:39px 255px; animation:avatar-elbow-left 6.8s cubic-bezier(.37,0,.23,1) -.16s infinite; }
+        .avatar-forearm-right { transform-origin:209px 255px; animation:avatar-elbow-right 7.3s cubic-bezier(.37,0,.23,1) -1.06s infinite; }
+        .avatar-hand-left { transform-origin:31px 297px; animation:avatar-wrist-left 6.8s cubic-bezier(.37,0,.23,1) -.28s infinite; }
+        .avatar-hand-right { transform-origin:217px 297px; animation:avatar-wrist-right 7.3s cubic-bezier(.37,0,.23,1) -1.18s infinite; }
+        .avatar-fingers-left { transform-origin:27px 318px; animation:avatar-fingers-left 6.8s cubic-bezier(.37,0,.23,1) -.36s infinite; }
+        .avatar-fingers-right { transform-origin:221px 318px; animation:avatar-fingers-right 7.3s cubic-bezier(.37,0,.23,1) -1.26s infinite; }
+        [data-speaking="true"] .avatar-upper-left { animation-duration:5.6s; }
+        [data-speaking="true"] .avatar-upper-right { animation-duration:6s; }
+        [data-speaking="true"] .avatar-forearm-left { animation-duration:5.6s; }
+        [data-speaking="true"] .avatar-forearm-right { animation-duration:6s; }
         [data-gesture="1"] .avatar-upper-left { animation-direction:reverse; }
         [data-gesture="2"] .avatar-upper-right { animation-direction:reverse; }
         .avatar-joint-light { animation:avatar-joint-glow 2.4s ease-in-out infinite; }
@@ -173,15 +173,15 @@ export default function AvatarAssetMotion({ scenes, elapsed, viewWidth, viewHeig
             <ellipse cx="160" cy="111" rx="5" ry="7" fill="#ecfeff" />
           </g>
           <g className="avatar-jaw">
-            <path d="M96 153Q124 174 152 153Q149 193 124 197Q99 193 96 153Z" fill="#083344" stroke="#22d3ee" strokeWidth="4" />
-            <ellipse cx="124" cy="181" rx="15" ry="7" fill="#f472b6" opacity=".85" />
-            <path d="M108 187q16 8 32 0" fill="none" stroke="#f9a8d4" strokeWidth="3" strokeLinecap="round" opacity=".85" />
+            <path d="M101 157Q124 162 147 157Q146 181 124 185Q102 181 101 157Z" fill="#083344" stroke="#22d3ee" strokeWidth="4" />
+            <ellipse cx="124" cy="177" rx="12" ry="5" fill="#f472b6" opacity=".76" />
+            <path d="M113 179q11 4 22 0" fill="none" stroke="#f9a8d4" strokeWidth="2.5" strokeLinecap="round" opacity=".72" />
           </g>
           <g className="avatar-upper-lip">
-            <path d="M101 154Q124 166 147 154" fill="none" stroke="#ecfeff" strokeWidth="5" strokeLinecap="round" />
+            <path d="M103 157Q124 161 145 157" fill="none" stroke="#ecfeff" strokeWidth="4.5" strokeLinecap="round" />
           </g>
           <g className="avatar-mouth-corners" fill="none" stroke="#67e8f9" strokeWidth="3" strokeLinecap="round">
-            <path d="m101 154-5-3" /><path d="m147 154 5-3" />
+            <path d="m102 157-5 1" /><path d="m146 157 5 1" />
           </g>
           <path d="M20 111c-12 4-14 51 0 59" fill={`url(#${idPrefix}-shell-edge)`} stroke="#0f172a" strokeWidth="5" />
           <path d="M228 111c12 4 14 51 0 59" fill={`url(#${idPrefix}-shell-edge)`} stroke="#0f172a" strokeWidth="5" />

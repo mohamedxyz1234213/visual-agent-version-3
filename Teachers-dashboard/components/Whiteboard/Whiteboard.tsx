@@ -115,6 +115,18 @@ function pickAnimation(id: string, pool: string[]): string {
   return pool[Math.abs(hash) % pool.length];
 }
 
+function sceneMotionClass(actionType: string): string {
+  if (["draw_text", "write_text", "draw_arrow", "draw_path", "draw_line", "underline"].includes(actionType)) {
+    return "wb-scene-ink";
+  }
+  if (["draw_rect", "draw_circle", "draw_badge", "draw_callout", "draw_object", "draw_physics_shape"].includes(actionType)) {
+    return "wb-scene-shape";
+  }
+  if (actionType === "draw_code_block") return "wb-scene-code";
+  if (["show_equation", "draw_highlight", "narration_emphasis"].includes(actionType)) return "wb-scene-emphasis";
+  return "wb-scene-structure";
+}
+
 function isCaptionSpeechActive(scenes: StoryboardScene[], elapsed: number): boolean {
   const captions = scenes.filter((scene) => scene.action_type === "draw_caption");
   if (!captions.length) return true;
@@ -136,7 +148,7 @@ export interface WhiteboardProps {
   onSandboxResult?: (passed: boolean, sceneId: string) => void;
 }
 
-interface RenderedEl { id: string; jsx: React.ReactNode; }
+interface RenderedEl { id: string; jsx: React.ReactNode; motionClass: string; }
 
 interface CameraState {
   zoom: number;
@@ -242,7 +254,7 @@ export default function Whiteboard({
       // Only render if not already rendered
       if (!renderedIds.current.has(scene.id)) {
         const jsx = renderScene(scene);
-        if (jsx) shouldBeVisible.push({ id: scene.id, jsx });
+        if (jsx) shouldBeVisible.push({ id: scene.id, jsx, motionClass: sceneMotionClass(scene.action_type) });
       }
     }
 
@@ -495,7 +507,7 @@ export default function Whiteboard({
         {/* All elements clipped to canvas bounds */}
         <g clipPath="url(#wb-clip)">
           {visible.map((el) => (
-            <React.Fragment key={el.id}>{el.jsx}</React.Fragment>
+            <g key={el.id} className={`wb-scene-reveal ${el.motionClass}`}>{el.jsx}</g>
           ))}
         </g>
       </svg>
