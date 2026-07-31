@@ -63,14 +63,17 @@ if (process.env.VERCEL === '1') {
 app.use('/audio', express.static(path.join(publicDir, 'audio')));
 
 // ── Middleware ────────────────────────────────────────────────────────────────
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:3001,http://localhost:3002')
+const localOrigins = ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'];
+const configuredOrigins = (process.env.ALLOWED_ORIGINS || '')
   .split(',')
-  .map((o) => o.trim());
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const allowedOrigins = new Set([...localOrigins, ...configuredOrigins]);
 
 app.use(helmet());
 app.use(cors({
   origin(origin, cb) {
-    if (!origin || allowedOrigins.includes(origin) || /\.vercel\.app$/.test(origin)) {
+    if (!origin || allowedOrigins.has(origin) || /\.vercel\.app$/.test(origin)) {
       cb(null, true);
     } else {
       cb(null, false);
