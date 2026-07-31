@@ -19,8 +19,8 @@ function authHeaders(): Record<string, string> {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     credentials: "include",
-    headers: { "Content-Type": "application/json", ...authHeaders(), ...init?.headers },
     ...init,
+    headers: { "Content-Type": "application/json", ...authHeaders(), ...init?.headers },
   });
   if (!res.ok) {
     const text = await res.text();
@@ -49,7 +49,12 @@ export async function uploadDocument(
   if (explanationMode) form.append("explanation_mode", explanationMode);
   if (lessonIntent) form.append("lesson_intent", lessonIntent);
 
-  const res = await fetch(`${BASE}/upload/`, { method: "POST", body: form });
+  const res = await fetch(`${BASE}/upload/`, {
+    method: "POST",
+    body: form,
+    credentials: "include",
+    headers: authHeaders(),
+  });
   if (!res.ok) throw new Error(`Upload failed: ${res.statusText}`);
   return res.json();
 }
@@ -66,6 +71,7 @@ export async function explainText(
   const res = await fetch(`${BASE}/explain/`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
+    credentials: "include",
     body: JSON.stringify({
       text,
       subject: subject || undefined,

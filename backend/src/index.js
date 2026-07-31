@@ -97,9 +97,6 @@ app.use(
   }),
 );
 
-// Resolve the current user (if any) on every request — non-blocking
-app.use(loadUser);
-
 // ── Database connection for Vercel (cached across invocations) ────────────────
 let dbPromise = null;
 async function ensureDB() {
@@ -124,6 +121,9 @@ app.use(async (_req, _res, next) => {
     next(err);
   }
 });
+
+// Authentication reads sessions from MongoDB, so it must run after ensureDB.
+app.use(loadUser);
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 // Auth & Admin

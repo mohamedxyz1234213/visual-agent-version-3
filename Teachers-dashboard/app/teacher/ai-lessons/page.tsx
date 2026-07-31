@@ -238,7 +238,15 @@ export default function AILessonsPage() {
           setGenerating(false);
           clearInterval(interval);
         }
-      } catch { /* keep polling */ }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.includes("401")) {
+          setGenError("Your session expired. Sign in again, then retry generation.");
+          setIsError(true);
+          setGenerating(false);
+          clearInterval(interval);
+        }
+      }
     }, 2000);
 
     pollRef.current = interval;
