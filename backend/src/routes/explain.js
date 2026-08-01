@@ -3,8 +3,7 @@ import { Lesson, LessonPart } from '../models/Lesson.js';
 import { LessonSeries } from '../models/LessonSeries.js';
 import { planLessonSeries } from '../services/aiPlanner.js';
 import { saveLessonPlan } from '../services/storyboardGenerator.js';
-import { synthesize, generateCaptionAudio } from '../services/ttsService.js';
-import { uploadAudio } from '../services/storageService.js';
+import { generateLessonAudioArtifacts } from '../services/ttsService.js';
 import { getBlazeConfig, resolveBlazeModel } from '../services/blazeConfig.js';
 import { getOpenRouterConfig } from '../services/openrouterConfig.js';
 import { toUserFacingError } from '../utils/errors.js';
@@ -153,27 +152,7 @@ async function processDirectText(lessonId, seriesId, rawText, userInstructions, 
 
     await Lesson.findByIdAndUpdate(lessonId, { processingStep: 'finalizing' });
     const parts = await LessonPart.find({ lessonId: lesson._id });
-    for (const part of parts) {
-      if (part.narration && part.partType === 'content') {
-        try {
-          const audio = await synthesize(part.narration, part._id.toString());
-          if (audio) {
-            const url = await uploadAudio(audio, part._id.toString());
-            if (url) { part.audioUrl = url; await part.save(); }
-          }
-        } catch (ttsErr) {
-          console.warn(`TTS failed for part ${part._id}:`, ttsErr.message);
-        }
-      }
-    }
-
-    // Per-caption TTS
-    for (const part of parts) {
-      if (part.partType === 'content') {
-        try { await generateCaptionAudio(part._id.toString()); }
-        catch (capErr) { console.warn(`Caption TTS failed for part ${part._id}:`, capErr.message); }
-      }
-    }
+    await generateLessonAudioArtifacts(parts);
 
     lesson.status = 'ready';
     lesson.processingStep = 'done';

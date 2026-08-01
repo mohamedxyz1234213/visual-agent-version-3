@@ -1,5 +1,7 @@
 const BASE = process.env.BASE || 'https://backend-teaching.vercel.app';
-const TOPICS = [
+const LOGIN_IDENTIFIER = process.env.LOGIN_IDENTIFIER || 'teacher@test.com';
+const LOGIN_PASSWORD = process.env.LOGIN_PASSWORD || '123456789';
+const TOPICS = process.env.TOPICS_JSON ? JSON.parse(process.env.TOPICS_JSON) : [
   'Explain stack vs queue with practical coding examples.',
   'Teach binary search with a worked array example and complexity intuition.',
   'Explain recursion with base case, recursive case, and call stack tracing.',
@@ -25,7 +27,7 @@ async function login() {
   const login = await jsonFetch(`${BASE}/api/v1/auth/login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ identifier: 'teacher@test.com', password: '123456789' }),
+    body: JSON.stringify({ identifier: LOGIN_IDENTIFIER, password: LOGIN_PASSWORD }),
   });
 
   if (login.status !== 200 || !login.body?.token) {

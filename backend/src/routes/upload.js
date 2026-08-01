@@ -6,7 +6,7 @@ import { LessonSeries } from '../models/LessonSeries.js';
 import { extractText } from '../services/documentExtractor.js';
 import { planLessonSeries, planSingleLesson } from '../services/aiPlanner.js';
 import { saveLessonPlan } from '../services/storyboardGenerator.js';
-import { synthesize, generateCaptionAudio } from '../services/ttsService.js';
+import { generateLessonAudioArtifacts } from '../services/ttsService.js';
 import { uploadFile, uploadAudio } from '../services/storageService.js';
 import { BLAZE_MODELS, getBlazeConfig, resolveBlazeModel } from '../services/blazeConfig.js';
 import { BLAZEAPI_MODELS, getBlazeAPIConfig } from '../services/blazeapiConfig.js';
@@ -297,33 +297,10 @@ async function processLesson(lessonId, seriesId, buffer, filename, userInstructi
     await Lesson.findByIdAndUpdate(lessonId, { processingStep: 'saving' });
     await saveLessonPlan(lesson, firstLesson);
 
-    // 5. TTS narration (optional — skipped if provider is none)
+    // 5. Finalize lesson content without blocking on TTS/audio work.
     await Lesson.findByIdAndUpdate(lessonId, { processingStep: 'finalizing' });
     const parts = await LessonPart.find({ lessonId: lesson._id });
-    for (const part of parts) {
-      if (part.narration && part.partType === 'content') {
-        try {
-          const audio = await synthesize(part.narration, part._id.toString());
-          if (audio) {
-            const url = await uploadAudio(audio, part._id.toString());
-            if (url) { part.audioUrl = url; await part.save(); }
-          }
-        } catch (ttsErr) {
-          console.warn(`TTS failed for part ${part._id}:`, ttsErr.message);
-        }
-      }
-    }
-
-    // Per-caption TTS: generate audio for each draw_caption scene
-    for (const part of parts) {
-      if (part.partType === 'content') {
-        try {
-          await generateCaptionAudio(part._id.toString());
-        } catch (capErr) {
-          console.warn(`Caption TTS failed for part ${part._id}:`, capErr.message);
-        }
-      }
-    }
+    await generateLessonAudioArtifacts(parts);
 
     lesson.status = 'ready';
     lesson.processingStep = 'done';

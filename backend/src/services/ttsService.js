@@ -49,9 +49,11 @@ async function withSpeechifyRetry(task) {
 
 function captionTtsEnabled() {
   // Single-voice mode is the default to avoid many short caption clips.
-  const singleVoiceOnly = String(process.env.TTS_SINGLE_VOICE_ONLY ?? 'true').toLowerCase() !== 'false';
-  if (singleVoiceOnly) return false;
-  return String(process.env.ENABLE_CAPTION_TTS ?? 'false').toLowerCase() === 'true';
+  // Always return false unless an explicit opt-in env flag is set.
+  if (String(process.env.TTS_SINGLE_VOICE_ONLY ?? 'true').toLowerCase() === 'false') {
+    return String(process.env.ENABLE_CAPTION_TTS ?? 'false').toLowerCase() === 'true';
+  }
+  return false;
 }
 
 /**
@@ -97,6 +99,45 @@ export async function generateCaptionAudio(partId) {
       console.warn(`[tts] Caption TTS failed scene ${scene._id}: ${err.message}`);
     }
   }
+}
+
+export async function generateLessonAudioArtifacts(parts = []) {
+  const results = [];
+  for (const part of parts) {
+    if (part?.narration && part?.partType === 'content') {
+      try {
+        const audio = await Promise.race([
+          synthesize(part.narration, part._id.toString()),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('TTS timeout')), 15000)),
+        ]);
+        if (audio) {
+          const url = await uploadAudio(audio, part._id.toString());
+          if (url) {
+            part.audioUrl = url;
+            await part.save();
+          }
+        }
+        results.push({ partId: part._id.toString(), status: 'ok' });
+      } catch (ttsErr) {
+        console.warn(`[tts] Part narration failed for ${part._id}:`, ttsErr.message);
+        results.push({ partId: part._id.toString(), status: 'skipped', error: ttsErr.message });
+      }
+    }
+  }
+
+  for (const part of parts) {
+    if (part?.partType === 'content') {
+      try {
+        await generateCaptionAudio(part._id.toString());
+        results.push({ partId: part._id.toString(), captionStatus: 'ok' });
+      } catch (capErr) {
+        console.warn(`[tts] Caption audio failed for ${part._id}:`, capErr.message);
+        results.push({ partId: part._id.toString(), captionStatus: 'skipped', error: capErr.message });
+      }
+    }
+  }
+
+  return results;
 }
 
 function estimateSpeechDurationSeconds(text) {

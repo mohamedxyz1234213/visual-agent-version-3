@@ -12,6 +12,7 @@
 // No filler. No generic labels. No empty decoration.
 // -----------------------------------------------------------------------------
 
+import 'dotenv/config';
 import { createRequire } from 'module';
 const _require = createRequire(import.meta.url);
 const dagre = _require('@dagrejs/dagre');
@@ -162,6 +163,17 @@ export function shouldUseLocalPlanning(aiProvider = null) {
     return !process.env.FASTAPI_BASE_URL && !process.env.FASTAPI_API_KEY;
   }
   return false;
+}
+
+export function shouldUseTopicLocalOnlyFallback(lessonSpec, aiProvider = null) {
+  if (!lessonSpec || lessonSpec.source_mode !== 'topic') return false;
+  const provider = normalizeProvider(aiProvider) || normalizeProvider(process.env.ACTIVE_LLM) || 'openrouter';
+  const topicRequest = normalizeText(lessonSpec.topic_request || lessonSpec.section_text || '');
+  const maxChars = Math.max(80, Number(process.env.TOPIC_LOCAL_ONLY_MAX_CHARS ?? 220));
+  const shortTopic = topicRequest.length > 0 && topicRequest.length <= maxChars;
+  const explicitFallback = String(process.env.TOPIC_LOCAL_ONLY ?? '').toLowerCase() === 'true';
+
+  return explicitFallback && shortTopic && shouldUseLocalPlanning(provider);
 }
 
 const circuitState = {
@@ -636,7 +648,7 @@ function buildPromptAwareDefinition(concept, role, rootConcept, concepts, concep
       market: `${concept} is shaped by forces such as supply, demand, and price, and ${relatedText} are the levers that move it one way or the other.`,
       history: `${concept} unfolds as a chain in which earlier pressures lead to events and consequences, with ${relatedText} marking the turning points along the way.`,
       process: `${concept} is a sequence of connected stages, where ${relatedText} each transform what arrives and pass it on so the next stage can act.`,
-      general: `${concept} is the through-line that ties ${relatedText} together into a single, coherent idea rather than a list of separate terms.`,
+      general: `${concept} becomes clear when you follow how ${relatedText} interact in the actual topic rather than treating them as isolated labels.`,
     };
     return rootByFamily[family];
   }
@@ -693,7 +705,7 @@ function buildPromptAwareImportance(concept, role, rootConcept, concepts, concep
       market: `Watch how ${relatedText} pull against each other and the resulting price or quantity stops looking arbitrary.`,
       history: `Read it as cause leading to event leading to consequence, and ${relatedText} line up into a single story.`,
       process: `Follow the stages in order and ${relatedText} explain why the outcome turns out the way it does.`,
-      general: `Once you see how ${relatedText} fit together, the whole idea stops feeling like a pile of disconnected terms.`,
+      general: `Once you see how ${relatedText} fit together, the topic becomes easier to follow and remember.`,
     };
     return rootByFamily[family];
   }
@@ -1316,11 +1328,9 @@ async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, ana
   const refineSourceLimit = aiProvider === 'deepseek' ? 500_000 : 30_000;
   const refinePlanLimit = aiProvider === 'deepseek' ? 200_000 : 40_000;
   const topicRequest = normalizeText(lessonSpec.topic_request || lessonSpec.section_text || '');
-  const topicLocalOnlyEnabled = String(process.env.TOPIC_LOCAL_ONLY ?? 'true').toLowerCase() !== 'false';
+  const topicLocalOnlyEnabled = String(process.env.TOPIC_LOCAL_ONLY ?? '').toLowerCase() === 'true';
   const topicLocalOnlyMaxChars = Math.max(80, Number(process.env.TOPIC_LOCAL_ONLY_MAX_CHARS ?? 220));
-  const shouldUseTopicLocalOnly = lessonSpec.source_mode === 'topic'
-    && topicLocalOnlyEnabled
-    && (topicRequest.length === 0 || topicRequest.length <= topicLocalOnlyMaxChars);
+  const shouldUseTopicLocalOnly = shouldUseTopicLocalOnlyFallback(lessonSpec, aiProvider);
   if (lessonSpec.source_mode === 'topic') {
     console.log(`[aiPlanner] topic-mode check: requestLen=${topicRequest.length}, localOnlyEnabled=${topicLocalOnlyEnabled}, maxChars=${topicLocalOnlyMaxChars}, useLocal=${shouldUseTopicLocalOnly}`);
   }
@@ -3787,9 +3797,10 @@ function buildTopicFallbackQuizTitles(explanationMode) {
 function buildTopicFallbackLesson(spec) {
   const lessonTitle = spec.title || spec.comprehension?.document_subject || buildTopicTitle(spec.topic_request || spec.section_text);
   const subject = spec.comprehension?.document_subject || lessonTitle;
+  const sourceText = normalizeText(spec.topic_request || spec.section_text || lessonTitle);
   const topicPool = Array.isArray(spec.comprehension?.key_topics) && spec.comprehension.key_topics.length
     ? spec.comprehension.key_topics.slice(0, 6)
-    : sanitizeConceptList(spec.key_points, spec.section_text, 6).map((topic) => ({
+    : sanitizeConceptList(spec.key_points, sourceText, 6).map((topic) => ({
         topic,
         definition: `${topic} is a central concept in this lesson.`,
         importance: `Understanding ${topic} supports the rest of the topic.`,
@@ -3802,10 +3813,18 @@ function buildTopicFallbackLesson(spec) {
   const usedSentenceKeys = new Set();
   const contentParts = groupedTopics.map((topicGroup, index) => {
     const concepts = spec.source_mode === 'topic'
-      ? dedupePromptConcepts(sanitizeConceptList(topicGroup.map((topic) => topic?.topic), spec.section_text, 6), 4)
-      : sanitizeConceptList(topicGroup.map((topic) => topic?.topic), spec.section_text, 4);
+      ? dedupePromptConcepts(sanitizeConceptList(topicGroup.map((topic) => topic?.topic), sourceText, 6), 4)
+      : sanitizeConceptList(topicGroup.map((topic) => topic?.topic), sourceText, 4);
     const primaryConcept = concepts[0] || topicGroup[0]?.topic || lessonTitle;
     const partConfig = buildTopicFallbackPartConfig(spec.explanation_mode, index, primaryConcept);
+
+    const ideaSentences = [
+      `${primaryConcept} is the best place to start when you want to understand ${lessonTitle}.`,
+      `This idea helps explain the main mechanism behind ${lessonTitle}.`,
+      `A strong way to teach ${lessonTitle} is to connect ${concepts.slice(0, 3).join(', ')} in a clear sequence.`,
+      `When you follow ${primaryConcept} step by step, the topic becomes easier to reason about.`,
+    ];
+
     const baseEntries = filterInstructionalMetaEntries([
       index === 0 ? spec.comprehension?.core_thesis || '' : '',
       ...topicGroup.flatMap((topic) => [
@@ -3813,22 +3832,14 @@ function buildTopicFallbackLesson(spec) {
         topic?.importance || '',
         ...uniqueNormalizedStrings(topic?.details, 3),
       ]),
+      ...ideaSentences,
     ]);
+
     let candidateSentences = extractSentences(normalizeText(baseEntries.join(' ')))
       .filter((sentence) => !isInstructionalMetaSentence(sentence));
 
-    if (candidateSentences.length < 6) {
-      const supportEntries = filterInstructionalMetaEntries(topicPool
-        .filter((topic) => !topicGroup.some((current) => current?.topic === topic?.topic))
-        .flatMap((topic) => [
-          topic?.definition || '',
-          topic?.importance || '',
-          ...uniqueNormalizedStrings(topic?.details, 1),
-        ]))
-        .slice(0, 4);
-
-      candidateSentences = extractSentences(normalizeText([...baseEntries, ...supportEntries].join(' ')))
-        .filter((sentence) => !isInstructionalMetaSentence(sentence));
+    if (candidateSentences.length < 4) {
+      candidateSentences = ideaSentences;
     }
 
     const topicSentences = candidateSentences.filter((sentence) => !usedSentenceKeys.has(sentence.toLowerCase()));
@@ -3855,7 +3866,7 @@ function buildTopicFallbackLesson(spec) {
     buildQuizPart({
       orderIndex: 2,
       title: quizTitles[0],
-      narration: 'Test your knowledge of the foundational concepts.',
+      narration: 'Check whether the main idea is clear before moving on.',
       lessonTitle,
       concepts: contentParts[0].key_concepts,
       sourceText: buildTopicSourceBrief(spec),
@@ -3863,7 +3874,7 @@ function buildTopicFallbackLesson(spec) {
     buildQuizPart({
       orderIndex: 4,
       title: quizTitles[1],
-      narration: 'Verify your understanding.',
+      narration: 'Test the key idea in a short applied check.',
       lessonTitle,
       concepts: contentParts[1].key_concepts,
       sourceText: buildTopicSourceBrief(spec),
@@ -3872,6 +3883,7 @@ function buildTopicFallbackLesson(spec) {
 
   const summarySentences = extractSentences(normalizeText(filterInstructionalMetaEntries([
     spec.comprehension?.core_thesis || '',
+    `${lessonTitle} becomes clearer when the main idea is connected to its key steps and examples.`,
     ...topicPool.slice(0, 3).flatMap((topic) => [topic?.definition || '', topic?.importance || '']),
   ]).join(' '))).slice(0, 3);
 
@@ -4601,89 +4613,112 @@ export async function callAIRace(prompt, maxTokens, timeoutMs = AI_TIMEOUT_MS, a
     throw new Error('AI planner disabled by configuration');
   }
 
-  const activeAI = normalizeProvider(aiProvider) || normalizeProvider(process.env.ACTIVE_LLM) || 'openrouter';
-  if (shouldUseLocalPlanning(activeAI)) {
-    throw new Error(`AI provider is not configured for planning: ${activeAI}`);
-  }
+  const preferredAI = normalizeProvider(aiProvider) || normalizeProvider(process.env.ACTIVE_LLM) || 'openrouter';
+  const providerOrder = [preferredAI];
 
-  lastAiVia = null;
-  const circuit = circuitState[activeAI] || circuitState.default;
-  const model = resolveModel(activeAI, analysisModel);
-  const hasExplicitModelSelection = Boolean(String(analysisModel || '').trim());
-
-  if (!hasExplicitModelSelection && Date.now() < circuit.openUntil) {
-    throw new Error(`AI provider "${activeAI}" cooling down: ${circuit.reason}`);
-  }
-
-  if (activeAI === 'blazeapi') {
-    return callBlazeAPI(prompt, maxTokens, timeoutMs, model, hasExplicitModelSelection, circuit);
-  }
-
-  if (activeAI === 'fastapi') {
-    return callFastAPI(prompt, maxTokens, timeoutMs, circuit);
-  }
-
-  if (activeAI === 'openrouter') {
-    return callOpenRouter(prompt, maxTokens, timeoutMs, model, hasExplicitModelSelection, circuit);
-  }
-
-  // Legacy BlazeAI — now routes through BlazeAPI endpoint (set in .env BLAZE_BASE_URL)
-  const cfg = getBlazeConfig();
-  if (!cfg.apiKey) throw new Error('BLAZE_API_KEY not set');
-
-  const preferred = workingBlazeModel || model || cfg.defaultModel;
-  const modelsToTry = buildBlazeAPIModelChain(preferred);
-
-  console.log(`[aiPlanner] BlazeAI → ${modelsToTry.join(' → ')} (max_tokens=${maxTokens}, timeout=${timeoutMs}ms)`);
-
-  let lastError;
-  for (const m of modelsToTry) {
-    try {
-      const result = await callOpenAICompatible(cfg.baseURL, cfg.apiKey, m, prompt, maxTokens, timeoutMs);
-      lastAiVia = 'blaze';
-      circuit.openUntil = 0;
-      circuit.reason = '';
-      aiCircuitOpenUntil = 0;
-      aiCircuitReason = '';
-      workingBlazeModel = m;
-      return result;
-    } catch (error) {
-      const msg = String(error?.message || error || '');
-      const isGatewayError = /502|503|gateway|upstream|retrying|sentinel|unavailable/i.test(msg);
-      lastError = error;
-
-      if (isGatewayError) {
-        console.warn(`[aiPlanner] BlazeAI model "${m}" failed: ${describeAIError(error)} — trying next model`);
-      } else {
-        console.error(`[aiPlanner] BlazeAI model "${m}" non-retryable error: ${describeAIError(error)}`);
-        break;
-      }
+  if (preferredAI === 'openrouter') {
+    if (!shouldUseLocalPlanning('blazeapi') && (getBlazeAPIConfig().apiKey || process.env.BLAZEAPI_API_KEY || process.env.BLAZE_API_KEY)) {
+      providerOrder.push('blazeapi');
+    }
+    if (!shouldUseLocalPlanning('fastapi') && (process.env.FASTAPI_BASE_URL || process.env.FASTAPI_API_KEY)) {
+      providerOrder.push('fastapi');
+    }
+  } else if (preferredAI === 'blazeapi') {
+    if (!shouldUseLocalPlanning('fastapi') && (process.env.FASTAPI_BASE_URL || process.env.FASTAPI_API_KEY)) {
+      providerOrder.push('fastapi');
     }
   }
 
-  // Last resort: try through FastAPI service (Render) — may have different config
-  try {
-    console.warn(`[aiPlanner] All BlazeAI models failed, trying FastAPI fallback...`);
-    const result = await callFastAPICompatible(prompt, maxTokens, 120_000);
-    lastAiVia = 'blaze';
-    circuit.openUntil = 0;
-    circuit.reason = '';
-    aiCircuitOpenUntil = 0;
-    aiCircuitReason = '';
-    return result;
-  } catch (fastapiError) {
-    console.error(`[aiPlanner] FastAPI fallback also failed: ${describeAIError(fastapiError)}`);
-    lastError = fastapiError;
+  let lastError;
+  for (const providerName of providerOrder) {
+    if (shouldUseLocalPlanning(providerName)) {
+      continue;
+    }
+
+    const circuit = circuitState[providerName] || circuitState.default;
+    const model = resolveModel(providerName, analysisModel);
+    const hasExplicitModelSelection = Boolean(String(analysisModel || '').trim());
+
+    if (!hasExplicitModelSelection && Date.now() < circuit.openUntil) {
+      continue;
+    }
+
+    try {
+      if (providerName === 'blazeapi') {
+        return await callBlazeAPI(prompt, maxTokens, timeoutMs, model, hasExplicitModelSelection, circuit);
+      }
+      if (providerName === 'fastapi') {
+        return await callFastAPI(prompt, maxTokens, timeoutMs, circuit);
+      }
+      if (providerName === 'openrouter') {
+        return await callOpenRouter(prompt, maxTokens, timeoutMs, model, hasExplicitModelSelection, circuit);
+      }
+
+      // Legacy BlazeAI — now routes through BlazeAPI endpoint (set in .env BLAZE_BASE_URL)
+      const cfg = getBlazeConfig();
+      if (!cfg.apiKey) throw new Error('BLAZE_API_KEY not set');
+
+      const preferred = workingBlazeModel || model || cfg.defaultModel;
+      const modelsToTry = buildBlazeAPIModelChain(preferred);
+
+      console.log(`[aiPlanner] BlazeAI → ${modelsToTry.join(' → ')} (max_tokens=${maxTokens}, timeout=${timeoutMs}ms)`);
+
+      for (const m of modelsToTry) {
+        try {
+          const result = await callOpenAICompatible(cfg.baseURL, cfg.apiKey, m, prompt, maxTokens, timeoutMs);
+          lastAiVia = 'blaze';
+          circuit.openUntil = 0;
+          circuit.reason = '';
+          aiCircuitOpenUntil = 0;
+          aiCircuitReason = '';
+          workingBlazeModel = m;
+          return result;
+        } catch (error) {
+          const msg = String(error?.message || error || '');
+          const isGatewayError = /502|503|gateway|upstream|retrying|sentinel|unavailable/i.test(msg);
+          lastError = error;
+          if (!isGatewayError) {
+            console.error(`[aiPlanner] BlazeAI model "${m}" non-retryable error: ${describeAIError(error)}`);
+            break;
+          }
+          console.warn(`[aiPlanner] BlazeAI model "${m}" failed: ${describeAIError(error)} — trying next model`);
+        }
+      }
+
+      try {
+        console.warn(`[aiPlanner] All BlazeAI models failed, trying FastAPI fallback...`);
+        const result = await callFastAPICompatible(prompt, maxTokens, 120_000);
+        lastAiVia = 'blaze';
+        circuit.openUntil = 0;
+        circuit.reason = '';
+        aiCircuitOpenUntil = 0;
+        aiCircuitReason = '';
+        return result;
+      } catch (fastapiError) {
+        console.error(`[aiPlanner] FastAPI fallback also failed: ${describeAIError(fastapiError)}`);
+        lastError = fastapiError;
+      }
+
+      if (!hasExplicitModelSelection && shouldTripCircuit(lastError)) {
+        const limits = PROVIDER_LIMITS.blaze;
+        circuit.openUntil = Date.now() + limits.cooldown;
+        circuit.reason = describeAIError(lastError);
+        aiCircuitOpenUntil = circuit.openUntil;
+        aiCircuitReason = circuit.reason;
+      }
+      throw new Error(`BlazeAI unavailable: ${describeAIError(lastError)}`);
+    } catch (error) {
+      const message = String(error?.message || error || '');
+      const isRetryable = /402|429|credit|quota|rate.*limit|insufficient|unavailable|gateway|502|503|upstream|retrying|sentinel/i.test(message);
+      lastError = error;
+      if (!isRetryable || providerName === providerOrder[providerOrder.length - 1]) {
+        break;
+      }
+      console.warn(`[aiPlanner] ${providerName} failed (${describeAIError(error)}); trying next configured provider...`);
+    }
   }
 
-  if (!hasExplicitModelSelection && shouldTripCircuit(lastError)) {
-    const limits = PROVIDER_LIMITS.blaze;
-    circuit.openUntil = Date.now() + limits.cooldown;
-    circuit.reason = describeAIError(lastError);
-    aiCircuitOpenUntil = circuit.openUntil;
-    aiCircuitReason = circuit.reason;
-  }
-  throw new Error(`BlazeAI unavailable: ${describeAIError(lastError)}`);
+  throw lastError || new Error(`AI provider unavailable: ${preferredAI}`);
 }
 
 /** Primary AI provider: route all calls through the Render-hosted FastAPI service. */
