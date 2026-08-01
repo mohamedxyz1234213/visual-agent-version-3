@@ -3,9 +3,10 @@
  * AnimationEngine — drives the elapsed timer that the Whiteboard uses
  * to decide which scenes to show.
  *
- * Also manages audio playback. When a caption scene has its own audioUrl
- * in the payload, that short clip is played so the voice reads exactly
- * what appears under the board. Falls back to the full part audio_url.
+ * Also manages audio playback. A part's generated narration is always the
+ * preferred audio source, so students hear one continuous teacher voice while
+ * the board progresses. Per-caption audio and browser speech are legacy
+ * fallbacks only when a complete narration track is unavailable.
  */
 
 import { useEffect, useRef } from "react";
@@ -45,6 +46,7 @@ export default function AnimationEngine({ part, onPartComplete }: AnimationEngin
   const elapsedRef = useRef<number>(0);
   const tickRef = useRef<number>(100);
   const lastCaptionIdRef = useRef<string | null>(null);
+  const fallbackNarrationStartedRef = useRef(false);
   const onPartCompleteRef = useRef(onPartComplete);
 
   useEffect(() => {
@@ -56,6 +58,7 @@ export default function AnimationEngine({ part, onPartComplete }: AnimationEngin
     const jumped = Math.abs(storeElapsed - elapsedRef.current) > 0.35;
     if (jumped) {
       lastCaptionIdRef.current = null;
+      fallbackNarrationStartedRef.current = false;
       captionAudioRef.current?.pause();
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
@@ -69,6 +72,7 @@ export default function AnimationEngine({ part, onPartComplete }: AnimationEngin
   // visible caption, using their generated clip or browser speech as fallback.
   useEffect(() => {
     lastCaptionIdRef.current = null;
+    fallbackNarrationStartedRef.current = false;
     captionAudioRef.current?.pause();
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
@@ -97,9 +101,17 @@ export default function AnimationEngine({ part, onPartComplete }: AnimationEngin
 
   const hasCaptionTimeline = part.scenes.some((s) => s.action_type === "draw_caption");
 
-  // Main playback loop — timer + caption audio switching
+  // Main playback loop — continuous part narration first, then legacy fallback.
   useEffect(() => {
     if (status === "playing") {
+      const speakFullNarration = () => {
+        if (fallbackNarrationStartedRef.current || !part.narration || typeof window === "undefined" || !("speechSynthesis" in window)) return;
+        fallbackNarrationStartedRef.current = true;
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(part.narration);
+        utterance.rate = Math.min(2, Math.max(0.5, speed));
+        window.speechSynthesis.speak(utterance);
+      };
       const speakCaption = (text: string) => {
         if (!text || typeof window === "undefined" || !("speechSynthesis" in window)) return;
         window.speechSynthesis.cancel();
@@ -142,14 +154,18 @@ export default function AnimationEngine({ part, onPartComplete }: AnimationEngin
         }
       };
 
-      if (hasCaptionTimeline) {
-        playCaptionAt(elapsedRef.current);
-      } else if (audioRef.current) {
+      if (part.audio_url && audioRef.current) {
         if (Math.abs(audioRef.current.currentTime - elapsedRef.current) > 0.35) {
           audioRef.current.currentTime = Math.max(0, elapsedRef.current);
         }
         audioRef.current.playbackRate = speed;
         audioRef.current.play().catch(() => {});
+      } else if (part.narration) {
+        // Keep a fallback narration continuous as well; do not restart speech
+        // for each caption as that causes the audible chunking problem.
+        speakFullNarration();
+      } else if (hasCaptionTimeline) {
+        playCaptionAt(elapsedRef.current);
       }
 
       const tick = tickRef.current;
@@ -159,7 +175,7 @@ export default function AnimationEngine({ part, onPartComplete }: AnimationEngin
         elapsedRef.current = next;
         setElapsed(next);
 
-        if (hasCaptionTimeline) playCaptionAt(next);
+        if (!part.audio_url && !part.narration && hasCaptionTimeline) playCaptionAt(next);
 
         if (next >= part.duration_seconds) {
           clearInterval(timerRef.current!);
@@ -187,7 +203,7 @@ export default function AnimationEngine({ part, onPartComplete }: AnimationEngin
       if (timerRef.current) clearInterval(timerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, speed, part.id, part.scenes, part.duration_seconds, hasCaptionTimeline, setElapsed, setStatus]);
+  }, [status, speed, part.id, part.scenes, part.narration, part.audio_url, part.duration_seconds, hasCaptionTimeline, setElapsed, setStatus]);
 
   return null;
 }

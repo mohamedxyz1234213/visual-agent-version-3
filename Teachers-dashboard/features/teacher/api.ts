@@ -126,7 +126,17 @@ export async function getExamAnalytics(examId: string): Promise<ExamAnalytics> {
 }
 
 export async function generateAILesson(topic: string, subjectId?: string, difficulty?: string, duration?: number, style?: string): Promise<{ id: string; series_id: string; topic: string; status: string; parts_count: number }> {
-  return request("/ai/generate-lesson", { method: "POST", body: JSON.stringify({ topic, subjectId, difficulty, duration, style }) });
+  return request("/ai/generate-lesson", {
+    method: "POST",
+    body: JSON.stringify({
+      topic,
+      subjectId,
+      difficulty,
+      duration,
+      style,
+      ai_provider: "openrouter",
+    }),
+  });
 }
 
 export async function generateTemplateLesson(topic: string, subjectId?: string): Promise<{ id: string; series_id: string; topic: string; status: string; parts_count: number }> {

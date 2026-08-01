@@ -14,6 +14,7 @@ import { AiRequestLog } from '../../auth/models/index.js';
 import { toUserFacingError } from '../../utils/errors.js';
 import { getBlazeConfig, resolveBlazeModel } from '../../services/blazeConfig.js';
 import { resolveBlazeAPIModel } from '../../services/blazeapiConfig.js';
+import { getOpenRouterConfig, resolveOpenRouterModel } from '../../services/openrouterConfig.js';
 import { processVoice, submitCode, startSession } from '../../services/fastapiClient.js';
 import { getTemplateForTopic, getAllTopicKeys } from '../../services/whiteboard/programmingLessonTemplates.js';
 import { scheduleBackgroundTask } from '../../utils/backgroundTask.js';
@@ -189,6 +190,7 @@ router.post('/feedback', requireRole('student'), async (req, res, next) => {
 // ── Helpers for provider resolution ───────────────────────────────────────────
 function normalizeProvider(raw) {
   const p = String(raw || '').trim().toLowerCase();
+  if (p === 'openrouter' || p === 'open-router' || p === 'or') return 'openrouter';
   if (p === 'deepseek') return 'blaze';
   if (p === 'blaze' || p === 'blazeai') return 'blaze';
   if (p === 'blazeapi' || p === 'blaze-api' || p === 'api-blaze') return 'blazeapi';
@@ -196,6 +198,9 @@ function normalizeProvider(raw) {
 }
 
 function resolveModel(provider, fromBody) {
+  if (provider === 'openrouter') {
+    return resolveOpenRouterModel(fromBody || getOpenRouterConfig().defaultModel);
+  }
   if (provider === 'blazeapi') {
     return resolveBlazeAPIModel(fromBody);
   }
@@ -203,19 +208,10 @@ function resolveModel(provider, fromBody) {
   return resolveBlazeModel(fromBody, defaultDeepModel);
 }
 
-const providerCounter = { index: 0 };
-const PROVIDERS = ['openrouter', 'blazeapi'];
-
-function selectProvider(preferred) {
-  if (preferred && normalizeProvider(preferred)) return normalizeProvider(preferred);
-  const forced = process.env.ACTIVE_LLM_FORCE;
-  if (forced) return normalizeProvider(forced) || 'openrouter';
-  if (process.env.ACTIVE_LLM_MIX !== 'true') {
-    return normalizeProvider(process.env.ACTIVE_LLM) || 'openrouter';
-  }
-  const p = PROVIDERS[providerCounter.index % PROVIDERS.length];
-  providerCounter.index += 1;
-  return p;
+function selectProvider() {
+  // Topic lessons must never silently use a paid/legacy provider or DeepSeek.
+  // The teacher application is configured for OpenRouter's free models only.
+  return 'openrouter';
 }
 
 // ── POST /api/v1/ai/generate-template ──────────────────────────────────────────

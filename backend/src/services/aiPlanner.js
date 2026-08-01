@@ -18,7 +18,7 @@ const _require = createRequire(import.meta.url);
 const dagre = _require('@dagrejs/dagre');
 import { getBlazeConfig, resolveBlazeModel } from './blazeConfig.js';
 import { getBlazeAPIConfig, buildBlazeAPIModelChain } from './blazeapiConfig.js';
-import { getOpenRouterConfig, OPENROUTER_DEFAULT_MODEL } from './openrouterConfig.js';
+import { getOpenRouterConfig, OPENROUTER_DEFAULT_MODEL, resolveOpenRouterModel } from './openrouterConfig.js';
 import { buildWhiteboardForPart, assessLessonVisuals, assessPartVisuals } from './whiteboard/index.js';
 import { COMPREHENSION_PROMPT, DECOMPOSITION_PROMPT, REFINEMENT_PROMPT, TEACHING_PROMPT, TOPIC_SCAFFOLD_PROMPT, VISUAL_COMPOSITION_PROMPT, TUTOR_PHILOSOPHY } from './prompts/index.js';
 import { validateBoardScenes, cleanSay } from './whiteboard/validator.js';
@@ -128,6 +128,15 @@ const PROVIDER_LIMITS = {
     analysisTimeout: runtimeBoundTimeout(Number(process.env.AI_TIMEOUT_MS ?? 600_000)),
     contentTimeout: runtimeBoundTimeout(Number(process.env.AI_TIMEOUT_MS ?? 600_000) + 300_000),
     cooldown:       Number(process.env.AI_COOLDOWN_MS            ?? 120_000),
+  },
+  openrouter: {
+    contextTokens:  128_000,
+    maxInputChars:  80_000,
+    analysisTok:    Number(process.env.OPENROUTER_ANALYSIS_TOKENS ?? 8_000),
+    contentTok:     Number(process.env.OPENROUTER_CONTENT_TOKENS  ?? 16_000),
+    analysisTimeout: runtimeBoundTimeout(Number(process.env.AI_TIMEOUT_MS ?? 600_000)),
+    contentTimeout: runtimeBoundTimeout(Number(process.env.AI_TIMEOUT_MS ?? 600_000) + 300_000),
+    cooldown:       Number(process.env.AI_COOLDOWN_MS ?? 120_000),
   },
 };
 
@@ -349,6 +358,7 @@ export function buildVisualPlaybook(field) {
 
 function stripTopicRequestLead(text) {
   return normalizeText(text)
+    .replace(/^(?:please\s+)?(?:create|generate|make|build)\s+(?:a\s+)?(?:personalized\s+)?(?:complete\s+)?(?:ai\s+)?lesson\s+(?:about|on|for)\s+/i, '')
     .replace(/^(please\s+)?(?:(?:can|could|would)\s+you\s+)?(explain|teach|describe|show|outline|summarize|walk me through|help me understand|help me learn|give me|write)\s+/i, '')
     .replace(/^(what\s+is|what\s+are|how\s+does|how\s+do|why\s+does|why\s+do)\s+/i, '')
     .replace(/[?.!]+$/, '')
@@ -3481,7 +3491,11 @@ function isWeakTopicPlan(plan, lessonSpec) {
   if (lessonSpec?.source_mode !== 'topic' || !plan?.parts?.length) return false;
 
   const contentParts = plan.parts.filter((part) => part.part_type === 'content');
-  if (contentParts.length < 3) return true;
+  // A free model can return one or two well-developed teaching parts. Preserve
+  // real topic-specific teaching rather than replacing it with the generic
+  // local fallback; the narration and summary gates below still reject thin
+  // responses.
+  if (contentParts.length === 0) return true;
 
   const averageNarrationWords = contentParts.reduce((sum, part) => sum + part.narration.split(/\s+/).filter(Boolean).length, 0) / Math.max(contentParts.length, 1);
   const targetWords = getContentNarrationTargetWords(lessonSpec);
@@ -4545,8 +4559,7 @@ function normalizeProvider(raw) {
 function resolveModel(aiProvider, analysisModel) {
   const provider = normalizeProvider(aiProvider) || 'openrouter';
   if (provider === 'openrouter') {
-    const cfg = getOpenRouterConfig();
-    return analysisModel || cfg.defaultModel || OPENROUTER_DEFAULT_MODEL;
+    return resolveOpenRouterModel(analysisModel);
   }
   const { defaultDeepModel } = getBlazeConfig();
   return resolveBlazeModel(analysisModel, defaultDeepModel);
@@ -4616,14 +4629,10 @@ export async function callAIRace(prompt, maxTokens, timeoutMs = AI_TIMEOUT_MS, a
   const preferredAI = normalizeProvider(aiProvider) || normalizeProvider(process.env.ACTIVE_LLM) || 'openrouter';
   const providerOrder = [preferredAI];
 
-  if (preferredAI === 'openrouter') {
-    if (!shouldUseLocalPlanning('blazeapi') && (getBlazeAPIConfig().apiKey || process.env.BLAZEAPI_API_KEY || process.env.BLAZE_API_KEY)) {
-      providerOrder.push('blazeapi');
-    }
-    if (!shouldUseLocalPlanning('fastapi') && (process.env.FASTAPI_BASE_URL || process.env.FASTAPI_API_KEY)) {
-      providerOrder.push('fastapi');
-    }
-  } else if (preferredAI === 'blazeapi') {
+  // OpenRouter is intentionally self-contained: a free-model outage should be
+  // reported and handled by the lesson-quality fallback, not silently route a
+  // teacher's content through a different provider/model.
+  if (preferredAI === 'blazeapi') {
     if (!shouldUseLocalPlanning('fastapi') && (process.env.FASTAPI_BASE_URL || process.env.FASTAPI_API_KEY)) {
       providerOrder.push('fastapi');
     }
@@ -4950,7 +4959,16 @@ ABSOLUTE RULES:
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({ model, messages: msgs, temperature, max_tokens: tokenBudget }),
+      // OpenRouter forwards this OpenAI-compatible constraint to supported
+      // models. It prevents free models from replying with an explanation of
+      // the requested JSON instead of the lesson object itself.
+      body: JSON.stringify({
+        model,
+        messages: msgs,
+        temperature,
+        max_tokens: tokenBudget,
+        response_format: { type: 'json_object' },
+      }),
       signal: controller.signal,
     });
 
