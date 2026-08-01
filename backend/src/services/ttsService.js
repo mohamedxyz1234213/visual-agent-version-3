@@ -48,11 +48,9 @@ async function withSpeechifyRetry(task) {
 }
 
 function captionTtsEnabled() {
-  // Single-voice mode is the default to avoid many short caption clips.
-  // Always return false unless an explicit opt-in env flag is set.
-  if (String(process.env.TTS_SINGLE_VOICE_ONLY ?? 'true').toLowerCase() === 'false') {
-    return String(process.env.ENABLE_CAPTION_TTS ?? 'false').toLowerCase() === 'true';
-  }
+  // Captions are visual timing cues, not separate pieces of narration. A
+  // clip per caption makes the voice restart between every board action.
+  // Keep exactly one complete audio track for each lesson part.
   return false;
 }
 
@@ -168,8 +166,11 @@ export async function synthesize(text, partId) {
   // Enhance the narration for speech before passing to any TTS provider
   const enhanced = enhanceNarrationForSpeech(text);
 
-  // Truncate to TTS character limit (Speechify max ~2000, others similar)
-  const tts = truncateToLimit(enhanced, 2000);
+  // A content part is authored as one continuous teacher explanation. Keep it
+  // as one Speechify request/audio file rather than cutting it at 2,000
+  // characters, which was the source of narration ending mid-explanation.
+  const maxCharacters = Math.max(500, Number(process.env.TTS_MAX_CHARACTERS ?? 5000));
+  const tts = truncateToLimit(enhanced, maxCharacters);
   if (tts.length < enhanced.length) {
     console.warn(`[tts] Narration truncated from ${enhanced.length} to ${tts.length} chars for TTS`);
   }
@@ -317,8 +318,11 @@ function hashStr(s) {
 // ── Speechify TTS ─────────────────────────────────────────────────────────────
 async function synthesizeSpeechify(text) {
   const apiKey = process.env.SPEECHIFY_API_KEY;
-  const voiceId = process.env.SPEECHIFY_VOICE_ID || 'henry';
-  const model = process.env.SPEECHIFY_MODEL || 'simba-english';
+  // Henry is the requested teacher voice. Speechify's voice catalogue for this
+  // account supports Henry through simba-3.0 (not simba-3.2), so use the newest
+  // compatible model instead of sending a request that fails with HTTP 400.
+  const voiceId = 'henry';
+  const model = 'simba-3.0';
   const audioFormat = process.env.SPEECHIFY_AUDIO_FORMAT || 'mp3';
 
   // Use the Speechify SDK
