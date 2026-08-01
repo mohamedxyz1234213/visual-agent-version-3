@@ -105,10 +105,10 @@ export function WhiteboardLessonLibrary({ icon, title, subtitle, teacher }: { ic
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           {icon && (
-            <div className="w-10 h-10 rounded-xl bg-[#D6F63E] flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-[#D6F63E] flex items-center justify-center shrink-0">
               {icon}
             </div>
           )}
@@ -120,7 +120,7 @@ export function WhiteboardLessonLibrary({ icon, title, subtitle, teacher }: { ic
         {!teacher && (
           <button
             onClick={() => router.push("/upload")}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#0F0F0F] text-white rounded-xl font-semibold text-sm hover:bg-[#2A2A2A] transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-3 sm:py-2.5 bg-[#0F0F0F] text-white rounded-xl font-semibold text-sm hover:bg-[#2A2A2A] transition-colors"
           >
             <IconPlus />
             New Lesson

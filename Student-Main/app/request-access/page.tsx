@@ -55,7 +55,7 @@ export default function RequestAccessPage() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-[#EDEDED] flex items-center justify-center p-6">
+      <div className="min-h-screen bg-[#EDEDED] flex items-center justify-center p-4 sm:p-6">
         <div className="w-full max-w-md text-center">
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6">
             <IconCheck className="w-16 h-16" />
@@ -80,14 +80,14 @@ export default function RequestAccessPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#EDEDED] flex items-center justify-center p-6">
+    <div className="min-h-screen bg-[#EDEDED] flex items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2.5 mb-6">
-            <div className="w-9 h-9 flex items-center justify-center">
-              <AnimatedLogo size={22} className="text-[#D6F63E]" />
+            <div className="w-12 h-12 sm:w-9 sm:h-9 flex items-center justify-center">
+              <AnimatedLogo size={28} className="text-[#D6F63E]" />
             </div>
-            <span className="text-xl font-bold tracking-tight text-[#0F0F0F]">
+            <span className="text-2xl sm:text-xl font-bold tracking-tight text-[#0F0F0F]">
               CodeBuddy
             </span>
           </Link>
@@ -105,7 +105,7 @@ export default function RequestAccessPage() {
 
         <form
           onSubmit={handleSubmit}
-          className="bg-white rounded-[20px] p-8 shadow-card"
+          className="bg-white rounded-[20px] p-6 sm:p-8 shadow-card"
         >
           {isWhiteboardRequest && (
             <div className="mb-5 flex items-center gap-3 p-3 bg-[#D6F63E]/10 rounded-xl">
@@ -123,29 +123,25 @@ export default function RequestAccessPage() {
           )}
 
           <div className="mb-4">
-            <label className="block text-sm font-medium text-[#0F0F0F] mb-1.5">
-              Email
-            </label>
+            <label className="block text-sm font-medium text-[#0F0F0F] mb-1.5">Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-4 py-3 border border-[#E5E5E5] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#D6F63E] focus:border-transparent transition-all"
+              className="w-full px-4 py-3.5 sm:py-3 border border-[#E5E5E5] rounded-2xl sm:rounded-xl text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#D6F63E] focus:border-transparent transition-all"
               placeholder="you@example.com"
             />
           </div>
 
           <div className="mb-4">
-            <label className="block text-sm font-medium text-[#0F0F0F] mb-1.5">
-              Username
-            </label>
+            <label className="block text-sm font-medium text-[#0F0F0F] mb-1.5">Username</label>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
-              className="w-full px-4 py-3 border border-[#E5E5E5] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#D6F63E] focus:border-transparent transition-all"
+              className="w-full px-4 py-3.5 sm:py-3 border border-[#E5E5E5] rounded-2xl sm:rounded-xl text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#D6F63E] focus:border-transparent transition-all"
               placeholder="Choose a username"
             />
           </div>
@@ -158,7 +154,7 @@ export default function RequestAccessPage() {
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={3}
-              className="w-full px-4 py-3 border border-[#E5E5E5] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#D6F63E] focus:border-transparent transition-all resize-none"
+              className="w-full px-4 py-3 border border-[#E5E5E5] rounded-2xl sm:rounded-xl text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#D6F63E] focus:border-transparent transition-all resize-none"
               placeholder="Tell us about yourself..."
             />
           </div>
@@ -166,7 +162,7 @@ export default function RequestAccessPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-[#D6F63E] text-[#0F0F0F] rounded-full font-semibold text-sm hover:bg-[#c5e535] transition-colors disabled:opacity-50"
+            className="w-full py-4 sm:py-3 bg-[#D6F63E] text-[#0F0F0F] rounded-full font-semibold text-base sm:text-sm hover:bg-[#c5e535] transition-colors disabled:opacity-50"
           >
             {loading ? "Submitting..." : "Request Access"}
           </button>
@@ -174,10 +170,7 @@ export default function RequestAccessPage() {
 
         <p className="text-center text-sm text-[#6B6B6B] mt-6">
           Already have an account?{" "}
-          <Link
-            href="/login"
-            className="text-[#0F0F0F] hover:underline font-semibold"
-          >
+          <Link href="/login" className="text-[#0F0F0F] hover:underline font-semibold">
             Sign In
           </Link>
         </p>

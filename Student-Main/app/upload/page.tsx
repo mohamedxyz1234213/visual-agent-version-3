@@ -46,14 +46,14 @@ function UploadPageInner() {
       <header className="border-b border-slate-100 px-4 py-3">
         <div className="mx-auto flex w-full max-w-[720px] items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white">
               <IconBoard className="h-4 w-4" />
             </div>
             <span className="text-sm font-semibold text-slate-900">Visual Teaching AI</span>
           </div>
           <button
             onClick={() => router.push("/")}
-            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
+            className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
           >
             <IconArrowLeft className="h-3.5 w-3.5" />
             Dashboard
@@ -63,7 +63,7 @@ function UploadPageInner() {
 
       {/* Chat-style centered content */}
       <div className="flex flex-1 flex-col items-center">
-        <div className="w-full max-w-[720px] flex-1 px-4 py-6">
+        <div className="w-full max-w-[720px] flex-1 px-3 sm:px-4 py-4 sm:py-6">
           <UploadZone onReady={handleReady} />
         </div>
       </div>

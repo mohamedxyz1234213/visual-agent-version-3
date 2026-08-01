@@ -144,7 +144,7 @@ export default function StudentDashboard() {
       </div>
 
       {/* Row 2: Dark hero card + Supporting card */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 sm:gap-4">
         {/* Dark Hero Card — Learning Activity */}
         <div className="lg:col-span-3 flux-card-dark">
           <div className="flex items-center justify-between mb-5">
@@ -250,7 +250,7 @@ export default function StudentDashboard() {
       <AdaptivePathSection />
 
       {/* Row 4: Quick Actions + Mini Leaderboard */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 sm:gap-4">
         <div className="lg:col-span-3 flux-card">
           <h3 className="text-[15px] font-semibold text-[#0F0F0F] mb-4">
             Quick Actions
