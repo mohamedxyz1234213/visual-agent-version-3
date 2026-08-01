@@ -164,11 +164,11 @@ export default function HomePage() {
             Contact
           </Link>
           {loading ? (
-            <div className="w-20 h-9 bg-gray-200 rounded-full animate-pulse" />
+            <div className="w-20 h-10 bg-gray-200 rounded-full animate-pulse" />
           ) : user && user.role === "student" ? (
             <Link
               href={getDashboardPath(user.role)}
-              className="flux-btn-lime flex items-center gap-2"
+              className="inline-flex items-center gap-2 px-5 py-3 sm:py-2.5 bg-[#D6F63E] text-[#0F0F0F] rounded-full font-semibold text-sm hover:bg-[#c5e535] transition-colors"
             >
               <IconUser className="w-4 h-4" />
               Dashboard
@@ -177,14 +177,14 @@ export default function HomePage() {
             <>
               <Link
                 href="/login"
-                className="flux-btn-outline flex items-center gap-2"
+                className="inline-flex items-center gap-2 px-4 py-3 sm:py-2.5 border border-[#E5E5E5] text-[#0F0F0F] rounded-full font-medium text-sm hover:bg-[#F5F5F5] transition-colors"
               >
                 <IconUser className="w-4 h-4" />
-                Sign In
+                <span className="hidden sm:inline">Sign In</span>
               </Link>
               <Link
                 href="/register"
-                className="flux-btn-lime flex items-center gap-2"
+                className="inline-flex items-center gap-2 px-5 py-3 sm:py-2.5 bg-[#D6F63E] text-[#0F0F0F] rounded-full font-semibold text-sm hover:bg-[#c5e535] transition-colors"
               >
                 Get Started
                 <IconArrowRight className="w-4 h-4" />
@@ -211,14 +211,14 @@ export default function HomePage() {
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
           <Link
             href="/login"
-            className="flux-btn-lime text-base px-8 py-4 flex items-center gap-2 hover:scale-105 transition-transform"
+            className="inline-flex items-center gap-2 px-8 py-4 bg-[#D6F63E] text-[#0F0F0F] rounded-full font-semibold text-base hover:bg-[#c5e535] hover:scale-105 transition-all"
           >
             Get Started
             <IconArrowRight className="w-5 h-5" />
           </Link>
           <Link
             href={user ? "/upload" : "/login?next=" + encodeURIComponent("/upload")}
-            className="flux-btn-primary text-base px-8 py-4 flex items-center gap-2 hover:scale-105 transition-transform"
+            className="inline-flex items-center gap-2 px-8 py-4 bg-[#171717] text-white rounded-full font-semibold text-base hover:bg-[#333] hover:scale-105 transition-all"
             onClick={(e) => {
               if (!user && !loading) {
                 e.preventDefault();

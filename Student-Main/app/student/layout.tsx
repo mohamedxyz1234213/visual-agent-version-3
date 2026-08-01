@@ -59,7 +59,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
       <Sidebar items={studentNavItems} title="CodeBuddy" subtitle={user.username} isCollapsed={!sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
       <main className={`min-h-screen p-3 sm:p-5 transition-all duration-300 ease-in-out ${sidebarOpen ? 'lg:ml-[244px]' : 'lg:ml-[96px]'}`}>
         <Header title="Dashboard" subtitle="Take control of your learning journey" username={user.username} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
-        {children}
+        <div className="pb-6">{children}</div>
       </main>
     </div>
   );

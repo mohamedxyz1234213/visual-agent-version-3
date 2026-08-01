@@ -58,12 +58,12 @@ export function Header({ title, subtitle, username, onLogout, onToggleSidebar }:
   };
 
   return (
-    <header className="sticky top-0 z-40 flex items-center justify-between px-0 py-4 sm:py-8 mb-4 sm:mb-6">
+    <header className="sticky top-0 z-40 flex items-center justify-between px-0 py-3 sm:py-4 md:py-8 mb-3 sm:mb-4 md:mb-6">
       {/* Left: Hamburger + Page Title */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         <button
           onClick={onToggleSidebar}
-          className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-black/5 transition-colors"
+          className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-black/5 transition-colors shrink-0"
           aria-label="Toggle sidebar"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -73,11 +73,11 @@ export function Header({ title, subtitle, username, onLogout, onToggleSidebar }:
           </svg>
         </button>
         <div>
-          <h1 className="text-[20px] sm:text-[28px] font-bold text-[#0F0F0F] tracking-tight leading-tight">
+          <h1 className="text-[18px] sm:text-[20px] md:text-[28px] font-bold text-[#0F0F0F] tracking-tight leading-tight">
             {title}
           </h1>
           {subtitle && (
-            <p className="text-[12px] sm:text-[13px] text-[#6B6B6B] mt-0.5 hidden sm:block">{subtitle}</p>
+            <p className="text-[11px] sm:text-[12px] md:text-[13px] text-[#6B6B6B] mt-0.5 hidden sm:block">{subtitle}</p>
           )}
         </div>
       </div>
@@ -111,7 +111,7 @@ export function Header({ title, subtitle, username, onLogout, onToggleSidebar }:
           {showNotifications && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-              <div className="absolute right-0 mt-2 w-[calc(100vw-32px)] max-w-[380px] bg-white rounded-2xl shadow-xl border border-slate-200 z-50 max-h-[500px] flex flex-col">
+              <div className="absolute right-0 mt-2 w-[calc(100vw-24px)] max-w-[380px] bg-white rounded-2xl shadow-xl border border-slate-200 z-50 max-h-[70vh] flex flex-col">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white">Notifications</h3>
                   {unreadCount > 0 && (

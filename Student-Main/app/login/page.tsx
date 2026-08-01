@@ -53,26 +53,26 @@ function LoginPageInner() {
   }
 
   return (
-    <div className="min-h-screen bg-[#EDEDED] flex items-center justify-center p-6">
+    <div className="min-h-screen bg-[#EDEDED] flex items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2.5 mb-6">
-            <div className="w-9 h-9 flex items-center justify-center">
-              <AnimatedLogo size={22} className="text-[#D6F63E]" />
+            <div className="w-12 h-12 sm:w-9 sm:h-9 flex items-center justify-center">
+              <AnimatedLogo size={28} className="text-[#D6F63E]" />
             </div>
-            <span className="text-xl font-bold tracking-tight text-[#0F0F0F]">
+            <span className="text-2xl sm:text-xl font-bold tracking-tight text-[#0F0F0F]">
               CodeBuddy
             </span>
           </Link>
-          <h1 className="text-2xl font-bold text-[#0F0F0F] mb-2">
+          <h1 className="text-3xl sm:text-2xl font-bold text-[#0F0F0F] mb-2">
             Welcome back
           </h1>
-          <p className="text-[#6B6B6B] text-sm">Sign in to continue learning</p>
+          <p className="text-[#6B6B6B] text-base sm:text-sm">Sign in to continue learning</p>
         </div>
 
         <form
           onSubmit={handleSubmit}
-          className="bg-white rounded-[20px] p-8 shadow-card"
+          className="bg-white rounded-[20px] p-6 sm:p-8 shadow-card"
         >
           {error && (
             <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
@@ -88,7 +88,7 @@ function LoginPageInner() {
               type="text"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
-              className="w-full px-4 py-3 border border-[#E5E5E5] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#D6F63E] focus:border-transparent transition-all"
+              className="w-full px-4 py-3.5 sm:py-3 border border-[#E5E5E5] rounded-2xl sm:rounded-xl text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#D6F63E] focus:border-transparent transition-all"
               placeholder="you@example.com"
               required
             />
@@ -102,7 +102,7 @@ function LoginPageInner() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-[#E5E5E5] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#D6F63E] focus:border-transparent transition-all"
+              className="w-full px-4 py-3.5 sm:py-3 border border-[#E5E5E5] rounded-2xl sm:rounded-xl text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#D6F63E] focus:border-transparent transition-all"
               placeholder="Enter your password"
               required
             />
@@ -111,7 +111,7 @@ function LoginPageInner() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-[#D6F63E] text-[#0F0F0F] rounded-full font-semibold text-sm hover:bg-[#c5e535] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-4 sm:py-3 bg-[#D6F63E] text-[#0F0F0F] rounded-full font-semibold text-base sm:text-sm hover:bg-[#c5e535] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "Signing in..." : "Sign In"}
           </button>

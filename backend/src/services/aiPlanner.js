@@ -147,6 +147,23 @@ function getSectionTextLimit(aiProvider) {
 const AI_TIMEOUT_MS = runtimeBoundTimeout(Number(process.env.AI_TIMEOUT_MS ?? 600_000));
 const AI_COOLDOWN_MS = Number(process.env.AI_COOLDOWN_MS ?? 120_000);
 
+export function shouldUseLocalPlanning(aiProvider = null) {
+  const provider = normalizeProvider(aiProvider) || normalizeProvider(process.env.ACTIVE_LLM) || 'openrouter';
+  if (provider === 'openrouter') {
+    return !getOpenRouterConfig().apiKey;
+  }
+  if (provider === 'blazeapi') {
+    return !getBlazeAPIConfig().apiKey;
+  }
+  if (provider === 'blaze') {
+    return !getBlazeConfig().apiKey;
+  }
+  if (provider === 'fastapi') {
+    return !process.env.FASTAPI_BASE_URL && !process.env.FASTAPI_API_KEY;
+  }
+  return false;
+}
+
 const circuitState = {
   blaze:     { openUntil: 0, reason: '' },
   blazeapi:  { openUntil: 0, reason: '' },
@@ -858,8 +875,17 @@ async function enrichTopicRequestSpec(topicSpec, aiProvider, analysisModel) {
     ...topicSpec,
     section_text: buildTopicSourceBrief(topicSpec),
   };
+  const topicRequest = normalizeText(topicSpec.topic_request || topicSpec.section_text || '');
+  const shortTopicMaxChars = Math.max(80, Number(process.env.TOPIC_SCAFFOLD_LOCAL_MAX_CHARS ?? 220));
+  const scaffoldTimeoutMs = Math.max(8_000, Number(process.env.TOPIC_SCAFFOLD_TIMEOUT_MS ?? 25_000));
 
   if (process.env.DISABLE_AI_PLANNER === 'true') {
+    return fallbackSpec;
+  }
+
+  // Short direct prompts (for example: "Explain photosynthesis") are faster
+  // and more reliable when we skip the scaffold model call and plan locally.
+  if (topicRequest.length > 0 && topicRequest.length <= shortTopicMaxChars) {
     return fallbackSpec;
   }
 
@@ -868,7 +894,7 @@ async function enrichTopicRequestSpec(topicSpec, aiProvider, analysisModel) {
     const scaffold = await callAIRace(
       scaffoldPrompt,
       Math.min(limits.analysisTok, 24_000),
-      Math.min(limits.analysisTimeout, 240_000),
+      Math.min(limits.analysisTimeout, scaffoldTimeoutMs),
       aiProvider,
       analysisModel,
     );
@@ -1289,6 +1315,15 @@ async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, ana
   const sectionLimit = getSectionTextLimit(aiProvider);
   const refineSourceLimit = aiProvider === 'deepseek' ? 500_000 : 30_000;
   const refinePlanLimit = aiProvider === 'deepseek' ? 200_000 : 40_000;
+  const topicRequest = normalizeText(lessonSpec.topic_request || lessonSpec.section_text || '');
+  const topicLocalOnlyEnabled = String(process.env.TOPIC_LOCAL_ONLY ?? 'true').toLowerCase() !== 'false';
+  const topicLocalOnlyMaxChars = Math.max(80, Number(process.env.TOPIC_LOCAL_ONLY_MAX_CHARS ?? 220));
+  const shouldUseTopicLocalOnly = lessonSpec.source_mode === 'topic'
+    && topicLocalOnlyEnabled
+    && (topicRequest.length === 0 || topicRequest.length <= topicLocalOnlyMaxChars);
+  if (lessonSpec.source_mode === 'topic') {
+    console.log(`[aiPlanner] topic-mode check: requestLen=${topicRequest.length}, localOnlyEnabled=${topicLocalOnlyEnabled}, maxChars=${topicLocalOnlyMaxChars}, useLocal=${shouldUseTopicLocalOnly}`);
+  }
   const cleanedUserInstructions = cleanUserInstructions(lessonSpec.user_instructions);
   const normalizedLessonIntent = normalizeLessonIntent(lessonSpec.lesson_intent, lessonSpec.user_instructions);
 
@@ -1318,8 +1353,14 @@ async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, ana
 
   let finalPlan = null;
 
+  if (shouldUseTopicLocalOnly) {
+    await report('ai_local_fallback');
+    console.log(`[aiPlanner] Topic local fallback enabled for "${lessonSpec.title}"`);
+    finalPlan = buildFallbackLesson(lessonSpec);
+  }
+
   // ── Pass 1: Initial generation ──
-  try {
+  if (!finalPlan) try {
     await report('ai_generating');
     const intentPrefix = buildIntentPrefix(normalizedLessonIntent);
     const modePrefix = buildModePrefix(lessonSpec.explanation_mode);
@@ -1345,7 +1386,7 @@ async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, ana
   }
 
   // ── Pass 2: Refinement — AI reviews its own output and improves it ──
-  if (finalPlan) {
+  if (finalPlan && !shouldUseTopicLocalOnly) {
     try {
       await report('ai_refining');
       console.log(`[aiPlanner] Phase 3 Pass 2: Refining lesson "${lessonSpec.title}"...`);
@@ -1378,7 +1419,7 @@ async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, ana
   }
 
   // ── Pass 2.5: Visual composition — AI edits board_scenes for rich SVG teaching ──
-  if (finalPlan) {
+  if (finalPlan && !shouldUseTopicLocalOnly) {
     try {
       await report('ai_visual_refining');
       finalPlan = await refineLessonVisuals(finalPlan, lessonSpec, aiProvider, analysisModel);
@@ -4560,8 +4601,12 @@ export async function callAIRace(prompt, maxTokens, timeoutMs = AI_TIMEOUT_MS, a
     throw new Error('AI planner disabled by configuration');
   }
 
-  lastAiVia = null;
   const activeAI = normalizeProvider(aiProvider) || normalizeProvider(process.env.ACTIVE_LLM) || 'openrouter';
+  if (shouldUseLocalPlanning(activeAI)) {
+    throw new Error(`AI provider is not configured for planning: ${activeAI}`);
+  }
+
+  lastAiVia = null;
   const circuit = circuitState[activeAI] || circuitState.default;
   const model = resolveModel(activeAI, analysisModel);
   const hasExplicitModelSelection = Boolean(String(analysisModel || '').trim());

@@ -89,19 +89,19 @@ export default function NavigationControls({ parts }: NavigationControlsProps) {
   }
 
   return (
-    <div className="app-surface rounded-[28px] px-4 py-4 md:px-5">
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+    <div className="app-surface rounded-[28px] px-3 py-3 sm:px-4 sm:py-4 md:px-5">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-2 sm:gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Playback</p>
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <h3 className="text-base font-semibold tracking-[-0.03em] text-slate-900">{currentPart?.title ?? "Current section"}</h3>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+              <h3 className="text-sm sm:text-base font-semibold tracking-[-0.03em] text-slate-900">{currentPart?.title ?? "Current section"}</h3>
+              <span className="rounded-full bg-slate-100 px-2 sm:px-3 py-1 text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                 Section {currentPartIndex + 1} of {parts.length}
               </span>
             </div>
           </div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500">
+          <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500 self-start lg:self-auto">
             <span className="font-mono tabular-nums text-slate-700">{fmt(elapsed)}</span>
             <span className="text-slate-300">/</span>
             <span className="font-mono tabular-nums text-slate-700">{fmt(duration)}</span>
@@ -109,8 +109,8 @@ export default function NavigationControls({ parts }: NavigationControlsProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <span className="w-10 text-right font-mono text-xs tabular-nums text-slate-500">{fmt(elapsed)}</span>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <span className="w-8 sm:w-10 text-right font-mono text-xs tabular-nums text-slate-500">{fmt(elapsed)}</span>
           <input
             type="range"
             min={0}
@@ -120,10 +120,10 @@ export default function NavigationControls({ parts }: NavigationControlsProps) {
             onChange={handleSeek}
             className="h-2 flex-1 cursor-pointer accent-slate-900"
           />
-          <span className="w-10 font-mono text-xs tabular-nums text-slate-500">{fmt(duration)}</span>
+          <span className="w-8 sm:w-10 font-mono text-xs tabular-nums text-slate-500">{fmt(duration)}</span>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] items-center">
+        <div className="flex flex-col gap-3">
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={prevPart}
@@ -146,7 +146,7 @@ export default function NavigationControls({ parts }: NavigationControlsProps) {
 
             <button
               onClick={isPlaying ? pause : play}
-              className="inline-flex h-11 min-w-[88px] items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+              className="inline-flex h-11 flex-1 sm:flex-none sm:min-w-[88px] items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
               title={isPlaying ? "Pause" : "Play"}
               aria-label={isPlaying ? "Pause" : "Play"}
             >
@@ -181,7 +181,7 @@ export default function NavigationControls({ parts }: NavigationControlsProps) {
             ))}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 sm:justify-end">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
               <span className="font-semibold uppercase tracking-[0.18em]">Speed</span>
               <select

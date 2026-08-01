@@ -1,6 +1,3 @@
-const BASE_URL = (process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1').trim().replace(/\/+$/, '');
-const API_KEY = (process.env.OPENROUTER_API_KEY || '').trim();
-
 export const OPENROUTER_DEFAULT_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b:free';
 
 export const OPENROUTER_MODELS = [
@@ -12,10 +9,12 @@ export const OPENROUTER_MODELS = [
 ];
 
 export function getOpenRouterConfig() {
+  const baseURL = (process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1').trim().replace(/\/+$/, '');
+  const apiKey = (process.env.OPENROUTER_API_KEY || '').trim();
   return {
-    baseURL: BASE_URL,
-    apiKey: API_KEY,
-    chatCompletionsUrl: `${BASE_URL}/chat/completions`,
+    baseURL,
+    apiKey,
+    chatCompletionsUrl: `${baseURL}/chat/completions`,
     defaultModel: OPENROUTER_DEFAULT_MODEL,
   };
 }

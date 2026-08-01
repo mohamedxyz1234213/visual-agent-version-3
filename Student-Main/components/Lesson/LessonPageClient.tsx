@@ -461,8 +461,8 @@ export default function LessonPageClient({
   // ── Normal lesson view ──────────────────────────────────────────────────
   return (
     <div className="min-h-screen flex flex-col bg-[radial-gradient(circle_at_top_left,_rgba(148,163,184,0.18),_transparent_22%),linear-gradient(180deg,_#f8fafc_0%,_#f1f5f9_100%)]">
-      <header className="border-b border-slate-200/80 bg-white/80 px-4 py-4 backdrop-blur sm:px-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <header className="border-b border-slate-200/80 bg-white/80 px-3 py-3 sm:px-4 sm:py-4 backdrop-blur sm:px-6">
+        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-3">
             <button onClick={() => router.push("/")} className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-400 transition hover:text-slate-700" aria-label="Back to dashboard">
               <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" stroke="currentColor" className="w-5 h-5"><path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -501,7 +501,7 @@ export default function LessonPageClient({
         </div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-4 px-4 py-4 xl:flex-row xl:gap-6 xl:px-6 xl:py-6">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-3 sm:gap-4 px-3 py-3 sm:px-4 sm:py-4 xl:flex-row xl:gap-6 xl:px-6 xl:py-6">
         <div className="flex flex-1 flex-col gap-4">
           <div className="app-surface rounded-[28px] px-5 py-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
@@ -528,7 +528,7 @@ export default function LessonPageClient({
           )}
 
           {status !== "quiz" ? (
-            <div className="app-surface flex flex-1 items-center justify-center rounded-[32px] p-2 sm:p-4 md:p-5 overflow-hidden">
+            <div className="app-surface flex flex-1 items-center justify-center rounded-[24px] sm:rounded-[32px] p-2 sm:p-4 md:p-5 overflow-hidden">
               <div className="w-full">
               <Whiteboard
                 scenes={currentPart.scenes}
@@ -566,7 +566,7 @@ export default function LessonPageClient({
           )}
         </div>
 
-        <aside className="flex flex-col gap-6 border-t border-slate-200/80 bg-white/70 p-6 backdrop-blur xl:w-80 xl:self-start xl:rounded-[32px] xl:border xl:max-h-[calc(100vh-48px)] xl:overflow-y-auto">
+        <aside className="flex flex-col gap-4 sm:gap-6 border-t border-slate-200/80 bg-white/70 p-4 sm:p-6 backdrop-blur xl:w-80 xl:self-start xl:rounded-[32px] xl:border xl:max-h-[calc(100vh-48px)] xl:overflow-y-auto">
           {lesson.summary && (
             <div className="rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
               <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Summary</h3>

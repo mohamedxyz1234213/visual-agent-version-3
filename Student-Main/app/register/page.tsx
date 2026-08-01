@@ -52,8 +52,8 @@ export default function StudentRegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#EDEDED] flex items-center justify-center px-6 py-12">
-      <div className="max-w-lg w-full bg-white rounded-2xl p-8 shadow-sm">
+    <div className="min-h-screen bg-[#EDEDED] flex items-center justify-center px-4 py-12">
+      <div className="max-w-lg w-full bg-white rounded-2xl p-6 sm:p-8 shadow-sm">
         <h2 className="text-2xl font-bold text-[#0F0F0F] mb-1">Student Registration</h2>
         <p className="text-sm text-[#6B6B6B] mb-6">Submit your details for teacher approval. Your account activates once a teacher reviews and approves your request.</p>
 
@@ -68,7 +68,7 @@ export default function StudentRegisterPage() {
           <Field label="Date of Birth" type="date" value={form.dateOfBirth} onChange={(v) => update("dateOfBirth", v)} required />
           <Field label="Password" type="password" value={form.password} onChange={(v) => update("password", v)} required />
 
-          <button type="submit" disabled={loading} className="flux-btn-primary w-full mt-2 disabled:opacity-50">
+          <button type="submit" disabled={loading} className="w-full py-4 sm:py-3 bg-[#D6F63E] text-[#0F0F0F] rounded-full font-semibold text-base sm:text-sm mt-2 disabled:opacity-50 hover:bg-[#c5e535] transition-colors">
             {loading ? "Submitting..." : "Submit Registration"}
           </button>
         </form>
@@ -102,7 +102,7 @@ function Field({
         required={required}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-4 py-2.5 bg-[#F5F5F5] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#D6F63E]"
+        className="w-full px-4 py-3.5 sm:py-2.5 bg-[#F5F5F5] rounded-2xl sm:rounded-xl text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#D6F63E]"
       />
     </label>
   );

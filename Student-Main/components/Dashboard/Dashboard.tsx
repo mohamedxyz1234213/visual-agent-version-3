@@ -165,10 +165,11 @@ export default function Dashboard() {
             )}
             <button
               onClick={() => router.push("/upload")}
-              className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+              className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-3 sm:px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
             >
               <IconPlus />
-              New Lesson
+              <span className="hidden sm:inline">New Lesson</span>
+              <span className="sm:hidden">New</span>
             </button>
           </div>
         </div>
@@ -201,7 +202,7 @@ export default function Dashboard() {
 
         {/* ── Stats Row ───────────────────────────────────────────────────── */}
         {stats && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-8">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3 mb-6 sm:mb-8">
             <StatCard label="Total" value={stats.total} color="slate" />
             <StatCard label="Ready" value={stats.ready} color="green" />
             <StatCard label="Processing" value={stats.processing} color="amber" />
@@ -297,7 +298,7 @@ export default function Dashboard() {
                 <div className="text-sm text-slate-400">{pagination.total} total lessons</div>
               )}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-3.5">
               {lessons.map((lesson) => (
                 <LessonCard
                   key={lesson.id}

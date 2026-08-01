@@ -905,6 +905,16 @@ pre {
     flex-direction: column;
     gap: 8px;
   }
+
+  /* Lesson page aside becomes bottom panel on mobile */
+  .lesson-aside-mobile {
+    order: 2;
+  }
+
+  /* Dashboard header compact on mobile */
+  .dashboard-header-mobile h1 {
+    font-size: 20px;
+  }
 }
 
 /* Touch-friendly tap targets */
@@ -912,12 +922,28 @@ pre {
   .flux-btn-primary,
   .flux-btn-lime,
   .flux-btn-outline {
-    min-height: 44px;
-    padding: 12px 20px;
+    min-height: 48px;
+    padding: 14px 22px;
   }
 
   a, button {
     min-height: 44px;
+  }
+
+  /* Larger inputs on touch devices */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="date"],
+  textarea,
+  select {
+    font-size: 16px; /* prevents iOS zoom */
+    min-height: 48px;
+  }
+
+  /* Range slider bigger on touch */
+  input[type="range"] {
+    height: 24px;
   }
 }
 

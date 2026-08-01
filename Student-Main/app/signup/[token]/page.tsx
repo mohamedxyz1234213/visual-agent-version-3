@@ -70,8 +70,8 @@ export default function SignupPage() {
       <header className="border-b border-slate-200/80 bg-white/80 px-4 py-4 backdrop-blur sm:px-6">
         <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm">
-              <IconWhiteboard />
+            <div className="flex h-12 w-12 sm:h-10 sm:w-10 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm">
+              <IconWhiteboard className="h-5 w-5 sm:h-4 sm:w-4" />
             </div>
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">Whiteboard Classroom</div>
@@ -114,7 +114,7 @@ export default function SignupPage() {
                     minLength={8}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                    className="rounded-2xl sm:rounded-xl border border-slate-200 bg-white px-4 py-4 sm:py-2.5 text-base sm:text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                   />
                 </label>
                 <label className="flex flex-col gap-1.5">
@@ -125,7 +125,7 @@ export default function SignupPage() {
                     minLength={8}
                     value={confirm}
                     onChange={(e) => setConfirm(e.target.value)}
-                    className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                    className="rounded-2xl sm:rounded-xl border border-slate-200 bg-white px-4 py-4 sm:py-2.5 text-base sm:text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                   />
                 </label>
               </div>
@@ -137,9 +137,9 @@ export default function SignupPage() {
               <button
                 type="submit"
                 disabled={busy}
-                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
+                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-900 px-4 py-4 sm:py-3 text-base sm:text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
               >
-                <IconLock />
+                <IconLock className="h-5 w-5 sm:h-4 sm:w-4" />
                 {busy ? "Creating account…" : "Create account"}
               </button>
             </form>
@@ -168,16 +168,16 @@ function ErrorCard({ message }: { message: string }) {
       <p className="mt-2 text-sm text-slate-500">
         If the email or username you entered do not match the original request, please request early access again from the start.
       </p>
-      <div className="mt-5 flex gap-2">
+      <div className="mt-5 flex flex-col gap-2 sm:flex-row">
         <Link
           href="/request-access"
-          className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+          className="inline-flex items-center justify-center gap-1.5 rounded-full bg-slate-900 px-5 py-4 sm:py-2.5 text-base sm:text-sm font-semibold text-white transition hover:bg-slate-800"
         >
           Request early access
         </Link>
         <Link
           href="/login"
-          className="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+          className="inline-flex items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-5 py-4 sm:py-2.5 text-base sm:text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
         >
           Sign in
         </Link>

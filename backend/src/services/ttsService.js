@@ -2,6 +2,58 @@ import axios from 'axios';
 import { SpeechifyClient } from '@speechify/api';
 import { uploadAudio } from './storageService.js';
 
+let speechifyQueue = Promise.resolve();
+let speechifyLastCallAt = 0;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function runSpeechifySerialized(task) {
+  const minIntervalMs = Math.max(1000, Number(process.env.SPEECHIFY_MIN_INTERVAL_MS ?? 1300));
+  speechifyQueue = speechifyQueue
+    .catch(() => undefined)
+    .then(async () => {
+      const elapsed = Date.now() - speechifyLastCallAt;
+      if (elapsed < minIntervalMs) {
+        await sleep(minIntervalMs - elapsed);
+      }
+      speechifyLastCallAt = Date.now();
+      return task();
+    });
+  return speechifyQueue;
+}
+
+function isRetryableSpeechifyError(error) {
+  const msg = String(error?.message || '').toLowerCase();
+  return /429|rate_limited|concurrency_limit_reached|too many requests/.test(msg);
+}
+
+async function withSpeechifyRetry(task) {
+  const maxAttempts = Math.max(1, Number(process.env.SPEECHIFY_MAX_RETRIES ?? 3));
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await runSpeechifySerialized(task);
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableSpeechifyError(error) || attempt === maxAttempts) {
+        throw error;
+      }
+      const backoffMs = Math.min(8000, 1200 * attempt);
+      await sleep(backoffMs);
+    }
+  }
+  throw lastError;
+}
+
+function captionTtsEnabled() {
+  // Single-voice mode is the default to avoid many short caption clips.
+  const singleVoiceOnly = String(process.env.TTS_SINGLE_VOICE_ONLY ?? 'true').toLowerCase() !== 'false';
+  if (singleVoiceOnly) return false;
+  return String(process.env.ENABLE_CAPTION_TTS ?? 'false').toLowerCase() === 'true';
+}
+
 /**
  * Synthesize narration text to audio bytes.
  * Returns null when TTS is not configured.
@@ -15,6 +67,8 @@ import { uploadAudio } from './storageService.js';
  * what appears under the whiteboard.
  */
 export async function generateCaptionAudio(partId) {
+  if (!captionTtsEnabled()) return;
+
   const { StoryboardScene } = await import('../models/Lesson.js');
   const captionScenes = await StoryboardScene.find({
     partId,
@@ -229,12 +283,14 @@ async function synthesizeSpeechify(text) {
   // Use the Speechify SDK
   const client = new SpeechifyClient({ token: apiKey });
 
-  const response = await client.audio.speech({
-    input: text,
-    voice_id: voiceId,
-    model: model,
-    audio_format: audioFormat,
-  });
+  const response = await withSpeechifyRetry(() =>
+    client.audio.speech({
+      input: text,
+      voice_id: voiceId,
+      model: model,
+      audio_format: audioFormat,
+    })
+  );
 
   // The SDK returns base64-encoded audio_data; decode to Buffer
   return Buffer.from(response.audio_data, 'base64');

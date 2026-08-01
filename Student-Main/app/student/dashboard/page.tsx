@@ -108,7 +108,7 @@ export default function StudentDashboard() {
       {/* Student ID Banner */}
       <div className="flex flex-col gap-3 bg-white rounded-2xl px-4 py-3 shadow-sm border border-[#E5E5E5] sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#D6F63E] flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-[#D6F63E] flex items-center justify-center shrink-0">
             <IconTarget size={18} className="text-[#0F0F0F]" />
           </div>
           <div>
@@ -123,7 +123,7 @@ export default function StudentDashboard() {
       </div>
 
       {/* Row 1: 3 stat cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <StatsCard
           title="XP Earned"
           value={s.xp.toLocaleString()}

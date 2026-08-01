@@ -83,7 +83,7 @@ export function Sidebar({ items, title, subtitle, bottomContent, isCollapsed = f
         />
       )}
     <aside className={`fixed left-0 top-0 h-[calc(100vh-24px)] bg-[#171717] text-white flex flex-col z-50 m-3 rounded-[20px] transition-all duration-300 ease-in-out
-        ${isCollapsed ? '-translate-x-full lg:translate-x-0 lg:w-[72px]' : 'translate-x-0 w-[220px]'}`}>
+        ${isCollapsed ? '-translate-x-full lg:translate-x-0 lg:w-[72px]' : 'translate-x-0 w-[260px] sm:w-[220px]'}`}>
       {/* Logo */}
       <div className={`${isCollapsed ? 'px-4' : 'px-5'} pt-5 pb-4`}>
         <Link href="/" className="flex items-center gap-2.5">
@@ -108,7 +108,7 @@ export function Sidebar({ items, title, subtitle, bottomContent, isCollapsed = f
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-4 py-3 rounded-pill text-[14px] font-medium transition-all ${
+              className={`flex items-center gap-3 px-4 py-3.5 rounded-pill text-[14px] font-medium transition-all ${
                 isActive
                   ? "bg-white text-[#0F0F0F]"
                   : "text-[#A0A0A0] hover:text-white hover:bg-white/5"
