@@ -16,6 +16,7 @@ import { reserveAiRequest, markAiRequestFinished, releaseAiRequest } from '../au
 import { requireAuth } from '../auth/middleware/auth.js';
 
 const router = Router();
+const STALE_PROCESSING_MS = Math.max(120_000, Number(process.env.STALE_PROCESSING_MS ?? 300_000));
 const ALLOWED_EXTENSIONS = new Set(['.pdf', '.docx', '.doc', '.txt', '.md', '.png', '.jpg', '.jpeg', '.webp', '.bmp', '.tiff']);
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -205,8 +206,28 @@ router.post('/', upload.single('file'), async (req, res, next) => {
 // GET /api/v1/upload/status/:lessonId
 router.get('/status/:lessonId', async (req, res, next) => {
   try {
-    const lesson = await Lesson.findById(req.params.lessonId).lean();
+    let lesson = await Lesson.findById(req.params.lessonId).lean();
     if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
+
+    if (lesson.status === 'processing') {
+      const updatedAtMs = lesson.updatedAt ? new Date(lesson.updatedAt).getTime() : 0;
+      const isStale = updatedAtMs > 0 && (Date.now() - updatedAtMs) > STALE_PROCESSING_MS;
+      if (isStale) {
+        const staleMessage = 'Lesson processing stalled on the server. Please retry generation.';
+        await Lesson.findByIdAndUpdate(lesson._id, {
+          status: 'error',
+          errorMessage: staleMessage,
+          processingStep: 'error',
+        });
+        lesson = {
+          ...lesson,
+          status: 'error',
+          errorMessage: staleMessage,
+          processingStep: 'error',
+        };
+      }
+    }
+
     const partsCount = await LessonPart.countDocuments({ lessonId: lesson._id });
     res.json({
       id: lesson._id.toString(),
