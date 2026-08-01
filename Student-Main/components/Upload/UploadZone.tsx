@@ -764,11 +764,36 @@ async function poll(
   setStep: (step: string) => void
 ) {
   const MAX = 270;
+  const STALL_LIMIT = 150; // 150 * 2s = 5 minutes on the same step
+  const STALL_SENSITIVE_STEPS = new Set([
+    "analyzing_document",
+    "deep_scanning",
+    "planning_lessons",
+    "planning_outline",
+    "ai_generating",
+    "ai_refining",
+    "ai_visual_refining",
+  ]);
   let tries = 0;
+  let lastStep = "queued";
+  let sameStepCount = 0;
   while (tries < MAX) {
     await sleep(2000);
     const s = await pollUploadStatus(lessonId);
-    if (s.processing_step) setStep(s.processing_step);
+    const step = s.processing_step || "queued";
+    setStep(step);
+
+    if (step === lastStep) {
+      sameStepCount += 1;
+    } else {
+      lastStep = step;
+      sameStepCount = 0;
+    }
+
+    if (STALL_SENSITIVE_STEPS.has(step) && sameStepCount >= STALL_LIMIT) {
+      throw new Error(`Generation stalled at ${step} for over 5 minutes. Please retry.`);
+    }
+
     if (s.status === "ready") {
       onReady(lessonId, s.series_id ?? undefined, s.total_lessons);
       return;

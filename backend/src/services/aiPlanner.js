@@ -83,6 +83,18 @@ const PLANNER_META_CONCEPTS = new Set([
 ]);
 
 // ── Per-provider limits ──────────────────────────────────────────────────────
+const IS_VERCEL_RUNTIME = process.env.VERCEL === '1';
+const VERCEL_MAX_DURATION_MS = Math.max(60_000, Number(process.env.VERCEL_MAX_DURATION_MS ?? 300_000));
+const VERCEL_AI_STEP_TIMEOUT_MS = Math.max(
+  30_000,
+  Number(process.env.VERCEL_AI_STEP_TIMEOUT_MS ?? Math.min(150_000, VERCEL_MAX_DURATION_MS - 90_000)),
+);
+
+function runtimeBoundTimeout(ms) {
+  const value = Math.max(30_000, Number(ms) || 30_000);
+  return IS_VERCEL_RUNTIME ? Math.min(value, VERCEL_AI_STEP_TIMEOUT_MS) : value;
+}
+
 // Legacy high-context profile retained for backward-compatible sizing knobs.
 const DEEPSEEK_CONTEXT_TOKENS = Number(process.env.DEEPSEEK_CONTEXT_TOKENS ?? 1_000_000);
 // ~3.2M chars leaves room in 1M context for system prompt + JSON output (~4 chars/token est.)
@@ -94,8 +106,8 @@ const PROVIDER_LIMITS = {
     maxInputChars:  DEEPSEEK_MAX_INPUT_CHARS,
     analysisTok:    Number(process.env.DEEPSEEK_ANALYSIS_TOKENS  ?? 128_000),
     contentTok:     Number(process.env.DEEPSEEK_CONTENT_TOKENS   ?? 256_000),
-    analysisTimeout:Number(process.env.DEEPSEEK_ANALYSIS_TIMEOUT ?? 900_000),
-    contentTimeout: Number(process.env.DEEPSEEK_CONTENT_TIMEOUT  ?? 1_800_000),
+    analysisTimeout: runtimeBoundTimeout(Number(process.env.DEEPSEEK_ANALYSIS_TIMEOUT ?? 900_000)),
+    contentTimeout: runtimeBoundTimeout(Number(process.env.DEEPSEEK_CONTENT_TIMEOUT  ?? 1_800_000)),
     cooldown:       Number(process.env.DEEPSEEK_COOLDOWN_MS      ?? 30_000),
   },
   blaze: {
@@ -103,8 +115,8 @@ const PROVIDER_LIMITS = {
     maxInputChars:  200_000,
     analysisTok:    Number(process.env.BLAZE_ANALYSIS_TOKENS  ?? 32_000),
     contentTok:     Number(process.env.BLAZE_CONTENT_TOKENS   ?? 64_000),
-    analysisTimeout:Number(process.env.AI_TIMEOUT_MS          ?? 600_000),
-    contentTimeout: Number(process.env.AI_TIMEOUT_MS          ?? 600_000) + 300_000,
+    analysisTimeout: runtimeBoundTimeout(Number(process.env.AI_TIMEOUT_MS ?? 600_000)),
+    contentTimeout: runtimeBoundTimeout(Number(process.env.AI_TIMEOUT_MS ?? 600_000) + 300_000),
     cooldown:       Number(process.env.AI_COOLDOWN_MS         ?? 120_000),
   },
   blazeapi: {
@@ -112,8 +124,8 @@ const PROVIDER_LIMITS = {
     maxInputChars:  200_000,
     analysisTok:    Number(process.env.BLAZEAPI_ANALYSIS_TOKENS  ?? 32_000),
     contentTok:     Number(process.env.BLAZEAPI_CONTENT_TOKENS   ?? 64_000),
-    analysisTimeout:Number(process.env.AI_TIMEOUT_MS             ?? 600_000),
-    contentTimeout: Number(process.env.AI_TIMEOUT_MS             ?? 600_000) + 300_000,
+    analysisTimeout: runtimeBoundTimeout(Number(process.env.AI_TIMEOUT_MS ?? 600_000)),
+    contentTimeout: runtimeBoundTimeout(Number(process.env.AI_TIMEOUT_MS ?? 600_000) + 300_000),
     cooldown:       Number(process.env.AI_COOLDOWN_MS            ?? 120_000),
   },
 };
@@ -132,7 +144,7 @@ function getSectionTextLimit(aiProvider) {
   return 50_000;
 }
 
-const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS ?? 600_000);
+const AI_TIMEOUT_MS = runtimeBoundTimeout(Number(process.env.AI_TIMEOUT_MS ?? 600_000));
 const AI_COOLDOWN_MS = Number(process.env.AI_COOLDOWN_MS ?? 120_000);
 
 const circuitState = {

@@ -86,7 +86,13 @@ const SUBJECTS = [
 // ── Pipeline stages ───────────────────────────────────────────────────────────
 const STAGES = [
   { key: "queued",             label: "Queued",               desc: "Sending your topic to the server…" },
+  { key: "analyzing_document", label: "Analyzing Topic",      desc: "AI is understanding the topic and prerequisites…" },
+  { key: "deep_scanning",      label: "Deep Scan",            desc: "AI is checking for missed concepts and examples…" },
+  { key: "planning_lessons",   label: "Splitting Into Lessons", desc: "AI is structuring the teaching sequence…" },
   { key: "planning_outline",   label: "Building Lesson Structure", desc: "AI is planning the lesson outline and key concepts…" },
+  { key: "ai_generating",      label: "Generating Lesson",    desc: "AI is writing explanations, narration, and examples…" },
+  { key: "ai_refining",        label: "Refining Lesson",      desc: "AI is improving clarity and accuracy…" },
+  { key: "ai_visual_refining", label: "Composing Visuals",    desc: "AI is polishing whiteboard visuals and sequencing…" },
   { key: "planning",           label: "Planning",             desc: "Designing the lesson flow…" },
   { key: "saving",             label: "Creating Scenes",      desc: "Generating whiteboard scenes and narration…" },
   { key: "finalizing",         label: "Adding Audio",         desc: "Synthesizing TTS narration for each part…" },
@@ -94,7 +100,15 @@ const STAGES = [
 ];
 
 function getStageIdx(step: string): number {
-  const idx = STAGES.findIndex((s) => s.key === step);
+  const aliases: Record<string, string> = {
+    uploading: "queued",
+    extracting: "analyzing_document",
+    planning_visuals_1: "ai_visual_refining",
+    planning_visuals_2: "ai_visual_refining",
+    planning_visuals_3: "ai_visual_refining",
+  };
+  const normalized = aliases[step] || step;
+  const idx = STAGES.findIndex((s) => s.key === normalized);
   return idx === -1 ? 0 : idx;
 }
 
@@ -151,6 +165,7 @@ export default function AILessonsPage() {
   const elapsedRef = useRef(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollErrorCountRef = useRef(0);
   const prevStepRef = useRef("queued");
   const stepStartedAtRef = useRef<Record<string, number>>({ queued: 0 });
 
@@ -188,6 +203,7 @@ export default function AILessonsPage() {
     setElapsed(0);
     elapsedRef.current = 0;
     prevStepRef.current = "queued";
+    pollErrorCountRef.current = 0;
     stepStartedAtRef.current = { queued: 0 };
 
     try {
@@ -218,6 +234,7 @@ export default function AILessonsPage() {
       try {
         const status = await pollUploadStatus(genLessonId);
         const step = status.processing_step || "queued";
+        pollErrorCountRef.current = 0;
         setGenStep(step);
 
         // Track step durations
@@ -237,11 +254,25 @@ export default function AILessonsPage() {
           setIsError(true);
           setGenerating(false);
           clearInterval(interval);
+        } else if (elapsedRef.current >= 720) {
+          setGenError("Generation timed out on the server. Please retry; if it repeats, the backend job exceeded runtime limits.");
+          setIsError(true);
+          setGenerating(false);
+          clearInterval(interval);
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         if (message.includes("401")) {
           setGenError("Your session expired. Sign in again, then retry generation.");
+          setIsError(true);
+          setGenerating(false);
+          clearInterval(interval);
+          return;
+        }
+
+        pollErrorCountRef.current += 1;
+        if (pollErrorCountRef.current >= 4) {
+          setGenError(`Status polling failed repeatedly: ${message}`);
           setIsError(true);
           setGenerating(false);
           clearInterval(interval);
