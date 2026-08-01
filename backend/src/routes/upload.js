@@ -8,9 +8,7 @@ import { planLessonSeries, planSingleLesson } from '../services/aiPlanner.js';
 import { saveLessonPlan } from '../services/storyboardGenerator.js';
 import { generateLessonAudioArtifacts } from '../services/ttsService.js';
 import { uploadFile, uploadAudio } from '../services/storageService.js';
-import { BLAZE_MODELS, getBlazeConfig, resolveBlazeModel } from '../services/blazeConfig.js';
-import { BLAZEAPI_MODELS, getBlazeAPIConfig } from '../services/blazeapiConfig.js';
-import { OPENROUTER_MODELS, getOpenRouterConfig } from '../services/openrouterConfig.js';
+import { OPENROUTER_MODELS, resolveOpenRouterModel } from '../services/openrouterConfig.js';
 import { toUserFacingError } from '../utils/errors.js';
 import { reserveAiRequest, markAiRequestFinished, releaseAiRequest } from '../auth/services/aiQuota.js';
 import { requireAuth } from '../auth/middleware/auth.js';
@@ -39,64 +37,21 @@ const AI_PROVIDERS = [
     id: 'openrouter',
     label: 'OpenRouter',
     icon: '🔀',
-    name: 'OpenRouter (Primary)',
-    desc: 'Multi-model gateway — free & paid models',
+    name: 'OpenRouter (Free models)',
+    desc: 'Free models only',
     badge: 'Recommended',
     models: OPENROUTER_MODELS,
-  },
-  {
-    id: 'fastapi',
-    label: 'FastAPI',
-    icon: '🚀',
-    name: 'Render FastAPI',
-    desc: 'AI through Render-hosted service',
-    badge: null,
-    models: [{ id: 'fastapi', label: 'FastAPI', desc: 'FastAI on Render', badge: 'Active' }],
-  },
-  {
-    id: 'blaze',
-    label: 'BlazeAI',
-    icon: '🔥',
-    name: 'BlazeAI (Multi-model)',
-    desc: 'Free tier with multiple models',
-    badge: null,
-    models: BLAZE_MODELS,
-  },
-  {
-    id: 'blazeapi',
-    label: 'BlazeAPI',
-    icon: '⚡',
-    name: 'BlazeAPI Gateway',
-    desc: 'OpenAI-compatible gateway',
-    badge: null,
-    models: BLAZEAPI_MODELS,
   },
 ];
 
 function normalizeProvider(raw) {
   const p = String(raw || '').trim().toLowerCase();
-  if (p === 'deepseek') return 'blaze';
-  if (p === 'blaze' || p === 'blazeai') return 'blaze';
-  if (p === 'blazeapi' || p === 'blaze-api') return 'blazeapi';
-  if (p === 'fastapi' || p === 'fast-api' || p === 'render') return 'fastapi';
   if (p === 'openrouter' || p === 'open-router' || p === 'or') return 'openrouter';
   return null;
 }
 
-function resolveAnalysisModel(aiProvider, fromBody) {
-  if (aiProvider === 'openrouter') {
-    const { defaultModel } = getOpenRouterConfig();
-    return String(fromBody || '').trim() || defaultModel;
-  }
-  if (aiProvider === 'fastapi') {
-    return 'fastapi';
-  }
-  if (aiProvider === 'blazeapi') {
-    const { defaultModel } = getBlazeAPIConfig();
-    return String(fromBody || '').trim() || defaultModel;
-  }
-  const { defaultDeepModel } = getBlazeConfig();
-  return resolveBlazeModel(fromBody, defaultDeepModel);
+function resolveAnalysisModel(_aiProvider, fromBody) {
+  return resolveOpenRouterModel(fromBody);
 }
 
 import { scheduleBackgroundTask } from '../utils/backgroundTask.js';
@@ -104,7 +59,7 @@ router.get('/providers', (_req, res) => {
   res.json({ providers: AI_PROVIDERS });
 });
 
-// GET /api/v1/upload/test-ai?provider=blaze — verify Blaze connectivity
+// GET /api/v1/upload/test-ai — verify OpenRouter connectivity
 router.get('/test-ai', async (req, res, next) => {
   try {
     const aiProvider = normalizeProvider(req.query.provider) || 'openrouter';
@@ -131,7 +86,6 @@ router.post('/', upload.single('file'), async (req, res, next) => {
     const explanationMode = req.body.explanation_mode || 'full_lesson';
 
     console.log(`[upload] Received: ai_provider=${aiProvider}, analysis_model=${analysisModel}, file=${originalname}, user=${req.user?.email}`);
-    console.log(`[upload] BlazeAI: key=${process.env.BLAZE_API_KEY ? 'SET' : 'MISSING'}, base=${process.env.BLAZE_BASE_URL || 'https://blazeai.boxu.dev/api'}`);
 
     // Enforce per-user AI request quota and create the matching log row.
     const { log: aiLog } = await reserveAiRequest({

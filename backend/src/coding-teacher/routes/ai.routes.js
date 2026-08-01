@@ -7,8 +7,7 @@ import { Lesson, LessonPart, StoryboardScene } from '../../models/Lesson.js';
 import { LessonSeries } from '../../models/LessonSeries.js';
 import { planLessonSeries, callAIRace } from '../../services/aiPlanner.js';
 import { saveLessonPlan } from '../../services/storyboardGenerator.js';
-import { synthesize, generateCaptionAudio } from '../../services/ttsService.js';
-import { uploadAudio } from '../../services/storageService.js';
+import { generateLessonAudioArtifacts } from '../../services/ttsService.js';
 import { reserveAiRequest } from '../../auth/services/aiQuota.js';
 import { AiRequestLog } from '../../auth/models/index.js';
 import { toUserFacingError } from '../../utils/errors.js';
@@ -255,6 +254,7 @@ router.post('/generate-template', requireRole('teacher', 'admin'), async (req, r
     });
 
     // Create parts with scenes
+    const createdParts = [];
     for (let i = 0; i < template.parts.length; i++) {
       const partDef = template.parts[i];
       const part = await LessonPart.create({
@@ -266,6 +266,7 @@ router.post('/generate-template', requireRole('teacher', 'admin'), async (req, r
         audioUrl: null,
         partType: partDef.partType || 'content',
       });
+      createdParts.push(part);
 
       // Create scenes
       const sceneDocs = partDef.scenes.map((s, idx) => ({
@@ -278,6 +279,10 @@ router.post('/generate-template', requireRole('teacher', 'admin'), async (req, r
         await StoryboardScene.insertMany(sceneDocs);
       }
     }
+
+    // Templates still contain teaching narration. Generate one durable audio
+    // track per content part so template and AI-authored lessons behave alike.
+    await generateLessonAudioArtifacts(createdParts);
 
     // Update series
     await LessonSeries.findByIdAndUpdate(series._id, { $inc: { completedLessons: 1 } });
@@ -909,27 +914,7 @@ async function processGeneratedLesson(lessonId, seriesId, topic, analysisModel, 
 
     await Lesson.findByIdAndUpdate(lessonId, { processingStep: 'finalizing' });
     const parts = await LessonPart.find({ lessonId: lesson._id });
-    for (const part of parts) {
-      if (part.narration && part.partType === 'content') {
-        try {
-          const audio = await synthesize(part.narration, part._id.toString());
-          if (audio) {
-            const url = await uploadAudio(audio, part._id.toString());
-            if (url) { part.audioUrl = url; await part.save(); }
-          }
-        } catch (ttsErr) {
-          console.warn(`TTS failed for part ${part._id}:`, ttsErr.message);
-        }
-      }
-    }
-
-    // Per-caption TTS
-    for (const part of parts) {
-      if (part.partType === 'content') {
-        try { await generateCaptionAudio(part._id.toString()); }
-        catch (capErr) { console.warn(`Caption TTS failed for part ${part._id}:`, capErr.message); }
-      }
-    }
+    await generateLessonAudioArtifacts(parts);
 
     lesson.status = 'ready';
     lesson.processingStep = 'done';

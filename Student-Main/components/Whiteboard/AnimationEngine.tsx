@@ -68,8 +68,8 @@ export default function AnimationEngine({ part, onPartComplete }: AnimationEngin
     elapsedRef.current = storeElapsed;
   }, [storeElapsed]);
 
-  // Full-part audio is legacy-only. Caption timelines always narrate the exact
-  // visible caption, using their generated clip or browser speech as fallback.
+  // Prefer one continuous narration track for the whole part. Caption-level
+  // playback is only retained for legacy lessons with no part narration.
   useEffect(() => {
     lastCaptionIdRef.current = null;
     fallbackNarrationStartedRef.current = false;

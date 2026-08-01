@@ -101,12 +101,13 @@ export async function generateCaptionAudio(partId) {
 
 export async function generateLessonAudioArtifacts(parts = []) {
   const results = [];
+  const partTimeoutMs = Math.max(15_000, Number(process.env.TTS_PART_TIMEOUT_MS ?? 60_000));
   for (const part of parts) {
     if (part?.narration && part?.partType === 'content') {
       try {
         const audio = await Promise.race([
           synthesize(part.narration, part._id.toString()),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('TTS timeout')), 15000)),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('TTS timeout')), partTimeoutMs)),
         ]);
         if (audio) {
           const url = await uploadAudio(audio, part._id.toString());
@@ -119,18 +120,6 @@ export async function generateLessonAudioArtifacts(parts = []) {
       } catch (ttsErr) {
         console.warn(`[tts] Part narration failed for ${part._id}:`, ttsErr.message);
         results.push({ partId: part._id.toString(), status: 'skipped', error: ttsErr.message });
-      }
-    }
-  }
-
-  for (const part of parts) {
-    if (part?.partType === 'content') {
-      try {
-        await generateCaptionAudio(part._id.toString());
-        results.push({ partId: part._id.toString(), captionStatus: 'ok' });
-      } catch (capErr) {
-        console.warn(`[tts] Caption audio failed for ${part._id}:`, capErr.message);
-        results.push({ partId: part._id.toString(), captionStatus: 'skipped', error: capErr.message });
       }
     }
   }

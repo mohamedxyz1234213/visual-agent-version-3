@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { uploadDocument, pollUploadStatus, fetchProviders, explainText, type AiProviderOption } from "@/lib/api";
+import { uploadDocument, pollUploadStatus, explainText } from "@/lib/api";
 import type { LessonStatus } from "@/lib/types";
 
 interface UploadZoneProps {
@@ -90,9 +90,9 @@ const PROVIDER_MODELS: Record<string, Array<{
 }>> = {
   openrouter: [
     { id: "nvidia/nemotron-3-ultra-550b-a55b:free", label: "Nemotron 3 Ultra", modelName: "nvidia/nemotron-3-ultra-550b-a55b:free", desc: "Fast & capable (free)", badge: "Recommended" },
-    { id: "deepseek/deepseek-v4-flash:free", label: "DeepSeek V4 Flash (free)", modelName: "deepseek/deepseek-v4-flash:free", desc: "Fast & accurate", badge: null },
     { id: "google/gemma-4-27b-it:free", label: "Gemma 4 27B (free)", modelName: "google/gemma-4-27b-it:free", desc: "Google model", badge: null },
     { id: "meta-llama/llama-4-maverick:free", label: "Llama 4 Maverick (free)", modelName: "meta-llama/llama-4-maverick:free", desc: "Meta latest", badge: null },
+    { id: "qwen/qwen3-235b-a22b:free", label: "Qwen3 235B (free)", modelName: "qwen/qwen3-235b-a22b:free", desc: "Strong reasoning", badge: null },
   ],
   
 };
@@ -334,13 +334,10 @@ export default function UploadZone({ onReady }: UploadZoneProps) {
   const [textInstructions, setTextInstructions] = useState("");
 
   // Shared AI config
-  const [analysisModel, setAnalysisModel] = useState<string>("qwen3.6-plus-thinking");
-  const [aiProvider, setAiProvider] = useState<string>("openrouter");
-  const [providers, setProviders] = useState<AiProviderOption[]>([]);
+  const [analysisModel, setAnalysisModel] = useState<string>("nvidia/nemotron-3-ultra-550b-a55b:free");
+  const aiProvider = "openrouter";
 
   // UI control state
-  const [customModels, setCustomModels] = useState<Array<{ id: string; label: string; modelName: string; desc: string; badge: string | null }>>([]);
-  const [newModelName, setNewModelName] = useState("");
   const [showModelDropdown, setShowModelDropdown] = useState(false);
 
   // Processing state
@@ -357,27 +354,11 @@ export default function UploadZone({ onReady }: UploadZoneProps) {
   const prevStepRef = useRef<string>("queued");
   const stepStartedAtRef = useRef<Partial<Record<string, number>>>({ queued: 0 });
 
-  useEffect(() => {
-    fetchProviders()
-      .then(setProviders)
-      .catch(() => {
-        setProviders([
-          { id: "openrouter", label: "OpenRouter", icon: "", name: "OpenRouter (Primary)", desc: "Multi-model gateway", badge: "Recommended" },
-        ]);
-      });
+  const modelOptionsForProvider = useMemo(() => {
+    return PROVIDER_MODELS.openrouter;
   }, []);
 
-  const modelOptionsForProvider = useMemo(() => {
-    const fromApi = providers.find((p) => p.id === aiProvider)?.models;
-    if (fromApi?.length) {
-      return fromApi.map((m) => ({ id: m.id, label: m.label, modelName: m.id, desc: m.desc, badge: m.badge }));
-    }
-    return PROVIDER_MODELS[aiProvider] || PROVIDER_MODELS.blaze;
-  }, [providers, aiProvider]);
-
-  const allModels = useMemo(() => {
-    return [...modelOptionsForProvider, ...customModels];
-  }, [modelOptionsForProvider, customModels]);
+  const allModels = modelOptionsForProvider;
 
   useEffect(() => {
     if (modelOptionsForProvider.length > 0) setAnalysisModel(modelOptionsForProvider[0].id);
@@ -489,22 +470,13 @@ export default function UploadZone({ onReady }: UploadZoneProps) {
     if (f) setFile(f);
   }
 
-  const selectedProvider = providers.find((p) => p.id === aiProvider)
-    ?? { id: aiProvider, label: "BlazeAI", icon: "", name: "", desc: "", badge: null };
+  const selectedProvider = { id: aiProvider, label: "OpenRouter", name: "OpenRouter (Free models)" };
   const providerLabel = selectedProvider.label || selectedProvider.name;
-const selectedModel = allModels.find((m) => m.id === analysisModel) ?? modelOptionsForProvider[0];
+  const selectedModel = allModels.find((m) => m.id === analysisModel) ?? modelOptionsForProvider[0];
 
   const modelDisplayName = selectedModel?.label ?? analysisModel;
   const selectedPreset = LESSON_PRESETS.find((preset) => preset.intent === lessonIntent && preset.mode === explanationMode) ?? null;
   const processingStages = buildStages(providerLabel, modelDisplayName, isTextMode);
-
-  function handleAddCustomModel() {
-    const name = newModelName.trim();
-    if (!name || allModels.some((m) => m.id === name)) return;
-    setCustomModels((prev) => [...prev, { id: name, label: name, modelName: name, desc: "Custom model (Blaze API)", badge: null }]);
-    setNewModelName("");
-    setAnalysisModel(name);
-  }
 
   // ── Processing screen ─────────────────────────────────────────────────────
   if (uiStatus === "uploading" || uiStatus === "processing" || uiStatus === "error") {
@@ -526,10 +498,6 @@ const selectedModel = allModels.find((m) => m.id === analysisModel) ?? modelOpti
   }
 
   // ── Idle form ─────────────────────────────────────────────────────────────
-  const fallbackProviders: AiProviderOption[] = [
-    { id: "openrouter", label: "OpenRouter", icon: "", name: "OpenRouter (Primary)", desc: "Multi-model gateway — free & paid models", badge: "Recommended" },
-  ];
-
   return (
     <div className="w-full rounded-[28px] border border-slate-200/90 bg-white/95 px-4 py-5 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur sm:px-5">
       {/* Header */}
@@ -561,7 +529,7 @@ const selectedModel = allModels.find((m) => m.id === analysisModel) ?? modelOpti
             <>
               <div className="fixed inset-0 z-10" onClick={() => setShowModelDropdown(false)} />
               <div className="absolute top-full mt-2 left-0 w-[calc(100vw-2rem)] sm:w-72 rounded-2xl border border-slate-200 bg-white shadow-[0_18px_48px_rgba(15,23,42,0.12)] p-2 z-20">
-                <p className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Blaze API Models</p>
+                <p className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">OpenRouter Free Models</p>
                 {allModels.map((opt) => {
                   const active = analysisModel === opt.id;
                   return (
@@ -707,27 +675,6 @@ const selectedModel = allModels.find((m) => m.id === analysisModel) ?? modelOpti
             </svg>
           </button>
         </div>
-      </div>
-
-      {/* Custom model input */}
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400 shrink-0">Add Blaze Model</span>
-        <input
-          type="text"
-          placeholder="Model name (e.g., gpt-4o)"
-          value={newModelName}
-          onChange={(e) => setNewModelName(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") handleAddCustomModel(); }}
-          className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 placeholder-slate-400 outline-none transition focus:border-slate-400"
-        />
-        <button
-          type="button"
-          onClick={handleAddCustomModel}
-          disabled={!newModelName.trim()}
-          className="rounded-xl bg-white border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed transition"
-        >
-          + Add
-        </button>
       </div>
 
       {/* Preferences collapsible */}

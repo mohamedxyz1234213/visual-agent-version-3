@@ -90,6 +90,15 @@ export async function uploadFile(buffer, originalFilename, prefix = 'uploads') {
  * @returns {Promise<string|null>}
  */
 export async function uploadAudio(audioBuffer, partId) {
+  // Serverless /tmp storage disappears as soon as the invocation finishes.
+  // If object storage has not been configured yet, persist the small MP3 as a
+  // data URL in the lesson-part document instead of returning a dead /tmp URL.
+  // Browsers can play this URL directly, so teacher and student lessons retain
+  // narration after the Vercel function has finished.
+  if (IS_VERCEL && !getClient()) {
+    if (!Buffer.isBuffer(audioBuffer) || !audioBuffer.length) return null;
+    return `data:audio/mpeg;base64,${audioBuffer.toString('base64')}`;
+  }
   return uploadFile(audioBuffer, `${partId}.mp3`, 'audio');
 }
 

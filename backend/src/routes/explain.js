@@ -4,8 +4,7 @@ import { LessonSeries } from '../models/LessonSeries.js';
 import { planLessonSeries } from '../services/aiPlanner.js';
 import { saveLessonPlan } from '../services/storyboardGenerator.js';
 import { generateLessonAudioArtifacts } from '../services/ttsService.js';
-import { getBlazeConfig, resolveBlazeModel } from '../services/blazeConfig.js';
-import { getOpenRouterConfig } from '../services/openrouterConfig.js';
+import { resolveOpenRouterModel } from '../services/openrouterConfig.js';
 import { toUserFacingError } from '../utils/errors.js';
 import { reserveAiRequest, markAiRequestFinished } from '../auth/services/aiQuota.js';
 import { requireAuth } from '../auth/middleware/auth.js';
@@ -16,22 +15,12 @@ router.use(requireAuth);
 
 function normalizeProvider(raw) {
   const p = String(raw || '').trim().toLowerCase();
-  if (p === 'deepseek') return 'blaze';
-  if (p === 'blaze' || p === 'blazeai') return 'blaze';
-  if (p === 'blazeapi' || p === 'blaze-api') return 'blazeapi';
-  if (p === 'fastapi' || p === 'fast-api' || p === 'render') return 'fastapi';
   if (p === 'openrouter' || p === 'open-router' || p === 'or') return 'openrouter';
   return null;
 }
 
-function resolveModel(provider, fromBody) {
-  if (provider === 'openrouter') {
-    const { defaultModel } = getOpenRouterConfig();
-    return String(fromBody || '').trim() || defaultModel;
-  }
-  if (provider === 'fastapi') return 'fastapi';
-  const { defaultDeepModel } = getBlazeConfig();
-  return resolveBlazeModel(fromBody, defaultDeepModel);
+function resolveModel(_provider, fromBody) {
+  return resolveOpenRouterModel(fromBody);
 }
 
 import { scheduleBackgroundTask } from '../utils/backgroundTask.js';
