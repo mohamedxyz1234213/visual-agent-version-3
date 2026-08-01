@@ -109,13 +109,19 @@ export async function testAIConnection(
 ): Promise<{ ok: boolean; provider: string; model: string; endpoint: string; error?: string; latencyMs: number }> {
   const q = new URLSearchParams({ provider });
   if (model) q.set("model", model);
-  const res = await fetch(`${BASE}/upload/test-ai?${q}`);
+  const res = await fetch(`${BASE}/upload/test-ai?${q}`, {
+    credentials: "include",
+    headers: { ...authHeaders() },
+  });
   if (!res.ok) throw new Error(`AI test failed: ${res.statusText}`);
   return res.json();
 }
 
 export async function fetchProviders(): Promise<AiProviderOption[]> {
-  const res = await fetch(`${BASE}/upload/providers`);
+  const res = await fetch(`${BASE}/upload/providers`, {
+    credentials: "include",
+    headers: { ...authHeaders() },
+  });
   if (!res.ok) throw new Error(`Failed to fetch providers: ${res.statusText}`);
   const data = await res.json();
   return data.providers;
