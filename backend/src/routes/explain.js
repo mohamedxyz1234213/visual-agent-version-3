@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { Lesson, LessonPart } from '../models/Lesson.js';
 import { LessonSeries } from '../models/LessonSeries.js';
-import { planLessonSeries } from '../services/aiPlanner.js';
+import { planLessonSeries, shouldUseLocalPlanning } from '../services/aiPlanner.js';
 import { saveLessonPlan } from '../services/storyboardGenerator.js';
 import { generateLessonAudioArtifacts } from '../services/ttsService.js';
 import { resolveOpenRouterModel } from '../services/openrouterConfig.js';
@@ -40,6 +40,10 @@ router.post('/', async (req, res, next) => {
       || normalizeProvider(process.env.ACTIVE_LLM)
       || 'openrouter';
     const analysisModel = resolveModel(aiProvider, req.body.analysis_model);
+
+    if (shouldUseLocalPlanning(aiProvider)) {
+      return res.status(503).json({ error: 'AI generation is unavailable. Configure OpenRouter and try again.' });
+    }
 
     const sourceTitle = text.slice(0, 60).replace(/\s+/g, ' ') + (text.length > 60 ? '…' : '');
 

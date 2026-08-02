@@ -4,7 +4,7 @@ import path from 'path';
 import { Lesson, LessonPart } from '../models/Lesson.js';
 import { LessonSeries } from '../models/LessonSeries.js';
 import { extractText } from '../services/documentExtractor.js';
-import { planLessonSeries, planSingleLesson } from '../services/aiPlanner.js';
+import { planLessonSeries, planSingleLesson, shouldUseLocalPlanning } from '../services/aiPlanner.js';
 import { saveLessonPlan } from '../services/storyboardGenerator.js';
 import { generateLessonAudioArtifacts } from '../services/ttsService.js';
 import { uploadFile, uploadAudio } from '../services/storageService.js';
@@ -84,6 +84,10 @@ router.post('/', upload.single('file'), async (req, res, next) => {
     const aiProvider = normalizeProvider(req.body.ai_provider) || normalizeProvider(process.env.ACTIVE_LLM) || 'openrouter';
     const analysisModel = resolveAnalysisModel(aiProvider, req.body.analysis_model);
     const explanationMode = req.body.explanation_mode || 'full_lesson';
+
+    if (shouldUseLocalPlanning(aiProvider)) {
+      return res.status(503).json({ error: 'AI generation is unavailable. Configure OpenRouter and try again.' });
+    }
 
     console.log(`[upload] Received: ai_provider=${aiProvider}, analysis_model=${analysisModel}, file=${originalname}, user=${req.user?.email}`);
 

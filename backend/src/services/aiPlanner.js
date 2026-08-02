@@ -156,6 +156,13 @@ function getSectionTextLimit(aiProvider) {
 
 const AI_TIMEOUT_MS = runtimeBoundTimeout(Number(process.env.AI_TIMEOUT_MS ?? 600_000));
 const AI_COOLDOWN_MS = Number(process.env.AI_COOLDOWN_MS ?? 120_000);
+const REQUIRE_AI_GENERATION = String(process.env.REQUIRE_AI_GENERATION ?? 'true').toLowerCase() === 'true';
+
+function requireAiGenerationForSpec(lessonSpec) {
+  if (!REQUIRE_AI_GENERATION) return false;
+  const mode = String(lessonSpec?.source_mode || '').trim().toLowerCase();
+  return mode === 'topic' || mode === 'document' || mode === '';
+}
 
 export function shouldUseLocalPlanning(aiProvider = null) {
   const provider = normalizeProvider(aiProvider) || normalizeProvider(process.env.ACTIVE_LLM) || 'openrouter';
@@ -902,12 +909,15 @@ async function enrichTopicRequestSpec(topicSpec, aiProvider, analysisModel) {
   const scaffoldTimeoutMs = Math.max(8_000, Number(process.env.TOPIC_SCAFFOLD_TIMEOUT_MS ?? 25_000));
 
   if (process.env.DISABLE_AI_PLANNER === 'true') {
+    if (requireAiGenerationForSpec(topicSpec)) {
+      throw new Error('AI planner is disabled by configuration');
+    }
     return fallbackSpec;
   }
 
   // Short direct prompts (for example: "Explain photosynthesis") are faster
   // and more reliable when we skip the scaffold model call and plan locally.
-  if (topicRequest.length > 0 && topicRequest.length <= shortTopicMaxChars) {
+  if (!requireAiGenerationForSpec(topicSpec) && topicRequest.length > 0 && topicRequest.length <= shortTopicMaxChars) {
     return fallbackSpec;
   }
 
@@ -922,6 +932,9 @@ async function enrichTopicRequestSpec(topicSpec, aiProvider, analysisModel) {
     );
 
     if (!scaffold?.key_topics?.length) {
+      if (requireAiGenerationForSpec(topicSpec)) {
+        throw new Error('AI scaffold returned no key topics');
+      }
       return fallbackSpec;
     }
 
@@ -954,6 +967,9 @@ async function enrichTopicRequestSpec(topicSpec, aiProvider, analysisModel) {
       section_text: normalizeText(scaffold.source_brief || buildTopicSourceBrief(enrichedSpec)),
     };
   } catch (error) {
+    if (requireAiGenerationForSpec(topicSpec)) {
+      throw error;
+    }
     console.warn('[aiPlanner] Topic scaffold AI failed, using local brief:', error.message);
     return fallbackSpec;
   }
@@ -1506,6 +1522,9 @@ MATERIAL:\n${(lessonSpec.section_text || '').slice(0, refineSourceLimit)}`;
 
   // Fallback: build lesson from local text analysis
   if (!finalPlan) {
+    if (requireAiGenerationForSpec(lessonSpec)) {
+      throw new Error('AI lesson generation failed after retries');
+    }
     finalPlan = buildFallbackLesson(lessonSpec);
   }
 
@@ -3481,6 +3500,9 @@ function validateAndFixPlan(aiPlan, lessonSpec) {
 
   // Ensure we have at least content-quiz-content structure
   if (parts.filter((p) => p.part_type === 'content').length === 0) {
+    if (requireAiGenerationForSpec(lessonSpec)) {
+      throw new Error('AI plan had no content parts');
+    }
     return buildFallbackLesson(lessonSpec);
   }
 
