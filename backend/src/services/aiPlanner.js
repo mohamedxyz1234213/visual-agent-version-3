@@ -1401,10 +1401,10 @@ async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, ana
     const intentPrefix = buildIntentPrefix(normalizedLessonIntent);
     const modePrefix = buildModePrefix(lessonSpec.explanation_mode);
     const sourceModePrefix = buildSourceModePrefix(lessonSpec.source_mode);
-    const aiPlan = await callAIRace(
+      const aiPlan = await callAIRace(
       `${intentPrefix}${modePrefix}${sourceModePrefix}${TUTOR_PHILOSOPHY}${TEACHING_PROMPT}${comprehensionContext}${visualPlaybook}\n\nLESSON SPEC:\n${specText}`,
       limits.contentTok,
-      limits.contentTimeout,
+        fastLocalTimeout,
       aiProvider,
       analysisModel,
     );
@@ -1429,7 +1429,7 @@ async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, ana
       const refinedPlan = await callAIRace(
         REFINEMENT_PROMPT + `\n\n${TUTOR_PHILOSOPHY}\n\nORIGINAL LESSON PLAN:\n${JSON.stringify(finalPlan, null, 1).slice(0, refinePlanLimit)}\n\nSOURCE MATERIAL:\n${(lessonSpec.section_text || '').slice(0, refineSourceLimit)}`,
         limits.contentTok,
-        limits.contentTimeout,
+        Math.min(fastLocalTimeout, 45_000),
         aiProvider,
         analysisModel,
       );
@@ -1502,7 +1502,7 @@ MATERIAL:\n${(lessonSpec.section_text || '').slice(0, refineSourceLimit)}`;
       const retryPlan = await callAIRace(
         retryPrompt,
         limits.contentTok,
-        Math.min(limits.contentTimeout, 120_000),
+        Math.min(fastLocalTimeout, 45_000),
         aiProvider,
         analysisModel,
       );
