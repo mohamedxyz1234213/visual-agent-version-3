@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Sidebar } from "@/components/shared";
 import { Header } from "@/components/shared";
+import { getOnboardingStatus } from "@/features/student/api";
 import { useAuthStore } from "@/store/authStore";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect } from "react";
@@ -38,9 +39,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
     if (pathname === "/student/onboarding") { setOnboardingCheckDone(true); return; }
     if (onboardingCheckDone || pathname.startsWith("/login")) return;
 
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
-    fetch(`${apiBase}/student/adaptive-onboarding-status`, { credentials: "include" })
-      .then((r) => r.json())
+    getOnboardingStatus()
       .then((data) => {
         if (!data.onboardingCompleted && pathname !== "/student/onboarding") {
           router.push("/student/onboarding");
