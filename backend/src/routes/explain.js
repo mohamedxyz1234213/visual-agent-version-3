@@ -24,6 +24,7 @@ function resolveModel(_provider, fromBody) {
 }
 
 import { scheduleBackgroundTask } from '../utils/backgroundTask.js';
+import { startLessonHeartbeat } from '../utils/heartbeat.js';
 // Body: { text, subject?, user_instructions?, explanation_mode?, ai_provider?, analysis_model? }
 router.post('/', async (req, res, next) => {
   try {
@@ -120,19 +121,25 @@ async function processDirectText(lessonId, seriesId, rawText, userInstructions, 
     lesson.rawText = rawText;
     await lesson.save();
 
-    const { firstLesson, remainingSpecs, totalLessons } = await planLessonSeries(
-      rawText,
-      userInstructions,
-      model,
-      async (step) => {
-        await Lesson.findByIdAndUpdate(lessonId, { processingStep: step });
-      },
-      provider,
-      explanationMode,
-      'topic',
-      lessonIntent,
-    );
-
+    const stopHeartbeat = startLessonHeartbeat(lessonId);
+    let planResult;
+    try {
+      planResult = await planLessonSeries(
+        rawText,
+        userInstructions,
+        model,
+        async (step) => {
+          await Lesson.findByIdAndUpdate(lessonId, { processingStep: step });
+        },
+        provider,
+        explanationMode,
+        'topic',
+        lessonIntent,
+      );
+    } finally {
+      stopHeartbeat();
+    }
+    const { firstLesson, remainingSpecs, totalLessons } = planResult;
     lesson.seriesId = seriesId;
     lesson.lessonIndex = 0;
     lesson.totalLessons = totalLessons;
@@ -149,6 +156,8 @@ async function processDirectText(lessonId, seriesId, rawText, userInstructions, 
 
     lesson.status = 'ready';
     lesson.processingStep = 'done';
+    lesson.errorMessage = null;
+    lesson.lastHeartbeat = null;
     await lesson.save();
     await LessonSeries.findByIdAndUpdate(seriesId, { $inc: { completedLessons: 1 } });
 

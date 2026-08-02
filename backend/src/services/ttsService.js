@@ -155,11 +155,8 @@ export async function synthesize(text, partId) {
   // Enhance the narration for speech before passing to any TTS provider
   const enhanced = enhanceNarrationForSpeech(text);
 
-  // A content part is authored as one continuous teacher explanation. Keep it
-  // as one Speechify request/audio file rather than cutting it at 2,000
-  // characters, which was the source of narration ending mid-explanation.
-  const maxCharacters = Math.max(500, Number(process.env.TTS_MAX_CHARACTERS ?? 5000));
-  const tts = truncateToLimit(enhanced, maxCharacters);
+  // Truncate to TTS character limit (Speechify max ~2000, others similar)
+  const tts = truncateToLimit(enhanced, Number(process.env.TTS_MAX_CHARACTERS ?? 2000));
   if (tts.length < enhanced.length) {
     console.warn(`[tts] Narration truncated from ${enhanced.length} to ${tts.length} chars for TTS`);
   }
@@ -307,11 +304,8 @@ function hashStr(s) {
 // ── Speechify TTS ─────────────────────────────────────────────────────────────
 async function synthesizeSpeechify(text) {
   const apiKey = process.env.SPEECHIFY_API_KEY;
-  // Henry is the requested teacher voice. Speechify's voice catalogue for this
-  // account supports Henry through simba-3.0 (not simba-3.2), so use the newest
-  // compatible model instead of sending a request that fails with HTTP 400.
-  const voiceId = 'henry';
-  const model = 'simba-3.0';
+  const voiceId = process.env.SPEECHIFY_VOICE_ID || 'henry';
+  const model = process.env.SPEECHIFY_MODEL || 'simba-english';
   const audioFormat = process.env.SPEECHIFY_AUDIO_FORMAT || 'mp3';
 
   // Use the Speechify SDK

@@ -906,7 +906,7 @@ async function enrichTopicRequestSpec(topicSpec, aiProvider, analysisModel) {
   };
   const topicRequest = normalizeText(topicSpec.topic_request || topicSpec.section_text || '');
   const shortTopicMaxChars = Math.max(80, Number(process.env.TOPIC_SCAFFOLD_LOCAL_MAX_CHARS ?? 220));
-  const scaffoldTimeoutMs = Math.max(8_000, Number(process.env.TOPIC_SCAFFOLD_TIMEOUT_MS ?? 25_000));
+  const scaffoldTimeoutMs = Math.max(30_000, Number(process.env.TOPIC_SCAFFOLD_TIMEOUT_MS ?? 240_000));
 
   if (process.env.DISABLE_AI_PLANNER === 'true') {
     if (requireAiGenerationForSpec(topicSpec)) {
@@ -933,7 +933,7 @@ async function enrichTopicRequestSpec(topicSpec, aiProvider, analysisModel) {
 
     if (!scaffold?.key_topics?.length) {
       if (requireAiGenerationForSpec(topicSpec)) {
-        throw new Error('AI scaffold returned no key topics');
+        console.warn(`[aiPlanner] AI scaffold returned no key topics for "${topicSpec.title}" — falling back to local brief`);
       }
       return fallbackSpec;
     }
@@ -968,9 +968,8 @@ async function enrichTopicRequestSpec(topicSpec, aiProvider, analysisModel) {
     };
   } catch (error) {
     if (requireAiGenerationForSpec(topicSpec)) {
-      throw error;
+      console.warn(`[aiPlanner] Topic scaffold AI failed for "${topicSpec.title}", using local brief:`, error.message);
     }
-    console.warn('[aiPlanner] Topic scaffold AI failed, using local brief:', error.message);
     return fallbackSpec;
   }
 }
@@ -1404,7 +1403,7 @@ async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, ana
       const aiPlan = await callAIRace(
       `${intentPrefix}${modePrefix}${sourceModePrefix}${TUTOR_PHILOSOPHY}${TEACHING_PROMPT}${comprehensionContext}${visualPlaybook}\n\nLESSON SPEC:\n${specText}`,
       limits.contentTok,
-        fastLocalTimeout,
+        limits.contentTimeout,
       aiProvider,
       analysisModel,
     );
@@ -1429,7 +1428,7 @@ async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, ana
       const refinedPlan = await callAIRace(
         REFINEMENT_PROMPT + `\n\n${TUTOR_PHILOSOPHY}\n\nORIGINAL LESSON PLAN:\n${JSON.stringify(finalPlan, null, 1).slice(0, refinePlanLimit)}\n\nSOURCE MATERIAL:\n${(lessonSpec.section_text || '').slice(0, refineSourceLimit)}`,
         limits.contentTok,
-        Math.min(fastLocalTimeout, 45_000),
+        limits.contentTimeout,
         aiProvider,
         analysisModel,
       );
@@ -1502,7 +1501,7 @@ MATERIAL:\n${(lessonSpec.section_text || '').slice(0, refineSourceLimit)}`;
       const retryPlan = await callAIRace(
         retryPrompt,
         limits.contentTok,
-        Math.min(fastLocalTimeout, 45_000),
+        Math.min(limits.contentTimeout, 120_000),
         aiProvider,
         analysisModel,
       );
@@ -1523,7 +1522,7 @@ MATERIAL:\n${(lessonSpec.section_text || '').slice(0, refineSourceLimit)}`;
   // Fallback: build lesson from local text analysis
   if (!finalPlan) {
     if (requireAiGenerationForSpec(lessonSpec)) {
-      throw new Error('AI lesson generation failed after retries');
+      console.warn(`[aiPlanner] AI lesson generation failed after retries for "${lessonSpec.title}" — building from local text`);
     }
     finalPlan = buildFallbackLesson(lessonSpec);
   }
@@ -3501,7 +3500,7 @@ function validateAndFixPlan(aiPlan, lessonSpec) {
   // Ensure we have at least content-quiz-content structure
   if (parts.filter((p) => p.part_type === 'content').length === 0) {
     if (requireAiGenerationForSpec(lessonSpec)) {
-      throw new Error('AI plan had no content parts');
+      console.warn(`[aiPlanner] AI plan had no content parts for "${lessonSpec.title}" — building local fallback`);
     }
     return buildFallbackLesson(lessonSpec);
   }
@@ -4796,8 +4795,31 @@ async function callOpenRouter(prompt, maxTokens, timeoutMs, model, hasExplicitMo
       return result;
     } catch (error) {
       const msg = String(error?.message || error || '');
-      const isGatewayError = /402|502|503|gateway|upstream|retrying|sentinel|unavailable|429|insufficient.*(?:credit|quota)|rate.*limit|too.*many.*request|empty response|invalid json|empty sse|empty stream|no parseable data/i.test(msg);
+      const isGatewayError = /402|502|503|gateway|upstream|retrying|sentinel|unavailable|429|insufficient.*(?:credit|quota)|rate.*limit|too.*many.*request|empty response|invalid json|empty sse|empty stream|no parseable data|abort|aborted|aborterror|timed out|timeout/i.test(msg);
       lastError = error;
+
+      // A client-side abort is our own timeout firing — the model may simply
+      // be slow (free/queued models especially). Give it one retry with a much
+      // longer budget before declaring the provider unavailable.
+      if (isGatewayError && /abort|aborted|aborterror|timed out|timeout/i.test(msg) && !error._retriedWithExtendedTimeout) {
+        error._retriedWithExtendedTimeout = true;
+        const extendedTimeout = Math.max(timeoutMs, 240_000);
+        console.warn(`[aiPlanner] OpenRouter model "${m}" timed out after ${timeoutMs}ms — retrying once with ${extendedTimeout}ms...`);
+        try {
+          const result = await callOpenAICompatible(cfg.baseURL, cfg.apiKey, m, prompt, maxTokens, extendedTimeout);
+          lastAiVia = 'openrouter';
+          circuit.openUntil = 0;
+          circuit.reason = '';
+          aiCircuitOpenUntil = 0;
+          aiCircuitReason = '';
+          workingOpenRouterModel = m;
+          return result;
+        } catch (retryError) {
+          lastError = retryError;
+          console.error(`[aiPlanner] OpenRouter model "${m}" still failed after extended retry: ${describeAIError(retryError)}`);
+        }
+        continue;
+      }
 
       if (isGatewayError) {
         console.warn(`[aiPlanner] OpenRouter model "${m}" failed: ${describeAIError(error)} — trying next`);

@@ -10,6 +10,8 @@ import { generateLessonAudioArtifacts } from '../services/ttsService.js';
 import { uploadFile, uploadAudio } from '../services/storageService.js';
 import { OPENROUTER_MODELS, resolveOpenRouterModel } from '../services/openrouterConfig.js';
 import { toUserFacingError } from '../utils/errors.js';
+import { scheduleBackgroundTask } from '../utils/backgroundTask.js';
+import { startLessonHeartbeat } from '../utils/heartbeat.js';
 import { reserveAiRequest, markAiRequestFinished, releaseAiRequest } from '../auth/services/aiQuota.js';
 import { requireAuth } from '../auth/middleware/auth.js';
 
@@ -54,7 +56,6 @@ function resolveAnalysisModel(_aiProvider, fromBody) {
   return resolveOpenRouterModel(fromBody);
 }
 
-import { scheduleBackgroundTask } from '../utils/backgroundTask.js';
 router.get('/providers', (_req, res) => {
   res.json({ providers: AI_PROVIDERS });
 });
@@ -225,18 +226,25 @@ async function processLesson(lessonId, seriesId, buffer, filename, userInstructi
 
     // 3. AI planning — uses the provider chosen by the user
     //    onProgress callback writes each step directly to DB for real-time updates.
-    const { firstLesson, remainingSpecs, totalLessons, courseTitle } = await planLessonSeries(
-      rawText,
-      userInstructions,
-      model,
-      async (step) => {
-        await Lesson.findByIdAndUpdate(lessonId, { processingStep: step });
-      },
-      provider,
-      explanationMode,
-      'document',
-      lessonIntent,
-    );
+    const stopHeartbeat = startLessonHeartbeat(lessonId);
+    let planResult;
+    try {
+      planResult = await planLessonSeries(
+        rawText,
+        userInstructions,
+        model,
+        async (step) => {
+          await Lesson.findByIdAndUpdate(lessonId, { processingStep: step });
+        },
+        provider,
+        explanationMode,
+        'document',
+        lessonIntent,
+      );
+    } finally {
+      stopHeartbeat();
+    }
+    const { firstLesson, remainingSpecs, totalLessons, courseTitle } = planResult;
 
     // Update lesson 1 with series metadata
     lesson.seriesId = seriesId;
@@ -262,6 +270,8 @@ async function processLesson(lessonId, seriesId, buffer, filename, userInstructi
 
     lesson.status = 'ready';
     lesson.processingStep = 'done';
+    lesson.errorMessage = null;
+    lesson.lastHeartbeat = null;
     await lesson.save();
 
     // Increment series completed count
