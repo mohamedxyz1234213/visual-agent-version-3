@@ -4796,7 +4796,7 @@ async function callOpenRouter(prompt, maxTokens, timeoutMs, model, hasExplicitMo
       return result;
     } catch (error) {
       const msg = String(error?.message || error || '');
-      const isGatewayError = /402|502|503|gateway|upstream|retrying|sentinel|unavailable|429|insufficient.*(?:credit|quota)|rate.*limit|too.*many.*request/i.test(msg);
+      const isGatewayError = /402|502|503|gateway|upstream|retrying|sentinel|unavailable|429|insufficient.*(?:credit|quota)|rate.*limit|too.*many.*request|empty response|invalid json|empty sse|empty stream|no parseable data/i.test(msg);
       lastError = error;
 
       if (isGatewayError) {
@@ -5017,8 +5017,8 @@ ABSOLUTE RULES:
     console.log(`[aiPlanner] <<< OK ${model} finish=${data.choices?.[0]?.finish_reason} usage=${JSON.stringify(data.usage || {})}`);
     return parsed;
   } catch (err) {
-    if (err.message.includes('Something answered that wasn') && !err._retried) {
-      console.log(`[aiPlanner] Model ${model} rejected system message, retrying without...`);
+    if (!err._retried && /something answered that wasn|empty response|invalid json|empty sse|empty stream|no parseable data/i.test(err.message)) {
+      console.log(`[aiPlanner] Model ${model} returned an unusable payload, retrying without the system message...`);
       err._retried = true;
       data = await tryRequest(false);
       rawContent = data.choices?.[0]?.message?.content;
@@ -5554,6 +5554,11 @@ function describeAIError(error) {
     return error.errors.map((e) => e?.message || String(e)).join('; ');
   }
   return error?.message || 'unknown AI error';
+}
+
+function isRetryableModelFailure(error) {
+  const message = String(error?.message || error || '').toLowerCase();
+  return /402|429|credit|quota|rate.?limit|insufficient|unavailable|gateway|502|503|upstream|retrying|sentinel|empty response|invalid json|empty sse|empty stream|no parseable data/i.test(message);
 }
 
 // Patterns that indicate an upstream GATEWAY status/error message was returned
