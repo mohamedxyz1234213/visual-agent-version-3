@@ -9,7 +9,7 @@ import type {
 } from "./types";
 import { getAuthToken, setAuthToken, clearAuthToken } from "./authToken";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const BASE = process.env.NEXT_PUBLIC_API_URL || "https://backend-teaching.vercel.app/api/v1";
 
 function authHeaders(): Record<string, string> {
   const token = getAuthToken();

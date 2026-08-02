@@ -2,7 +2,7 @@ import { getAuthToken } from "@/lib/authToken";
 
 // Single source of truth for the API base URL
 // All feature modules and pages should import from here
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://backend-teaching.vercel.app/api/v1";
 
 // Common fetch wrapper used by all feature API layers
 // Extracts specific error messages from JSON body when available

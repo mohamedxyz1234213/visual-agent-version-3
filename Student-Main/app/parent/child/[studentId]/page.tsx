@@ -13,7 +13,7 @@ export default function ChildDashboardPage() {
   useEffect(() => {
     const token = sessionStorage.getItem("parentToken");
     if (!token) return setLoading(false);
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1"}/parent/child/${studentId}/progress?token=${token}`, {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || "https://backend-teaching.vercel.app/api/v1"}/parent/child/${studentId}/progress?token=${token}`, {
       credentials: "include",
     })
       .then((r) => r.json())

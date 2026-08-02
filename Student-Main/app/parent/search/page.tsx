@@ -16,7 +16,7 @@ export default function ParentSearchPage() {
     setError("");
     setLoading(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1"}/parent/search`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "https://backend-teaching.vercel.app/api/v1"}/parent/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ studentCode, nationalId }),

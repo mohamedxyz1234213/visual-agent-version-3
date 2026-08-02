@@ -13,7 +13,7 @@ export default async function LessonPage({ params, searchParams }: LessonPagePro
   const lessonId = params.id;
   const seriesId = typeof searchParams?.series === "string" ? searchParams.series : null;
   const totalLessons = Number.parseInt(searchParams?.total ?? "1", 10) || 1;
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || "https://backend-teaching.vercel.app/api/v1";
 
   // Try to forward the user's auth cookie so a server-side render of the
   // lesson still works. On the client, the AuthGate re-verifies.

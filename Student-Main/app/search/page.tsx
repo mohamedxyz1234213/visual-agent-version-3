@@ -333,7 +333,7 @@ export default function SearchPage() {
         type = "phone";
       }
 
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || "https://backend-teaching.vercel.app/api/v1";
       const res = await fetch(`${apiBase}/student/search?q=${encodeURIComponent(q)}&type=${type}`, {
         credentials: "include",
       });

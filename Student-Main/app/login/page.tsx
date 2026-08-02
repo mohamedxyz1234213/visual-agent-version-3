@@ -28,7 +28,7 @@ function LoginPageInner() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+    const base = process.env.NEXT_PUBLIC_API_URL || "https://backend-teaching.vercel.app/api/v1";
     console.log("[LOGIN] Submitting to:", `${base}/auth/login`, { identifier, password: "***" });
     try {
       const user = await login(identifier, password);
