@@ -24,6 +24,8 @@ function resolveModel(_provider, fromBody) {
 }
 
 import { scheduleBackgroundTask } from '../utils/backgroundTask.js';
+import { RESUME_ENABLED } from '../services/aiResume.js';
+import { finalizeLesson } from '../services/lessonFinalizer.js';
 import { startLessonHeartbeat } from '../utils/heartbeat.js';
 // Body: { text, subject?, user_instructions?, explanation_mode?, ai_provider?, analysis_model? }
 router.post('/', async (req, res, next) => {
@@ -83,8 +85,23 @@ router.post('/', async (req, res, next) => {
       await AiRequestLog.updateOne({ _id: aiLog._id }, { $set: { lessonId: lesson._id, seriesId: series._id } });
     }
 
-    scheduleBackgroundTask(`process lesson ${lesson._id}`, () =>
-      processDirectText(
+    const resumable = RESUME_ENABLED();
+    scheduleBackgroundTask(`process lesson ${lesson._id}`, () => {
+      if (resumable) {
+        return finalizeLesson({
+          lessonId: lesson._id.toString(),
+          seriesId: series._id.toString(),
+          rawText: text,
+          userInstructions,
+          analysisModel,
+          aiProvider,
+          explanationMode,
+          lessonIntent,
+          sourceMode: 'topic',
+          aiLogId: aiLog?._id?.toString(),
+        });
+      }
+      return processDirectText(
         lesson._id.toString(),
         series._id.toString(),
         text,
@@ -94,8 +111,8 @@ router.post('/', async (req, res, next) => {
         explanationMode,
         lessonIntent,
         aiLog?._id?.toString(),
-      )
-    );
+      );
+    });
 
     res.status(202).json({
       id: lesson._id.toString(),

@@ -22,6 +22,7 @@ import { getOpenRouterConfig, OPENROUTER_DEFAULT_MODEL, resolveOpenRouterModel }
 import { buildWhiteboardForPart, assessLessonVisuals, assessPartVisuals } from './whiteboard/index.js';
 import { COMPREHENSION_PROMPT, DECOMPOSITION_PROMPT, REFINEMENT_PROMPT, TEACHING_PROMPT, TOPIC_SCAFFOLD_PROMPT, VISUAL_COMPOSITION_PROMPT, TUTOR_PHILOSOPHY } from './prompts/index.js';
 import { validateBoardScenes, cleanSay } from './whiteboard/validator.js';
+import { resumeHook, cacheResult, RESUME_ENABLED, isResumeInterrupt } from './aiResume.js';
 
 const STOPWORDS = new Set([
   'about', 'after', 'again', 'against', 'almost', 'also', 'although', 'always',
@@ -967,6 +968,7 @@ async function enrichTopicRequestSpec(topicSpec, aiProvider, analysisModel) {
       section_text: normalizeText(scaffold.source_brief || buildTopicSourceBrief(enrichedSpec)),
     };
   } catch (error) {
+    if (isResumeInterrupt(error)) throw error;
     if (requireAiGenerationForSpec(topicSpec)) {
       console.warn(`[aiPlanner] Topic scaffold AI failed for "${topicSpec.title}", using local brief:`, error.message);
     }
@@ -1103,6 +1105,7 @@ export async function planLessonSeries(rawText, userInstructions, analysisModel,
       comprehension = null;
     }
   } catch (error) {
+    if (isResumeInterrupt(error)) throw error;
     console.warn('[aiPlanner] Phase 1 AI failed, building comprehension from text:', error.message);
   }
 
@@ -1140,6 +1143,7 @@ DOCUMENT (re-read thoroughly):\n${analysisText.slice(0, inputLimit)}`;
         console.log(`[aiPlanner] Phase 1B OK: +${deepScan.additional_topics.length} topics, ${(deepScan.commands_found || []).length} commands found`);
       }
     } catch (error) {
+      if (isResumeInterrupt(error)) throw error;
       console.log(`[aiPlanner] Phase 1B skipped: ${error.message}`);
     }
   }
@@ -1163,6 +1167,7 @@ DOCUMENT (re-read thoroughly):\n${analysisText.slice(0, inputLimit)}`;
       console.log(`[aiPlanner] Phase 2 OK: ${lessons.length} lesson(s), title="${courseTitle}"`);
     }
   } catch (error) {
+    if (isResumeInterrupt(error)) throw error;
     console.warn('[aiPlanner] Phase 2 AI failed, using structural split:', error.message);
   }
 
@@ -1291,6 +1296,7 @@ Return ONLY JSON: { "board_scenes": [ ... ] }`;
       }
     }
   } catch (err) {
+    if (isResumeInterrupt(err)) throw err;
     console.warn(`[aiPlanner] Visual refine failed for "${part.title}": ${err.message}`);
   }
   return part.board_scenes;
@@ -1417,6 +1423,7 @@ async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, ana
       }
     }
   } catch (error) {
+    if (isResumeInterrupt(error)) throw error;
     console.warn('[aiPlanner] Phase 3 Pass 1 failed:', error.message);
   }
 
@@ -1449,6 +1456,7 @@ async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, ana
         }
       }
     } catch (refineErr) {
+      if (isResumeInterrupt(refineErr)) throw refineErr;
       console.warn('[aiPlanner] Phase 3 Pass 2 refinement skipped:', refineErr.message);
     }
   }
@@ -1475,6 +1483,7 @@ async function _planLessonContent(lessonSpec, onProgress, aiProvider = null, ana
         console.log(`[aiPlanner] Plan was meta-only; rebuilt from comprehension (${before} → ${JSON.stringify(finalPlan).length} chars)`);
       }
     } catch (visualErr) {
+      if (isResumeInterrupt(visualErr)) throw visualErr;
       console.warn('[aiPlanner] Phase 3 Pass 2.5 visual refinement skipped:', visualErr.message);
     }
   }
@@ -1515,6 +1524,7 @@ MATERIAL:\n${(lessonSpec.section_text || '').slice(0, refineSourceLimit)}`;
         }
       }
     } catch (retryErr) {
+      if (isResumeInterrupt(retryErr)) throw retryErr;
       console.warn('[aiPlanner] Phase 3 Pass 3 failed:', retryErr.message);
     }
   }
@@ -4643,6 +4653,28 @@ export async function testAIConnection(aiProvider, analysisModel) {
 }
 
 export async function callAIRace(prompt, maxTokens, timeoutMs = AI_TIMEOUT_MS, aiProvider = null, analysisModel = null) {
+  if (process.env.DISABLE_AI_PLANNER === 'true') {
+    throw new Error('AI planner disabled by configuration');
+  }
+
+  // ── Resumable pipeline hook (no-op outside a scoped run) ─────────────────
+  if (RESUME_ENABLED()) {
+    const hook = await resumeHook(prompt, maxTokens, aiProvider, analysisModel);
+    if (hook) {
+      if (hook.cached !== null && hook.cached !== undefined) {
+        return hook.cached;
+      }
+      // Uncache step within budget: run live, persist, return same JSON.
+      const result = await callAIRaceLive(prompt, maxTokens, timeoutMs, aiProvider, analysisModel);
+      await cacheResult(hook, result);
+      return result;
+    }
+  }
+
+  return callAIRaceLive(prompt, maxTokens, timeoutMs, aiProvider, analysisModel);
+}
+
+async function callAIRaceLive(prompt, maxTokens, timeoutMs = AI_TIMEOUT_MS, aiProvider = null, analysisModel = null) {
   if (process.env.DISABLE_AI_PLANNER === 'true') {
     throw new Error('AI planner disabled by configuration');
   }

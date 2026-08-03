@@ -11,6 +11,8 @@ import { uploadFile, uploadAudio } from '../services/storageService.js';
 import { OPENROUTER_MODELS, resolveOpenRouterModel } from '../services/openrouterConfig.js';
 import { toUserFacingError } from '../utils/errors.js';
 import { scheduleBackgroundTask } from '../utils/backgroundTask.js';
+import { RESUME_ENABLED } from '../services/aiResume.js';
+import { finalizeLesson } from '../services/lessonFinalizer.js';
 import { startLessonHeartbeat } from '../utils/heartbeat.js';
 import { reserveAiRequest, markAiRequestFinished, releaseAiRequest } from '../auth/services/aiQuota.js';
 import { requireAuth } from '../auth/middleware/auth.js';
@@ -136,8 +138,23 @@ router.post('/', upload.single('file'), async (req, res, next) => {
     }
 
     // Fire-and-forget background processing with rejection handling.
-    scheduleBackgroundTask(`process lesson ${lesson._id}`, () =>
-      processLesson(
+    const resumable = RESUME_ENABLED();
+    scheduleBackgroundTask(`process lesson ${lesson._id}`, () => {
+      if (resumable) {
+        return processResumableUpload(
+          lesson._id.toString(),
+          series._id.toString(),
+          buffer,
+          originalname,
+          userInstructions,
+          analysisModel,
+          aiProvider,
+          explanationMode,
+          lessonIntent,
+          aiLog?._id?.toString(),
+        );
+      }
+      return processLesson(
         lesson._id.toString(),
         series._id.toString(),
         buffer,
@@ -148,8 +165,8 @@ router.post('/', upload.single('file'), async (req, res, next) => {
         explanationMode,
         lessonIntent,
         aiLog?._id?.toString(),
-      )
-    );
+      );
+    });
 
     res.status(202).json({
       id: lesson._id.toString(),
@@ -292,6 +309,43 @@ async function processLesson(lessonId, seriesId, buffer, filename, userInstructi
     }
   } catch (err) {
     console.error(`Lesson 1 processing failed for ${lessonId}:`, err);
+    await Lesson.findByIdAndUpdate(lessonId, { status: 'error', errorMessage: toUserFacingError(err) });
+    if (aiLogId) {
+      const { AiRequestLog } = await import('../auth/models/AiRequestLog.js');
+      await AiRequestLog.updateOne({ _id: aiLogId }, { $set: { status: 'failed', errorMessage: toUserFacingError(err) } });
+    }
+  }
+}
+
+// Resumable upload path: file storage + text extraction run once, then
+// planning/save/audio delegate to the resumable finalizer so serverless
+// invocations can resume across fresh function calls.
+async function processResumableUpload(lessonId, seriesId, buffer, filename, userInstructions, analysisModel, aiProvider = 'openrouter', explanationMode = 'full_lesson', lessonIntent = 'teach', aiLogId = null) {
+  const lesson = await Lesson.findById(lessonId);
+  if (!lesson) return;
+
+  try {
+    await Lesson.findByIdAndUpdate(lessonId, { processingStep: 'uploading' });
+    const fileUrl = await uploadFile(buffer, filename, 'sources');
+    if (fileUrl) lesson.sourceFileUrl = fileUrl;
+
+    await Lesson.findByIdAndUpdate(lessonId, { processingStep: 'extracting' });
+    const rawText = await extractText(buffer, filename, aiProvider, analysisModel);
+
+    await finalizeLesson({
+      lessonId,
+      seriesId,
+      rawText,
+      userInstructions,
+      analysisModel,
+      aiProvider,
+      explanationMode,
+      lessonIntent,
+      sourceMode: 'document',
+      aiLogId,
+    });
+  } catch (err) {
+    console.error(`Resumable upload lesson ${lessonId} failed:`, err);
     await Lesson.findByIdAndUpdate(lessonId, { status: 'error', errorMessage: toUserFacingError(err) });
     if (aiLogId) {
       const { AiRequestLog } = await import('../auth/models/AiRequestLog.js');
