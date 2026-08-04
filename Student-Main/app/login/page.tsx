@@ -67,7 +67,34 @@ function LoginPageInner() {
           <h1 className="text-3xl sm:text-2xl font-bold text-[#0F0F0F] mb-2">
             Welcome back
           </h1>
+           <h2 className="text-3xl sm:text-2xl font-bold text-[#0F0F0F] mb-6">
+            Demo Sign in Data
+          </h2>
+          <p className=" text-base sm:text-sm "> 
+            Email: 
+          </p> 
+            
+           <p className=" text-base sm:text-sm mb-1 font-bold font-xl mb-2 cursor-pointer hover:underline text-[#0F0F0F]" onClick={() => { setIdentifier("Student@test.com"); setPassword("12345678"); }}> 
+            Student@test.com
+            </p>
+
+            <p className=" text-base sm:text-sm "> 
+            Password: 
+          </p> 
+            
+           <p className=" text-base sm:text-sm mb-1 font-bold  mb-2 cursor-pointer hover:underline text-[#0F0F0F]" onClick={() => { setIdentifier("Student@test.com"); setPassword("12345678"); }} > 
+            12345678
+            </p>
+         
+         
           <p className="text-[#6B6B6B] text-base sm:text-sm">Sign in to continue learning</p>
+          <button
+            type="button"
+            onClick={() => { setIdentifier("Student@test.com"); setPassword("12345678"); }}
+            className="mt-4 w-full px-4 py-3 bg-[#0F0F0F] text-[#D6F63E] rounded-full font-semibold text-base sm:text-sm hover:bg-[#1a1a1a] transition-colors"
+          >
+            Use demo credentials
+          </button>
         </div>
 
         <form
