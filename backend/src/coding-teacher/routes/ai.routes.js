@@ -7,7 +7,7 @@ import { Lesson, LessonPart, StoryboardScene } from '../../models/Lesson.js';
 import { LessonSeries } from '../../models/LessonSeries.js';
 import { planLessonSeries, callAIRace } from '../../services/aiPlanner.js';
 import { saveLessonPlan } from '../../services/storyboardGenerator.js';
-import { generateLessonAudioArtifacts } from '../../services/ttsService.js';
+import { generateLessonAudioArtifacts, synthesize } from '../../services/ttsService.js';
 import { reserveAiRequest } from '../../auth/services/aiQuota.js';
 import { AiRequestLog } from '../../auth/models/index.js';
 import { toUserFacingError } from '../../utils/errors.js';
@@ -81,11 +81,21 @@ router.post('/avatar/start', requireRole('student', 'admin'), async (req, res, n
 
     const greeting = generateGreeting(lessonTitle, dialect);
 
+    // Best-effort greeting audio so the very first message is spoken with a
+    // natural voice. Falls back to null and the client uses browser TTS.
+    let greetingAudio = null;
+    try {
+      const audioBuffer = await synthesize(String(greeting).slice(0, 1000));
+      if (audioBuffer) greetingAudio = `data:audio/mpeg;base64,${audioBuffer.toString('base64')}`;
+    } catch (ttsErr) {
+      console.warn('[avatar] Greeting TTS failed:', ttsErr.message);
+    }
+
     res.json({
       sessionId,
       avatarUrl: '/avatars/nour-neutral.png',
       greetingText: greeting,
-      greetingAudio: null,
+      greetingAudio,
     });
   } catch (err) {
     next(err);
@@ -123,12 +133,27 @@ router.post('/avatar/message', requireRole('student', 'admin'), async (req, res,
 
     await conversation.save();
 
+    // Synthesize a real-voice narration clip for this reply so the student hears
+    // a natural teacher voice (not just browser speech). Best-effort: if TTS is
+    // unavailable we fall back to audioUrl null and the client uses its own TTS.
+    let audioUrl = null;
+    try {
+      const audioBuffer = await synthesize(String(response.text || '').slice(0, 1000));
+      if (audioBuffer) {
+        audioUrl = `data:audio/mpeg;base64,${audioBuffer.toString('base64')}`;
+        conversation.messages[conversation.messages.length - 1].audioUrl = audioUrl;
+        await conversation.save();
+      }
+    } catch (ttsErr) {
+      console.warn('[avatar] TTS synthesis failed, using null audio:', ttsErr.message);
+    }
+
     res.json({
       sessionId,
       text: response.text,
       emotion: response.emotion,
       codeSnippet: response.codeSnippet,
-      audioUrl: null,
+      audioUrl,
     });
   } catch (err) {
     next(err);
@@ -781,22 +806,30 @@ router.post('/adaptive-path', requireRole('student'), async (req, res, next) => 
     const weaknesses = student.weaknesses || [];
     const strengths = student.strengths || [];
 
-    // Generate personalized recommendations
-    const recommendations = [];
-    if (weaknesses.length > 0) {
-      weaknesses.slice(0, 3).forEach((w) => {
-        recommendations.push({
-          concept: w,
-          action: 'review',
-          reason: 'This is a weak area that needs practice',
+    // AI-first: try the LLM for genuinely personalized recommendations; the
+    // deterministic list below is only a fallback when the AI is unavailable.
+    const aiRecs = await generateAdaptiveRecommendations(student, weaknesses, strengths);
+
+    let recommendations;
+    if (aiRecs) {
+      recommendations = aiRecs;
+    } else {
+      recommendations = [];
+      if (weaknesses.length > 0) {
+        weaknesses.slice(0, 3).forEach((w) => {
+          recommendations.push({
+            concept: w,
+            action: 'review',
+            reason: 'This is a weak area that needs practice',
+          });
         });
+      }
+      recommendations.push({
+        concept: 'Next challenge',
+        action: 'new_exercise',
+        reason: 'Try a harder exercise to push your limits',
       });
     }
-    recommendations.push({
-      concept: 'Next challenge',
-      action: 'new_exercise',
-      reason: 'Try a harder exercise to push your limits',
-    });
 
     res.json({ recommendations, weaknesses, strengths });
   } catch (err) {
@@ -805,6 +838,56 @@ router.post('/adaptive-path', requireRole('student'), async (req, res, next) => 
 });
 
 // ── Helper functions ──────────────────────────────────────────────────────────
+
+async function generateAdaptiveRecommendations(student, weaknesses, strengths) {
+  const model = resolveOpenRouterModel(process.env.OPENROUTER_MODEL);
+  if (!getOpenRouterConfig().apiKey) return null;
+
+  const profile = student.learningProfile || {};
+  const prompt =
+    'You are an adaptive learning engine. Given the student data below, produce 4-5 ' +
+    'personalized recommendations to maximize their progress. Each MUST be an object: ' +
+    '{"concept": "specific concept/university", "action": "review|new_exercise|challenge|visual|practice", ' +
+    '"reason": "one sentence referencing the student\'s specific weakness, style, and progress"}. ' +
+    'Return ONLY a JSON array, no markdown.\n\n' +
+    'PROFILE: ' + JSON.stringify(profile) +
+    '\nSTRENGTHS: ' + strengths.join(', ') +
+    '\nWEAKNESSES: ' + weaknesses.join(', ') +
+    '\nPROGRESS: ' + JSON.stringify({
+      level: student.level,
+      totalLessonsCompleted: student.totalLessonsCompleted,
+      averageScore: student.averageScore,
+    });
+
+  try {
+    const resp = await callAIRace(prompt, 1024, 30000, 'openrouter', model);
+    let parsed = resp;
+    if (typeof parsed === 'string') parsed = tryParseRecJSON(parsed);
+    else if (parsed && Array.isArray(parsed.recommendations)) parsed = parsed.recommendations;
+    else if (parsed && typeof parsed.text === 'string') parsed = tryParseRecJSON(parsed.text);
+
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    return parsed
+      .filter(r => r && r.concept && r.reason)
+      .map(r => ({
+        concept: String(r.concept).slice(0, 60),
+        action: r.action || 'review',
+        reason: String(r.reason).slice(0, 200),
+      }));
+  } catch (err) {
+    console.warn('[adaptive-path] LLM failed, using fallback:', err.message);
+    return null;
+  }
+}
+
+function tryParseRecJSON(raw) {
+  if (typeof raw !== 'string') return null;
+  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+  const start = cleaned.indexOf('[');
+  const end = cleaned.lastIndexOf(']');
+  if (start === -1 || end === -1) return null;
+  try { return JSON.parse(cleaned.slice(start, end + 1)); } catch { return null; }
+}
 
 function generateSystemPrompt(dialect) {
   return 'You are "Nour", a friendly AI coding teacher for students. ' +

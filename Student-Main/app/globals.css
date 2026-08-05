@@ -18,6 +18,21 @@
   --flux-input-bg: #FFFFFF;
   --flux-overlay: rgba(0,0,0,0.03);
   --flux-progress-track: #EAEAEA;
+
+  /* ── Signit (violet) brand palette ─────────────────────────────── */
+  --sg-canvas: #F6F7FB;
+  --sg-surface: #FFFFFF;
+  --sg-primary: #6D4AEB;
+  --sg-primary-strong: #5B37D6;
+  --sg-primary-soft: #EEEAFC;
+  --sg-primary-lav: #B49CF0;
+  --sg-blue: #6C8FF0;
+  --sg-teal: #3BB5B0;
+  --sg-mint: #9CE4E4;
+  --sg-ink: #17181F;
+  --sg-ink-2: #5C5F6E;
+  --sg-ink-3: #8B8E9C;
+  --sg-line: #ECECF2;
 }
 
 
@@ -289,6 +304,83 @@ pre {
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0);   }
+}
+
+@keyframes navFloat {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+
+/* ── Homepage ambient motion (palette-safe, no glow/gradient) ──────────── */
+
+@keyframes heroFloat {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-10px); }
+}
+
+@keyframes heroDrift {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(12px, -8px, 0); }
+}
+
+@keyframes heroDriftAlt {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(-10px, 10px, 0); }
+}
+
+@keyframes heroChip {
+  0%, 100% { transform: translateY(0) rotate(var(--chip-tilt, 0deg)); }
+  50%      { transform: translateY(-9px) rotate(calc(var(--chip-tilt, 0deg) * -1)); }
+}
+
+@keyframes underlineDraw {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+@keyframes caretBlink {
+  0%, 45% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+@keyframes typeWrite {
+  from { width: 0; }
+  to   { width: var(--type-width, 12ch); }
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+@keyframes barGrow {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+
+@keyframes fillWipe {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+@keyframes popBounce {
+  0%   { transform: scale(0.9); }
+  60%  { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+
+@keyframes iconNudge {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+
+@keyframes spinSlow {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes dotPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.35; transform: scale(0.85); }
 }
 
 @keyframes wbPopIn {

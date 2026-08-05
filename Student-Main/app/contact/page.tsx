@@ -8,8 +8,8 @@ export default function ContactPage() {
         <p className="text-sm text-[#6B6B6B] mb-8">Questions about CodeBuddy, your child&apos;s account, or a school partnership? Reach out and our team will get back to you.</p>
 
         <div className="space-y-5">
-          <ContactRow label="Support Email" value="support@codebuddy.app" />
-          <ContactRow label="Schools & Partnerships" value="partnerships@codebuddy.app" />
+          <ContactRow label="Support Email" value="Mo.elfouly1@gmail.com" />
+          <ContactRow label="Schools & Partnerships" value="Mo.elfouly1@gmail.com" />
           <ContactRow label="Response Time" value="Within 1-2 business days" />
         </div>
       </div>

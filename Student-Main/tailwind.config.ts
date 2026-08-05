@@ -25,6 +25,21 @@ const config: Config = {
           "text-dark-secondary": "#A0A0A0",
           border: "#E5E5E5",
         },
+        sg: {
+          canvas: "#F6F7FB",
+          surface: "#FFFFFF",
+          primary: "#6D4AEB",
+          "primary-strong": "#5B37D6",
+          "primary-soft": "#EEEAFC",
+          lavender: "#B49CF0",
+          blue: "#6C8FF0",
+          teal: "#3BB5B0",
+          mint: "#9CE4E4",
+          ink: "#17181F",
+          "ink-2": "#5C5F6E",
+          "ink-3": "#8B8E9C",
+          line: "#ECECF2",
+        },
       },
       fontFamily: {
         sans: [

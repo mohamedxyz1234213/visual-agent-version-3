@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { requireAuth } from '../../auth/middleware/auth.js';
 import { requireRole } from '../middleware/roles.js';
+import { callAIRace } from '../../services/aiPlanner.js';
+import { getOpenRouterConfig, OPENROUTER_DEFAULT_MODEL, resolveOpenRouterModel } from '../../services/openrouterConfig.js';
 import { Student, Progress, Submission, Exercise, CodingLesson, Achievement, AIConversation, Notification, ExerciseBlock, Exam, LessonPath } from '../models/index.js';
 import { executeCode, calculateScore, determineStatus } from '../services/code-execution/sandbox.service.js';
 import { User } from '../../auth/models/index.js';
@@ -1171,143 +1173,11 @@ router.get('/adaptive-path', requireAuth, async (req, res, next) => {
     const weaknesses = student.weaknesses || [];
     const strengths = student.strengths || [];
 
-    // Generate recommendations based on learning profile
-    const recommendations = [];
-
-    // Pacing recommendation
-    if (profile.pacing === 'slow') {
-      recommendations.push({
-        type: 'pacing',
-        title: 'Take Your Time',
-        description: 'We recommend shorter lessons with plenty of breaks. Master each concept before moving on.',
-        icon: 'clock',
-        action: 'Set study sessions to 20-30 minutes',
-      });
-    } else if (profile.pacing === 'fast') {
-      recommendations.push({
-        type: 'pacing',
-        title: 'Accelerated Path',
-        description: 'You learn fast! We recommend skipping the basics and jumping into advanced topics.',
-        icon: 'zap',
-        action: 'Start with intermediate difficulty',
-      });
-    } else {
-      recommendations.push({
-        type: 'pacing',
-        title: 'Balanced Approach',
-        description: 'A steady mix of theory and practice at a moderate pace works best for you.',
-        icon: 'trending',
-        action: 'Try 40-minute study sessions',
-      });
-    }
-
-    // Learning style recommendation
-    if (profile.learningStyle === 'visual') {
-      recommendations.push({
-        type: 'style',
-        title: 'Visual Learning',
-        description: 'We will use diagrams, flowcharts, and visual explanations to help you understand concepts.',
-        icon: 'eye',
-        action: 'Enable visual whiteboard mode',
-      });
-    } else if (profile.learningStyle === 'reading') {
-      recommendations.push({
-        type: 'style',
-        title: 'Reading & Text',
-        description: 'We will provide detailed written explanations and documentation-style lessons.',
-        icon: 'book',
-        action: 'Explore text-heavy lessons',
-      });
-    } else if (profile.learningStyle === 'hands-on') {
-      recommendations.push({
-        type: 'style',
-        title: 'Hands-On Learning',
-        description: 'Jump straight into coding! We emphasize exercises, projects, and real code from the start.',
-        icon: 'code',
-        action: 'Start with coding exercises',
-      });
-    } else if (profile.learningStyle === 'video') {
-      recommendations.push({
-        type: 'style',
-        title: 'Video & Narration',
-        description: 'We recommend video explanations and the AI teacher feature for narrated lessons.',
-        icon: 'play',
-        action: 'Try the AI avatar teacher',
-      });
-    }
-
-    // Practice frequency recommendation
-    if (profile.practiceFrequency === 'high') {
-      recommendations.push({
-        type: 'practice',
-        title: 'Practice Heavy',
-        description: 'You need lots of practice. We will generate extra exercises for every concept you learn.',
-        icon: 'target',
-        action: 'Complete 5+ exercises per lesson',
-      });
-    } else if (profile.practiceFrequency === 'low') {
-      recommendations.push({
-        type: 'practice',
-        title: 'Light Practice',
-        description: 'A few key exercises will be enough. Focus more on understanding the concepts.',
-        icon: 'check',
-        action: 'Complete 1-2 key exercises per lesson',
-      });
-    } else {
-      recommendations.push({
-        type: 'practice',
-        title: 'Moderate Practice',
-        description: 'A balanced mix of concept learning and practice exercises.',
-        icon: 'star',
-        action: 'Complete 3 exercises per lesson',
-      });
-    }
-
-    // Problem-solving approach recommendation
-    if (profile.problemSolvingApproach === 'research') {
-      recommendations.push({
-        type: 'approach',
-        title: 'Research & Learn',
-        description: 'You prefer finding answers yourself. We will provide links to documentation and resources.',
-        icon: 'search',
-        action: 'Try self-guided research challenges',
-      });
-    } else if (profile.problemSolvingApproach === 'ask-help') {
-      recommendations.push({
-        type: 'approach',
-        title: 'Collaborative',
-        description: 'You learn by asking questions. The AI teacher avatar is perfect for you!',
-        icon: 'message',
-        action: 'Chat with the AI teacher',
-      });
-    } else if (profile.problemSolvingApproach === 'debug') {
-      recommendations.push({
-        type: 'approach',
-        title: 'Debugger Mindset',
-        description: 'You learn by fixing broken code. We will give you buggy code to debug.',
-        icon: 'terminal',
-        action: 'Try find-bug type exercises',
-      });
-    } else if (profile.problemSolvingApproach === 'break') {
-      recommendations.push({
-        type: 'approach',
-        title: 'Reflective Learner',
-        description: 'You learn best after stepping away. We recommend spaced repetition for your study plan.',
-        icon: 'clock',
-        action: 'Try spaced repetition schedule',
-      });
-    }
-
-    // Weakness-based recommendations
-    weaknesses.slice(0, 3).forEach((w) => {
-      recommendations.push({
-        type: 'weakness',
-        title: `Review: ${w}`,
-        description: `This area needs practice. We recommend reviewing the fundamentals of ${w}.`,
-        icon: 'target',
-        action: 'Start review lesson',
-      });
-    });
+    // ── AI-first: generate truly personalized recommendations via LLM ──────────
+    // Falls back to the deterministic rule-based logic below if the LLM is
+    // unreachable, times out, or returns malformed JSON.
+    const aiRecommendations = await generateAIRecs(profile, weaknesses, strengths, student);
+    const recommendations = aiRecommendations || buildRuleBasedRecs(profile, weaknesses);
 
     res.json({
       profile: {
@@ -1332,6 +1202,223 @@ router.get('/adaptive-path', requireAuth, async (req, res, next) => {
     next(err);
   }
 });
+
+// ── Adaptive helpers ───────────────────────────────────────────────────────────
+// Deterministic fallback used when the LLM is unavailable. Reproduces the
+// original rule-based recommendations so the endpoint never depends on the AI.
+function buildRuleBasedRecs(profile, weaknesses) {
+  const recommendations = [];
+
+  if (profile.pacing === 'slow') {
+    recommendations.push({
+      type: 'pacing',
+      title: 'Take Your Time',
+      description: 'We recommend shorter lessons with plenty of breaks. Master each concept before moving on.',
+      icon: 'clock',
+      action: 'Set study sessions to 20-30 minutes',
+    });
+  } else if (profile.pacing === 'fast') {
+    recommendations.push({
+      type: 'pacing',
+      title: 'Accelerated Path',
+      description: 'You learn fast! We recommend skipping the basics and jumping into advanced topics.',
+      icon: 'zap',
+      action: 'Start with intermediate difficulty',
+    });
+  } else {
+    recommendations.push({
+      type: 'pacing',
+      title: 'Balanced Approach',
+      description: 'A steady mix of theory and practice at a moderate pace works best for you.',
+      icon: 'trending',
+      action: 'Try 40-minute study sessions',
+    });
+  }
+
+  if (profile.learningStyle === 'visual') {
+    recommendations.push({
+      type: 'style',
+      title: 'Visual Learning',
+      description: 'We will use diagrams, flowcharts, and visual explanations to help you understand concepts.',
+      icon: 'eye',
+      action: 'Enable visual whiteboard mode',
+    });
+  } else if (profile.learningStyle === 'reading') {
+    recommendations.push({
+      type: 'style',
+      title: 'Reading & Text',
+      description: 'We will provide detailed written explanations and documentation-style lessons.',
+      icon: 'book',
+      action: 'Explore text-heavy lessons',
+    });
+  } else if (profile.learningStyle === 'hands-on') {
+    recommendations.push({
+      type: 'style',
+      title: 'Hands-On Learning',
+      description: 'Jump straight into coding! We emphasize exercises, projects, and real code from the start.',
+      icon: 'code',
+      action: 'Start with coding exercises',
+    });
+  } else if (profile.learningStyle === 'video') {
+    recommendations.push({
+      type: 'style',
+      title: 'Video & Narration',
+      description: 'We recommend video explanations and the AI teacher feature for narrated lessons.',
+      icon: 'play',
+      action: 'Try the AI avatar teacher',
+    });
+  }
+
+  if (profile.practiceFrequency === 'high') {
+    recommendations.push({
+      type: 'practice',
+      title: 'Practice Heavy',
+      description: 'You need lots of practice. We will generate extra exercises for every concept you learn.',
+      icon: 'target',
+      action: 'Complete 5+ exercises per lesson',
+    });
+  } else if (profile.practiceFrequency === 'low') {
+    recommendations.push({
+      type: 'practice',
+      title: 'Light Practice',
+      description: 'A few key exercises will be enough. Focus more on understanding the concepts.',
+      icon: 'check',
+      action: 'Complete 1-2 key exercises per lesson',
+    });
+  } else {
+    recommendations.push({
+      type: 'practice',
+      title: 'Moderate Practice',
+      description: 'A balanced mix of concept learning and practice exercises.',
+      icon: 'star',
+      action: 'Complete 3 exercises per lesson',
+    });
+  }
+
+  if (profile.problemSolvingApproach === 'research') {
+    recommendations.push({
+      type: 'approach',
+      title: 'Research & Learn',
+      description: 'You prefer finding answers yourself. We will provide links to documentation and resources.',
+      icon: 'search',
+      action: 'Try self-guided research challenges',
+    });
+  } else if (profile.problemSolvingApproach === 'ask-help') {
+    recommendations.push({
+      type: 'approach',
+      title: 'Collaborative',
+      description: 'You learn by asking questions. The AI teacher avatar is perfect for you!',
+      icon: 'message',
+      action: 'Chat with the AI teacher',
+    });
+  } else if (profile.problemSolvingApproach === 'debug') {
+    recommendations.push({
+      type: 'approach',
+      title: 'Debugger Mindset',
+      description: 'You learn by fixing broken code. We will give you buggy code to debug.',
+      icon: 'terminal',
+      action: 'Try find-bug type exercises',
+    });
+  } else if (profile.problemSolvingApproach === 'break') {
+    recommendations.push({
+      type: 'approach',
+      title: 'Reflective Learner',
+      description: 'You learn best after stepping away. We recommend spaced repetition for your study plan.',
+      icon: 'clock',
+      action: 'Try spaced repetition schedule',
+    });
+  }
+
+  (weaknesses || []).slice(0, 3).forEach((w) => {
+    recommendations.push({
+      type: 'weakness',
+      title: `Review: ${w}`,
+      description: `This area needs practice. We recommend reviewing the fundamentals of ${w}.`,
+      icon: 'target',
+      action: 'Start review lesson',
+    });
+  });
+
+  return recommendations;
+}
+
+// Ask the LLM to synthesize a genuinely personalized learning plan from the
+// student's profile, strengths, weaknesses, and progress history. Returns an
+// array of recommendations, or null on any failure so the caller falls back
+// to buildRuleBasedRecs. Never throws.
+async function generateAIRecs(profile, weaknesses, strengths, student) {
+  const model = resolveOpenRouterModel(process.env.OPENROUTER_MODEL);
+  if (!getOpenRouterConfig().apiKey) return null;
+
+  const prompt =
+    'You are an adaptive learning platform that designs personalized study plans. ' +
+    'Based on the student data below, produce 4-5 focused, specific recommendations ' +
+    'that will help them improve. Each recommendation must be an object with: ' +
+    '"type" (one of pacing/style/practice/approach/weakness), "title" (short, specific, ' +
+    'max 6 words), "description" (one sentence, actionable, must reference the specific ' +
+    'weakness/concept it targets), "icon" (one of clock/zap/trending/eye/book/code/play/' +
+    'target/check/star/search/message/terminal), "action" (one concrete next step, max 8 words).\n\n' +
+    'Return ONLY a JSON array. No markdown, no other text.\n\n' +
+    'STUDENT PROFILE:\n' +
+    JSON.stringify({
+      learningStyle: profile.learningStyle,
+      pacing: profile.pacing,
+      practiceFrequency: profile.practiceFrequency,
+      problemSolvingApproach: profile.problemSolvingApproach,
+      experienceLevel: profile.experienceLevel,
+    }) +
+    '\n\nSTRENGTHS: ' + (strengths || []).join(', ') +
+    '\nWEAKNESSES: ' + (weaknesses || []).join(', ') +
+    '\n\nPROGRESS: ' + JSON.stringify({
+      totalLessonsCompleted: student.totalLessonsCompleted,
+      totalExercisesCompleted: student.totalExercisesCompleted,
+      averageScore: student.averageScore,
+      level: student.level,
+    });
+
+  try {
+    const aiResp = await callAIRace(prompt, 2048, 30000, 'openrouter', model);
+    let parsed = aiResp;
+    // callAIRace returns pre-parsed JSON via parseJSON; tolerate a wrapped/text form too.
+    if (Array.isArray(parsed)) {
+      // already good
+    } else if (typeof parsed === 'string') {
+      parsed = parseRecJSON(parsed);
+    } else if (parsed && typeof parsed.text === 'string') {
+      parsed = parseRecJSON(parsed.text);
+    } else if (parsed && Array.isArray(parsed.recommendations)) {
+      parsed = parsed.recommendations;
+    } else {
+      return null;
+    }
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    return parsed
+      .filter(r => r && typeof r === 'object' && r.title && r.description)
+      .map(r => ({
+        type: ['pacing', 'style', 'practice', 'approach', 'weakness'].includes(r.type) ? r.type : 'practice',
+        title: String(r.title).slice(0, 60),
+        description: String(r.description).slice(0, 200),
+        icon: r.icon || 'target',
+        action: String(r.action || 'Start learning').slice(0, 40),
+      }));
+  } catch (err) {
+    console.warn('[adaptive-path] LLM failed, using rule-based fallback:', err.message);
+    return null;
+  }
+}
+
+function parseRecJSON(raw) {
+  if (typeof raw !== 'string') return null;
+  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+  const start = cleaned.indexOf('[');
+  const end = cleaned.lastIndexOf(']');
+  if (start === -1 || end === -1) return null;
+  try {
+    return JSON.parse(cleaned.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+}
 
 // ── GET /api/v1/student/lesson-paths ───────────────────────────────────────────
 // Returns lesson paths assigned to this student, with full lesson materials

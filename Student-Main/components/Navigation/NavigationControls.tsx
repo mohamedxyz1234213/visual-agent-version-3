@@ -89,7 +89,7 @@ export default function NavigationControls({ parts }: NavigationControlsProps) {
   }
 
   return (
-    <div className="app-surface rounded-[28px] px-3 py-3 sm:px-4 sm:py-4 md:px-5">
+    <div className="app-surface rounded-[28px] mt-8 px-3 py-3 sm:px-4 sm:py-4 md:px-5">
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-2 sm:gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>

@@ -14,6 +14,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import type { StoryboardScene } from "@/lib/types";
 import AITeacherAvatar from "./AvatarAssetMotion";
+import { getAuthToken } from "@/lib/authToken";
 
 function useContainerWidth(ref: React.RefObject<HTMLDivElement | null>) {
   const [width, setWidth] = useState(0);
@@ -160,7 +161,7 @@ export interface WhiteboardProps {
   onSandboxResult?: (passed: boolean, sceneId: string) => void;
 }
 
-interface RenderedEl { id: string; jsx: React.ReactNode; motionClass: string; }
+interface RenderedEl { id: string; jsx: React.ReactNode; motionClass: string; delay?: number; }
 
 interface CameraState {
   zoom: number;
@@ -283,9 +284,14 @@ export default function Whiteboard({
       setVisible((prev) => {
         // Keep previously visible elements that are still valid (after last clear, before elapsed)
         const kept = prev.filter((el) => newIds.has(el.id));
-        // Add newly appeared elements
+        // Add newly appeared elements, staggering those that arrive together so
+        // a beat of simultaneous scenes cascades in rather than popping at once.
         const existingIds = new Set(kept.map((el) => el.id));
-        const newEls = shouldBeVisible.filter((el) => !existingIds.has(el.id));
+        const newBatch = shouldBeVisible.filter((el) => !existingIds.has(el.id));
+        const staggerDelayMs = 60;
+        const newEls = newBatch.map((el, i) =>
+          i === 0 ? el : { ...el, delay: i * staggerDelayMs }
+        );
         return [...kept, ...newEls];
       });
     } else if (lastClearTime >= 0) {
@@ -525,7 +531,7 @@ export default function Whiteboard({
         {/* All elements clipped to canvas bounds */}
         <g clipPath="url(#wb-clip)">
           {visible.map((el) => (
-            <g key={el.id} className={`wb-scene-reveal ${el.motionClass}`}>{el.jsx}</g>
+            <g key={el.id} className={`wb-scene-reveal ${el.motionClass}`} style={el.delay ? { animationDelay: `${el.delay}ms` } : undefined}>{el.jsx}</g>
           ))}
         </g>
       </svg>
@@ -2401,8 +2407,10 @@ function DrawSandboxQuestion({ id, payload, onClose }: { id: string; payload: Re
   async function handleSubmit() {
     setSubmitting(true); setError(''); setResults(null);
     try {
-      const res = await fetch('/api/v1/sandbox/submit', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+      const token = getAuthToken();
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://backend-teaching.vercel.app/api/v1'}/sandbox/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ sceneId: id, code, language: p.language || 'javascript' }),
       });
       if (!res.ok) { const err = await res.json().catch(() => ({ error: 'Submission failed' })); throw new Error(err.error || 'Submission failed'); }
