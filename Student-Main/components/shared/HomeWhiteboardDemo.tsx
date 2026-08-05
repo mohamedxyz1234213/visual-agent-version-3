@@ -246,34 +246,38 @@ export function HomeWhiteboardDemo() {
         </div>
 
         {/* controls */}
-        <div className="flex items-center justify-between mt-3 px-1">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handlePlayPause}
-              aria-label={playing ? "Pause demo" : "Play demo"}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#D6F63E] text-[#0F0F0F] font-semibold text-[13px] hover:bg-[#c5e535] transition-colors active:scale-95"
-            >
-              {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
-              {playing ? "Pause" : "Play lesson"}
-            </button>
-            <button
-              type="button"
-              onClick={handleRestart}
-              aria-label="Restart demo"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-white/10 text-white font-semibold text-[13px] hover:bg-white/20 transition-colors active:scale-95"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Restart
-            </button>
-          </div>
-          <div className="flex items-center gap-2 text-[11px] font-medium text-slate-400">
-            <Volume2 className="w-3.5 h-3.5" />
-            {audioBlocked
-              ? "Sound paused — tap the board to hear the teacher"
-              : playing
-              ? "Teacher is explaining…"
-              : "Press play to start"}
+        <div className="mt-3 px-1">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <button
+                type="button"
+                onClick={handlePlayPause}
+                aria-label={playing ? "Pause demo" : "Play demo"}
+                className="inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-4 py-2.5 rounded-full bg-[#D6F63E] text-[#0F0F0F] font-semibold text-[12.5px] sm:text-[13px] hover:bg-[#c5e535] transition-colors active:scale-95 shrink-0"
+              >
+                {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
+                {playing ? "Pause" : "Play"}
+              </button>
+              <button
+                type="button"
+                onClick={handleRestart}
+                aria-label="Restart demo"
+                className="inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-2.5 rounded-full bg-white/10 text-white font-semibold text-[12.5px] sm:text-[13px] hover:bg-white/20 transition-colors active:scale-95 shrink-0"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Restart
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400 min-w-0">
+              <Volume2 className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">
+                {audioBlocked
+                  ? "Tap to unmute"
+                  : playing
+                  ? "Teacher is explaining…"
+                  : "Press play to start"}
+              </span>
+            </div>
           </div>
         </div>
       </div>

@@ -5,7 +5,7 @@ import { useEffect, useState, useRef, type CSSProperties } from "react";
 import { fetchMe, type SafeUser } from "@/lib/api";
 import { AnimatedLogo } from "@/components/shared/AnimatedLogo";
 import { HomeWhiteboardDemo } from "@/components/shared/HomeWhiteboardDemo";
-import { Reveal, StatNumber, useInView } from "@/components/shared/HomeMotion";
+import { Reveal, StatNumber, useInView, useParallax } from "@/components/shared/HomeMotion";
 import {
   Zap,
   BookOpen,
@@ -36,6 +36,7 @@ export default function HomePage() {
   const [heroVisible, setHeroVisible] = useState(false);
   const dashRef = useInView<HTMLDivElement>(0.3);
   const dashInView = dashRef.inView;
+  const parallaxRef = useParallax<HTMLDivElement>(0.07);
 
   useEffect(() => {
     const el = heroRef.current;
@@ -127,11 +128,13 @@ export default function HomePage() {
       {/* ── Hero ────────────────────────────────────────────────────── */}
       <section ref={heroRef} className="relative overflow-hidden">
         {/* floating ambient shapes — palette-safe, no glow */}
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute top-16 left-[6%] hidden lg:block w-16 h-16 rounded-2xl border-2 border-[#0F0F0F]/10 animate-[heroDrift_9s_ease-in-out_infinite]" />
-          <div className="absolute top-40 right-[8%] hidden lg:block w-10 h-10 rounded-full bg-[#D6F63E]/50 animate-[heroFloat_7s_ease-in-out_infinite]" />
-          <div className="absolute bottom-10 left-[14%] hidden lg:block w-8 h-8 rounded-lg bg-[#0F0F0F]/10 animate-[heroDriftAlt_11s_ease-in-out_infinite]" />
-          <div className="absolute top-24 right-[24%] hidden lg:block w-4 h-4 rounded-full border-2 border-[#0F0F0F]/20 animate-[heroFloat_8s_ease-in-out_infinite]" style={{ animationDelay: "0.6s" }} />
+        <div ref={parallaxRef} className="pointer-events-none absolute inset-0">
+          <div data-parallax="0.05" className="absolute top-16 left-[6%] hidden lg:block w-16 h-16 rounded-2xl border-2 border-[#0F0F0F]/10 animate-[heroDrift_9s_ease-in-out_infinite]" />
+          <div data-parallax="0.09" className="absolute top-40 right-[8%] hidden lg:block w-10 h-10 rounded-full bg-[#D6F63E]/50 animate-[heroFloat_7s_ease-in-out_infinite]" />
+          <div data-parallax="-0.04" className="absolute bottom-10 left-[14%] hidden lg:block w-8 h-8 rounded-lg bg-[#0F0F0F]/10 animate-[heroDriftAlt_11s_ease-in-out_infinite]" />
+          <div data-parallax="0.12" className="absolute top-24 right-[24%] hidden lg:block w-4 h-4 rounded-full border-2 border-[#0F0F0F]/20 animate-[heroFloat_8s_ease-in-out_infinite]" style={{ animationDelay: "0.6s" }} />
+          <div data-parallax="-0.05" className="absolute top-32 left-[88%] hidden xl:block w-6 h-6 rotate-45 border-2 border-[#D6F63E]/60 animate-[heroDriftAlt_12s_ease-in-out_infinite]" />
+          <div data-parallax="0.07" className="absolute bottom-24 right-[16%] hidden xl:block w-14 h-3 rounded-full bg-[#0F0F0F]/10 animate-[heroDrift_10s_ease-in-out_infinite]" />
         </div>
 
         <div className="relative max-w-6xl mx-auto px-4 sm:px-8 pt-20 sm:pt-28 pb-12 sm:pb-16">
@@ -217,32 +220,34 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* floating code chips — real palette, hand-crafted */}
-        <div className="pointer-events-none absolute inset-0 hidden lg:block" aria-hidden>
-          <div className="absolute left-[7%] top-[58%] bg-white border border-[#E5E5E5] rounded-xl px-3.5 py-2.5 shadow-sm animate-[heroChip_7s_ease-in-out_infinite]" style={{ "--chip-tilt": "2deg" } as CSSProperties}>
-            <div className="flex items-center gap-1 mb-1.5">
-              {["#FF5F57", "#FEBC2E", "#28C840"].map((c) => (
-                <span key={c} className="w-2 h-2 rounded-full" style={{ backgroundColor: c }} />
-              ))}
-            </div>
-            <code className="text-[11px] font-medium text-[#0F0F0F]"><span className="text-[#A0A0A0]">for</span> i <span className="text-[#A0A0A0]">in</span> range(5):</code>
-          </div>
-          <div className="absolute right-[6%] top-[44%] bg-[#171717] text-white rounded-xl px-3.5 py-2.5 shadow-sm animate-[heroChip_8s_ease-in-out_infinite]" style={{ "--chip-tilt": "-3deg" } as CSSProperties}>
-            <code className="text-[11px] font-medium"><span className="text-[#D6F63E]">print</span>(i)</code>
-          </div>
-          <div className="absolute right-[14%] top-[70%] bg-white border border-[#E5E5E5] rounded-xl px-3.5 py-2.5 shadow-sm animate-[heroChip_9s_ease-in-out_infinite]" style={{ "--chip-tilt": "3deg" } as CSSProperties}>
-            <div className="flex items-center gap-2 text-[11px] font-semibold text-[#0F0F0F]">
-              <span className="w-2.5 h-2.5 rounded-sm bg-[#D6F63E]" />
-              +12 XP
+        {/* floating code chips — tucked into the hero's empty top/bottom bands so nothing overlaps text */}
+        <div className="pointer-events-none absolute inset-0 z-10" aria-hidden>
+          <div data-parallax="0.05" className="absolute left-[4%] top-[3%] sm:left-[6%] sm:top-[5%]">
+            <div className="bg-white border border-[#E5E5E5] rounded-md lg:rounded-xl px-2 py-1.5 lg:px-3.5 lg:py-2.5 shadow-sm animate-[heroChip_6.5s_ease-in-out_infinite]" style={{ "--chip-tilt": "1.5deg" } as CSSProperties}>
+              <div className="flex items-center gap-1 mb-1">
+                {["#FF5F57", "#FEBC2E", "#28C840"].map((c) => (
+                  <span key={c} className="w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full" style={{ backgroundColor: c }} />
+                ))}
+              </div>
+              <code className="text-[9px] lg:text-[11px] font-medium text-[#0F0F0F]"><span className="text-[#A0A0A0]">for</span> i <span className="text-[#A0A0A0]">in</span> range(5):</code>
             </div>
           </div>
-          <div className="absolute left-[20%] top-[74%] bg-white border border-[#E5E5E5] rounded-xl px-3.5 py-2.5 shadow-sm animate-[heroChip_10s_ease-in-out_infinite]" style={{ "--chip-tilt": "-2deg" } as CSSProperties}>
-            <div className="flex items-center gap-2 text-[11px] font-semibold text-[#0F0F0F]">
-              <span className="relative flex w-2 h-2">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 animate-ping opacity-75" />
-                <span className="relative inline-flex rounded-full w-2 h-2 bg-emerald-500" />
-              </span>
-              Teacher online
+          <div data-parallax="-0.04" className="absolute right-[4%] top-[3%] sm:right-[6%] sm:top-[6%]">
+            <div className="bg-[#171717] text-white rounded-xl px-2.5 py-2 lg:px-3.5 lg:py-2.5 shadow-sm animate-[heroChip_7.5s_ease-in-out_infinite]" style={{ "--chip-tilt": "-1.5deg" } as CSSProperties}>
+              <code className="text-[10px] lg:text-[11px] font-medium"><span className="text-[#D6F63E]">print</span>(i)</code>
+            </div>
+          </div>
+          <div data-parallax="0.08" className="absolute left-[4%] bottom-[1%] sm:left-[7%] sm:bottom-[4%]">
+            <div className="bg-[#D6F63E]/90 text-[#0F0F0F] rounded-xl px-2.5 py-2 lg:px-3.5 lg:py-2.5 shadow-sm animate-[heroChip_8.5s_ease-in-out_infinite]" style={{ "--chip-tilt": "-2deg" } as CSSProperties}>
+              <code className="text-[10px] lg:text-[11px] font-semibold">print(<span className="opacity-70 font-medium">"hello"</span>)</code>
+            </div>
+          </div>
+          <div data-parallax="0.07" className="absolute right-[4%] bottom-[1%] sm:right-[7%] sm:bottom-[4%]">
+            <div className="bg-white border border-[#E5E5E5] rounded-xl px-2 py-1.5 lg:px-3.5 lg:py-2.5 shadow-sm animate-[heroChip_9s_ease-in-out_infinite]" style={{ "--chip-tilt": "2deg" } as CSSProperties}>
+              <div className="flex items-center gap-1.5 lg:gap-2 text-[10px] lg:text-[11px] font-semibold text-[#0F0F0F]">
+                <span className="w-2 h-2 rounded-sm bg-[#0F0F0F]" />
+                +12 XP
+              </div>
             </div>
           </div>
         </div>
@@ -265,9 +270,53 @@ export default function HomePage() {
       </div>
 
       {/* ── Dashboard preview (mirrors the real student dashboard) ──── */}
-      <section id="dashboard" className="pb-4">
-        <div className="max-w-6xl mx-auto px-4 sm:px-8">
-          <Reveal className="rounded-[20px] bg-white border border-[#E5E5E5] shadow-2xl shadow-[#171717]/10 overflow-hidden">
+      <section id="dashboard" className="relative py-12 pt-12 sm:py-16 overflow-hidden">
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          <div className="absolute top-8 right-[4%] w-16 h-16 rounded-2xl border-2 border-[#0F0F0F]/8 animate-[heroDriftAlt_13s_ease-in-out_infinite]" />
+          <div className="absolute bottom-16 left-[3%] w-9 h-9 rounded-full bg-[#D6F63E]/35 animate-[heroFloat_10s_ease-in-out_infinite]" />
+          <div className="absolute top-1/3 right-[8%] w-5 h-5 rotate-45 border-2 border-[#D6F63E]/50 animate-[heroDrift_9s_ease-in-out_infinite]" />
+          <div className="absolute bottom-32 right-[18%] w-3 h-3 rounded-full bg-[#0F0F0F]/20 animate-[heroFloat_8s_ease-in-out_infinite]" style={{ animationDelay: "0.6s" }} />
+        </div>
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+          {/* description column */}
+          <Reveal className="order-2 lg:order-1">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#D6F63E]/20 border border-[#D6F63E]/40 text-[#0F0F0F] text-[11px] font-semibold mb-4">
+              <Target className="w-3.5 h-3.5" /> Student Dashboard
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight leading-[1.12] mb-4 text-[#0F0F0F]">
+              Everything a student needs,
+              <br className="hidden sm:block" /> at a glance
+            </h2>
+            <p className="text-[15px] sm:text-base text-[#6B6B6B] leading-relaxed mb-6">
+              A live overview of progress — XP, streaks, weekly activity, subject
+              mastery, quick actions and upcoming whiteboard lessons, all in one place.
+            </p>
+            <ul className="space-y-3 mb-8">
+              {[
+                "Continuous progress tracking in real time",
+                "Gamified rewards and badge streaks",
+                "A 1:1 AI avatar teacher with voice",
+              ].map((t) => (
+                <li key={t} className="flex items-center gap-3 text-[14px] font-medium text-[#0F0F0F]">
+                  <span className="w-5 h-5 rounded-full bg-[#D6F63E] flex items-center justify-center shrink-0">
+                    <Check className="w-3 h-3 text-[#0F0F0F]" strokeWidth={3.5} />
+                  </span>
+                  {t}
+                </li>
+              ))}
+            </ul>
+            <Link
+              href="/student/dashboard"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-[#0F0F0F] text-white rounded-full font-semibold text-[14px] hover:bg-[#2A2A2A] hover:scale-[1.03] active:scale-95 transition-all"
+            >
+              Open your dashboard
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </Reveal>
+
+          {/* dashboard mock column */}
+          <Reveal delay={120} from="right" className="order-1 lg:order-2">
+          <div className="rounded-[20px] bg-white border border-[#E5E5E5] shadow-2xl shadow-[#171717]/10 overflow-hidden">
             {/* window bar */}
             <div className="flex items-center gap-2 px-4 sm:px-5 py-2 border-b border-[#E5E5E5] bg-[#F5F5F5]">
               <span className="w-2.5 h-2.5 rounded-full bg-[#FF5F57]" />
@@ -285,8 +334,8 @@ export default function HomePage() {
               {/* Student ID banner */}
               <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2 shadow-sm border border-[#E5E5E5] sm:justify-between mb-2">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-[#D6F63E] flex items-center justify-center shrink-0">
-                    <Target size={15} className="text-[#0F0F0F]" />
+                <div className="w-8 h-8 rounded-lg bg-[#D6F63E] flex items-center justify-center shrink-0">
+                  <Target size={15} className="text-[#0F0F0F]" />
                   </div>
                   <div className="min-w-0">
                     <p className="text-[8.5px] font-semibold uppercase tracking-wider text-[#6B6B6B] leading-tight">Student ID</p>
@@ -403,24 +452,24 @@ export default function HomePage() {
 
               {/* Row 4: Quick Actions + Leaderboard */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
-                <Reveal from="left" className="lg:col-span-3 flux-card !py-3">
+                <Reveal from="up" className="lg:col-span-3 flux-card !py-3">
                   <h3 className="text-[12.5px] sm:text-[13px] font-semibold text-[#0F0F0F] mb-1.5">Quick Actions</h3>
                   <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
                     {[
-                      { icon: <Compass size={17} className="text-[#0F0F0F]" />, label: "Learn" },
-                      { icon: <Code2 size={17} className="text-[#0F0F0F]" />, label: "Exercises" },
-                      { icon: <Bot size={17} className="text-[#0F0F0F]" />, label: "AI Teacher" },
-                      { icon: <Trophy size={17} className="text-[#0F0F0F]" />, label: "Leaderboard" },
+                      { icon: <Compass size={15} className="text-[#0F0F0F]" />, label: "Learn" },
+                      { icon: <Code2 size={15} className="text-[#0F0F0F]" />, label: "Exercises" },
+                      { icon: <Bot size={15} className="text-[#0F0F0F]" />, label: " Teacher" },
+                      { icon: <Trophy size={15} className="text-[#0F0F0F]" />, label: "Leaderboard" },
                     ].map((a, i) => (
                       <div key={a.label} className="flex flex-col items-center gap-0.5 p-1.5 sm:p-2 rounded-xl bg-[#F5F5F5] hover:bg-[#E5E5E5] transition-colors cursor-pointer animate-[popBounce_400ms_cubic-bezier(0.34,1.56,0.64,1)_both]" style={{ animationDelay: dashInView ? `${500 + i * 90}ms` : undefined }}>
                         <span className="transition-transform duration-300 group-hover:-translate-y-1">{a.icon}</span>
-                        <span className="text-[9.5px] sm:text-[10.5px] font-semibold text-[#0F0F0F] text-center leading-tight">{a.label}</span>
+                        <span className="text-[9px] sm:text-[9px] font-semibold text-[#0F0F0F] text-center leading-tight">{a.label}</span>
                       </div>
                     ))}
                   </div>
                 </Reveal>
 
-                <Reveal from="right" className="sm:col-span-1 lg:col-span-2 flux-card !py-3">
+                <Reveal from="up" className="sm:col-span-1 lg:col-span-2 flux-card !py-3">
                   <h3 className="text-[12.5px] sm:text-[13px] font-semibold text-[#0F0F0F] mb-1.5">Leaderboard</h3>
                   <div className="space-y-0.5">
                     {[
@@ -478,12 +527,21 @@ export default function HomePage() {
                 </div>
               </Reveal>
             </div>
+          </div>
           </Reveal>
         </div>
       </section>
 
       {/* ── Features section ────────────────────────────────────────── */}
-      <section id="features" className="py-14 sm:py-20 bg-[#EDEDED]">
+      <section id="features" className="relative py-14 sm:py-20 bg-[#EDEDED] overflow-hidden">
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          <div className="absolute top-10 left-[4%] w-14 h-14 rounded-2xl border-2 border-[#0F0F0F]/10 animate-[heroDrift_11s_ease-in-out_infinite]" />
+          <div className="absolute top-24 right-[6%] w-10 h-10 rounded-full bg-[#D6F63E]/40 animate-[heroFloat_8s_ease-in-out_infinite]" />
+          <div className="absolute bottom-24 left-[8%] w-6 h-6 rotate-45 border-2 border-[#0F0F0F]/15 animate-[heroDriftAlt_12s_ease-in-out_infinite]" />
+          <div className="absolute bottom-12 right-[10%] w-8 h-8 rounded-lg bg-[#0F0F0F]/10 animate-[heroFloat_9s_ease-in-out_infinite]" style={{ animationDelay: "0.5s" }} />
+          <div className="absolute top-1/2 left-[2%] w-3 h-3 rounded-full bg-[#0F0F0F]/20 animate-[heroDrift_10s_ease-in-out_infinite]" />
+          <div className="absolute top-1/3 right-[2%] w-2.5 h-2.5 rounded-full bg-[#D6F63E]/60 animate-[heroFloat_7s_ease-in-out_infinite]" style={{ animationDelay: "0.3s" }} />
+        </div>
         <div className="max-w-6xl mx-auto px-4 sm:px-8">
           <Reveal className="text-center max-w-2xl mx-auto mb-10 sm:mb-14">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#D6F63E]/20 border border-[#D6F63E]/40 text-[#0F0F0F] text-[11px] font-semibold mb-4">
@@ -552,7 +610,13 @@ export default function HomePage() {
       </section>
 
       {/* ── Whiteboard feature split ────────────────────────────────── */}
-      <section id="whiteboard" className="py-14 sm:py-20 bg-white border-y border-[#E5E5E5]">
+      <section id="whiteboard" className="relative py-14 sm:py-20 bg-white border-y border-[#E5E5E5] overflow-hidden">
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          <div className="absolute top-12 left-[5%] w-10 h-10 rounded-full bg-[#D6F63E]/35 animate-[heroFloat_9s_ease-in-out_infinite]" />
+          <div className="absolute bottom-16 right-[5%] w-14 h-14 rounded-2xl border-2 border-[#0F0F0F]/8 animate-[heroDrift_12s_ease-in-out_infinite]" />
+          <div className="absolute top-1/2 left-[2%] w-4 h-4 rounded-sm bg-[#0F0F0F]/12 animate-[heroDriftAlt_10s_ease-in-out_infinite]" />
+          <div className="absolute bottom-1/3 right-[3%] w-2.5 h-2.5 rounded-full bg-[#D6F63E]/55 animate-[heroFloat_7s_ease-in-out_infinite]" style={{ animationDelay: "0.4s" }} />
+        </div>
         <div className="max-w-6xl mx-auto px-4 sm:px-8 grid lg:grid-cols-2 gap-10 lg:gap-12 items-center">
           <Reveal from="left">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#D6F63E]/20 border border-[#D6F63E]/40 text-[#0F0F0F] text-[11px] font-semibold mb-4">

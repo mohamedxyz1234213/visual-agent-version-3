@@ -30,6 +30,56 @@ export function useInView<T extends HTMLElement>(threshold = 0.15) {
   return { ref, inView };
 }
 
+/**
+ * Scroll-based parallax: any descendant with a `data-parallax` attribute is
+ * translated vertically at that rate relative to the viewport center.
+ * Positive speed = moves slower than scroll (background), negative = closer/faster.
+ * Wrapped in a class-free helper so it composes with keyframe animations below.
+ */
+export function useParallax<T extends HTMLElement>(speed = 0.06) {
+  const ref = useRef<T | null>(null);
+
+  useEffect(() => {
+    const root = ref.current;
+    if (!root) return;
+    if (typeof IntersectionObserver === "undefined") return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const els = Array.from(root.querySelectorAll<HTMLElement>("[data-parallax]"));
+    if (!els.length) return;
+
+    const target = new Map<HTMLElement, number>();
+    const current = new Map<HTMLElement, number>();
+    els.forEach((el) => {
+      target.set(el, 0);
+      current.set(el, 0);
+    });
+
+    let raf = 0;
+    let last = 0;
+    const tick = (now: number) => {
+      raf = requestAnimationFrame(tick);
+      const dt = Math.min(now - last, 50) / 1000;
+      last = now;
+      const h = window.innerHeight;
+      els.forEach((el) => {
+        const rate = parseFloat(el.dataset.parallax || `${speed}`);
+        const rect = el.getBoundingClientRect();
+        target.set(el, (rect.top + rect.height / 2 - h / 2) * -rate);
+        const cur = current.get(el)!;
+        const next = cur + (target.get(el)! - cur) * Math.min(1, dt * 6);
+        current.set(el, next);
+        el.style.transform = `translate3d(0, ${next.toFixed(2)}px, 0)`;
+      });
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [speed]);
+
+  return ref;
+}
+
 interface RevealProps {
   children: ReactNode;
   className?: string;
