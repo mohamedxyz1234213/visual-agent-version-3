@@ -1,728 +1,443 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useRef, type CSSProperties } from "react";
-import { fetchMe, type SafeUser } from "@/lib/api";
-import { AnimatedLogo } from "@/components/shared/AnimatedLogo";
-import { HomeWhiteboardDemo } from "@/components/shared/HomeWhiteboardDemo";
-import { Reveal, StatNumber, useInView, useParallax } from "@/components/shared/HomeMotion";
+import { useEffect, useState, type ReactNode } from "react";
 import {
-  Zap,
+  ArrowRight,
   BookOpen,
-  Flame,
-  Compass,
-  Code2,
-  Bot,
-  Trophy,
-  Target,
-  TrendingUp,
-  Palette,
-  ChevronRight,
-  Users,
   Check,
+  GraduationCap,
+  Heart,
+  Laptop,
+  Mic,
   Play,
   Sparkles,
-  ArrowRight,
   Star,
-  Search,
-  Layers,
-  Cpu,
+  Trophy,
+  Users,
 } from "lucide-react";
+import { fetchMe, type SafeUser } from "@/lib/api";
+import styles from "./landing.module.css";
+
+type Language = "en" | "ar";
+
+type LandingCopy = {
+  brand: string;
+  academy: string;
+  demo: string;
+  dashboard: string;
+  tryDemo: string;
+  signIn: string;
+  heroLabel: string;
+  headline: ReactNode;
+  intro: string;
+  watch: string;
+  problemTitle: string;
+  problemIntro: string;
+  problemCards: [string, string, string][];
+  solutionTitle: string;
+  solutionRows: [string, string, string][];
+  stepsTitle: string;
+  steps: [string, string][];
+  crestTitle: string;
+  crestBody: string;
+  featuresTitle: string;
+  features: [string, string][];
+  videoTitle: string;
+  audiencesTitle: string;
+  audiences: string[];
+  audienceNote: string;
+  teamTitle: string;
+  teamIntro: string;
+  team: string[];
+  university: string;
+  supervisor: string;
+  closingTitle: string;
+  closingBody: string;
+  footer: string;
+  rights: string;
+};
+
+const content: Record<Language, LandingCopy> = {
+  en: {
+    brand: "ALMA",
+    academy: "ACADEMY",
+    demo: "Demo",
+    dashboard: "Dashboard",
+    tryDemo: "Try the demo",
+    signIn: "Sign in",
+    heroLabel: "AI programming teacher",
+    headline: <>Learn to code with an AI teacher who adapts to <em>you</em>.</>,
+    intro:
+      "ALMA is a friendly teacher you can talk to, in Arabic or English. It explains each lesson your way, step by step, any time you want.",
+    watch: "Watch the 60-second video",
+    problemTitle: "Four ways to learn. Each one gives something up.",
+    problemIntro: "Imagine a student who wants to learn to code.",
+    problemCards: [
+      ["School", "A real teacher you can ask", "Outdated and too theoretical"],
+      ["Private lessons", "Good teachers, parents follow progress", "Expensive, tiring, crowded groups"],
+      ["Online lessons", "Cheaper, no travel", "Mostly recorded, hard to ask questions"],
+      ["Self-study", "Any time, your own way", "No mentor, tiring and easy to quit"],
+    ],
+    solutionTitle: "Meet ALMA: all the strengths, none of the trade-offs.",
+    solutionRows: [
+      ["From school", "A teacher you can ask, by voice, any time", "Hands-on puzzles and games, not just theory"],
+      ["From private lessons", "Clear explanations and progress for parents", "One-to-one attention, no crowd or commute"],
+      ["From online lessons", "Affordable and from home, free to start", "A live conversation instead of recorded videos"],
+      ["From self-study", "Learn any time, in the way you like", "Guidance, hints and duels, so you are never alone"],
+    ],
+    stepsTitle: "How ALMA teaches you",
+    steps: [
+      ["Tell ALMA about you", "A few quick questions: your age, level and how you like to learn."],
+      ["Learn your way", "Lessons shaped around you, in Arabic or English, one step at a time."],
+      ["Practice and play", "Solve puzzles, get hints when you are stuck, and challenge friends."],
+    ],
+    crestTitle: "The crest shows how ALMA is teaching you",
+    crestBody: "Every lesson adapts to the way you learn best.",
+    featuresTitle: "What you get",
+    features: [
+      ["Talk to your teacher", "Ask out loud and get a clear answer, any time."],
+      ["Lessons that fit you", "Your name, your level and the way you like to learn."],
+      ["Play and compete", "Live coding duels, ranks and leaderboards."],
+      ["Parents and teachers in the loop", "Simple progress views and lessons built from a teacher's prompt."],
+    ],
+    videoTitle: "See ALMA in 60 seconds",
+    audiencesTitle: "For learners, parents, schools and teachers",
+    audiences: ["Learners of any age", "Parents", "Schools", "Teachers"],
+    audienceNote: "Free to start on mobile and web.",
+    teamTitle: "Built by a student team",
+    teamIntro: "ALMA Academy is a graduation project by a team of seven students working on AI, design, apps and cloud.",
+    team: ["Mohamed Tareq", "Mohamed Elfouly", "Mohamed Abo Auof", "Mohamed Saeed", "Mohamed Fared", "Mohamad Farouk", "Mohamad Ibrahim"],
+    university: "October 6 University",
+    supervisor: "Academic Supervisor",
+    closingTitle: "Your coding journey starts here.",
+    closingBody: "A friendly AI teacher, ready when you are.",
+    footer: "ALMA Academy · Graduation project",
+    rights: "All rights reserved.",
+  },
+  ar: {
+    brand: "ألما",
+    academy: "الأكاديمية",
+    demo: "جرّب الآن",
+    dashboard: "لوحة التحكم",
+    tryDemo: "جرّب النسخة التجريبية",
+    signIn: "تسجيل الدخول",
+    heroLabel: "معلّم برمجة ذكي",
+    headline: <>تعلّم البرمجة مع معلّم ذكي يتكيّف <em>معك</em>.</>,
+    intro:
+      "ألما معلّم ودود تتحدث إليه بالعربية أو الإنجليزية. يشرح لك كل درس بطريقتك، خطوةً بخطوة، وفي أي وقت.",
+    watch: "شاهد الفيديو (60 ثانية)",
+    problemTitle: "أربع طرق للتعلّم، وكل واحدة تتنازل عن شيء.",
+    problemIntro: "تخيّل طالبًا يريد أن يتعلم البرمجة.",
+    problemCards: [
+      ["المدرسة", "معلّم حقيقي تسأله", "طرق قديمة ونظرية أكثر من اللازم"],
+      ["الدروس الخصوصية", "معلمون جيدون وأولياء أمور يتابعون", "غالية ومتعبة وأعداد كبيرة"],
+      ["الدروس عبر الإنترنت", "أرخص وبلا تنقّل", "مسجّلة غالبًا ويصعب السؤال"],
+      ["الدراسة الذاتية", "في أي وقت وبطريقتك", "بلا مرشد ومتعبة وسهل أن تتوقف"],
+    ],
+    solutionTitle: "قابل ألما: كل المزايا بلا العيوب.",
+    solutionRows: [
+      ["من المدرسة", "معلّم تسأله بصوتك في أي وقت", "ألغاز وألعاب تطبيقية وليست نظريات فقط"],
+      ["من الدروس الخصوصية", "شرح واضح ومتابعة للأهل", "اهتمام فردي بلا زحام أو تنقّل"],
+      ["من الدروس عبر الإنترنت", "متاحة من المنزل ومجانية للبداية", "محادثة مباشرة بدلًا من الفيديوهات المسجّلة"],
+      ["من الدراسة الذاتية", "تعلّم في أي وقت وبالطريقة التي تحبها", "إرشاد وتلميحات وتحديات، لن تكون وحدك"],
+    ],
+    stepsTitle: "كيف تعلّمك ألما",
+    steps: [
+      ["عرّف ألما بنفسك", "أسئلة بسيطة عن عمرك ومستواك والطريقة التي تفضّلها في التعلّم."],
+      ["تعلّم بطريقتك", "دروس تناسبك، بالعربية أو الإنجليزية، خطوةً بخطوة."],
+      ["تدرّب والعب", "حلّ الألغاز، واحصل على تلميحات، وتحدّ أصدقاءك."],
+    ],
+    crestTitle: "الشارة توضّح كيف تعلّمك ألما",
+    crestBody: "كل درس يتكيّف مع الطريقة التي تناسبك.",
+    featuresTitle: "ماذا ستحصل عليه",
+    features: [
+      ["تحدّث مع معلّمك", "اسأل بصوتك واحصل على إجابة واضحة في أي وقت."],
+      ["دروس تناسبك", "اسمك ومستواك والطريقة التي تحب أن تتعلّم بها."],
+      ["تعلّم وتنافس", "تحديات برمجة مباشرة وتصنيفات ولوحات متصدرين."],
+      ["الأهل والمعلمون على اطّلاع", "متابعة سهلة للتقدم ودروس ينشئها المعلم."],
+    ],
+    videoTitle: "شاهد ألما في 60 ثانية",
+    audiencesTitle: "للمتعلمين والأهل والمدارس والمعلمين",
+    audiences: ["للمتعلمين من كل الأعمار", "الأهل", "المدارس", "المعلمون"],
+    audienceNote: "ابدأ مجانًا على الهاتف والويب.",
+    teamTitle: "طوّرها فريق من الطلاب",
+    teamIntro: "أكاديمية ألما مشروع تخرج لفريق من سبعة طلاب يعملون في الذكاء الاصطناعي والتصميم والتطبيقات والسحابة.",
+    team: ["محمد طارق", "محمد الفولي", "محمد أبو عوف", "محمد سعيد", "محمد فريد", "محمد فاروق", "محمد إبراهيم"],
+    university: "جامعة 6 أكتوبر",
+    supervisor: "المشرف الأكاديمي",
+    closingTitle: "رحلتك في البرمجة تبدأ هنا.",
+    closingBody: "معلّمك الذكي الودود جاهز عندما تكون أنت جاهزًا.",
+    footer: "أكاديمية ألما · مشروع تخرج",
+    rights: "جميع الحقوق محفوظة.",
+  },
+} satisfies Record<Language, Record<string, React.ReactNode>>;
+
+const problemIcons = [GraduationCap, Users, Laptop, BookOpen];
+const featureIcons = [Mic, BookOpen, Trophy, Heart];
+const featureColors = ["mango", "sky", "lemon", "coral"] as const;
+
+function Mascot({ celebrate = false }: { celebrate?: boolean }) {
+  return (
+    <svg className={styles.mascot} viewBox="0 0 220 240" role="img" aria-label="ALMA mascot">
+      {celebrate && (
+        <>
+          <path d="m35 33 3 8 8 3-8 3-3 8-3-8-8-3 8-3zM184 45l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#ffd84a" />
+          <path d="m182 14 2 6 6 2-6 2-2 6-2-6-6-2 6-2z" fill="#f25c78" />
+        </>
+      )}
+      <rect x="100" y="9" width="20" height="20" rx="6" fill="#ffd84a" transform="rotate(10 110 19)" />
+      <path d="M38 222V111a72 72 0 0 1 144 0v111a13 13 0 0 1-13 13H51a13 13 0 0 1-13-13Z" fill="#ffa11f" />
+      <rect x="52" y="130" width="14" height="38" rx="7" fill="#f08a00" transform="rotate(-48 59 149)" />
+      <rect x="154" y="130" width="14" height="38" rx="7" fill="#f08a00" transform="rotate(48 161 149)" />
+      <rect x="70" y="76" width="80" height="72" rx="30" fill="#10292e" />
+      <path d="M86 104q8-15 16 0m16 0q8-15 16 0" fill="none" stroke="#fff8ec" strokeWidth="5" strokeLinecap="round" />
+      <path d="M91 119q19 26 38 0Z" fill="#fff8ec" />
+      <circle cx="81" cy="121" r="5.5" fill="#f25c78" />
+      <circle cx="139" cy="121" r="5.5" fill="#f25c78" />
+      <path d="M92 235h16m20 0h16" stroke="#10292e" strokeWidth="5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function BrandMark() {
+  return (
+    <span className={styles.brandMark} aria-hidden="true">
+      <span />
+      <span />
+    </span>
+  );
+}
 
 export default function HomePage() {
   const [user, setUser] = useState<SafeUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const heroRef = useRef<HTMLDivElement>(null);
-  const [heroVisible, setHeroVisible] = useState(false);
-  const dashRef = useInView<HTMLDivElement>(0.3);
-  const dashInView = dashRef.inView;
-  const parallaxRef = useParallax<HTMLDivElement>(0.07);
-
-  useEffect(() => {
-    const el = heroRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setHeroVisible(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.15 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
+  const [language, setLanguage] = useState<Language>("en");
+  const copy = content[language];
+  const isArabic = language === "ar";
+  const primaryHref = user?.role === "student" ? "/student/dashboard" : "/register";
 
   useEffect(() => {
     fetchMe()
-      .then((u) => {
-        setUser(u);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+      .then((currentUser) => setUser(currentUser))
+      .catch(() => setUser(null))
+      .finally(() => setLoading(false));
   }, []);
 
-  function getDashboardPath(role: string) {
-    switch (role) {
-      case "student":
-        return "/student/dashboard";
-      default:
-        return "/student/dashboard";
-    }
-  }
-
   return (
-    <div className="min-h-screen bg-[#EDEDED] text-[#0F0F0F] overflow-x-hidden">
-      {/* ── Floating animated nav ──────────────────────────────────── */}
-      <header className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center px-3 sm:px-6 pt-3 sm:pt-4">
-        <nav className="pointer-events-auto w-full max-w-3xl flex items-center justify-between gap-2 rounded-2xl border border-white/60 bg-white/70 px-3 sm:px-5 py-2.5 shadow-lg shadow-[#0F0F0F]/5 backdrop-blur-xl animate-[navFloat_6s_ease-in-out_infinite]">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 flex items-center justify-center shrink-0">
-              <AnimatedLogo size={42} animate={false} className="text-[#D6F63E]" />
-            </div>
-            <span className="text-lg font-bold tracking-tight text-[#0F0F0F]">
-              CodeBuddy
-            </span>
+    <div className={styles.page} lang={language} dir={isArabic ? "rtl" : "ltr"}>
+      <header className={styles.header}>
+        <Link href="/" className={styles.brand} aria-label={`${copy.brand} ${copy.academy}`}>
+          <BrandMark />
+          <span className={styles.brandText}>
+            <strong>{copy.brand}</strong>
+            <small>{copy.academy}</small>
+          </span>
+        </Link>
+        <nav className={styles.headerActions} aria-label={isArabic ? "التنقل الرئيسي" : "Main navigation"}>
+          <div className={styles.languageToggle} role="group" aria-label={isArabic ? "اختيار اللغة" : "Choose language"}>
+            <button
+              type="button"
+              className={!isArabic ? styles.activeLanguage : ""}
+              aria-pressed={!isArabic}
+              onClick={() => setLanguage("en")}
+            >
+              EN
+            </button>
+            <button
+              type="button"
+              className={isArabic ? styles.activeLanguage : ""}
+              aria-pressed={isArabic}
+              onClick={() => setLanguage("ar")}
+            >
+              عربي
+            </button>
           </div>
-
-          <div className="hidden md:flex items-center gap-6 text-sm font-medium text-[#6B6B6B]">
-            <a href="#product" className="hover:text-[#0F0F0F] transition-colors">Product</a>
-            <a href="#features" className="hover:text-[#0F0F0F] transition-colors">Features</a>
-            <a href="#whiteboard" className="hover:text-[#0F0F0F] transition-colors">Whiteboard</a>
-            <a href="#dashboard" className="hover:text-[#0F0F0F] transition-colors">Dashboard</a>
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            {loading ? (
-              <div className="w-16 h-9 bg-gray-200 rounded-full animate-pulse" />
-            ) : user && user.role === "student" ? (
-              <Link
-                href={getDashboardPath(user.role)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#D6F63E] text-[#0F0F0F] rounded-full font-semibold text-[13px] hover:bg-[#c5e535] transition-colors"
-              >
-                Dashboard
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            ) : (
-              <>
-                <Link
-                  href="/login"
-                  className="hidden sm:inline-flex px-3 py-2 text-[13px] font-semibold text-[#0F0F0F] hover:bg-black/5 rounded-full transition-colors"
-                >
-                  Sign In
-                </Link>
-                <Link
-                  href="/register"
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0F0F0F] text-white rounded-full font-semibold text-[13px] hover:bg-[#2A2A2A] transition-colors"
-                >
-                  Get Started
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
-              </>
-            )}
-          </div>
+          <Link href={loading ? "/register" : primaryHref} className={styles.headerDemo}>
+            {user ? copy.dashboard : copy.demo}
+          </Link>
         </nav>
       </header>
 
-      {/* ── Hero ────────────────────────────────────────────────────── */}
-      <section ref={heroRef} className="relative overflow-hidden">
-        {/* floating ambient shapes — palette-safe, no glow */}
-        <div ref={parallaxRef} className="pointer-events-none absolute inset-0">
-          <div data-parallax="0.05" className="absolute top-16 left-[6%] hidden lg:block w-16 h-16 rounded-2xl border-2 border-[#0F0F0F]/10 animate-[heroDrift_9s_ease-in-out_infinite]" />
-          <div data-parallax="0.09" className="absolute top-40 right-[8%] hidden lg:block w-10 h-10 rounded-full bg-[#D6F63E]/50 animate-[heroFloat_7s_ease-in-out_infinite]" />
-          <div data-parallax="-0.04" className="absolute bottom-10 left-[14%] hidden lg:block w-8 h-8 rounded-lg bg-[#0F0F0F]/10 animate-[heroDriftAlt_11s_ease-in-out_infinite]" />
-          <div data-parallax="0.12" className="absolute top-24 right-[24%] hidden lg:block w-4 h-4 rounded-full border-2 border-[#0F0F0F]/20 animate-[heroFloat_8s_ease-in-out_infinite]" style={{ animationDelay: "0.6s" }} />
-          <div data-parallax="-0.05" className="absolute top-32 left-[88%] hidden xl:block w-6 h-6 rotate-45 border-2 border-[#D6F63E]/60 animate-[heroDriftAlt_12s_ease-in-out_infinite]" />
-          <div data-parallax="0.07" className="absolute bottom-24 right-[16%] hidden xl:block w-14 h-3 rounded-full bg-[#0F0F0F]/10 animate-[heroDrift_10s_ease-in-out_infinite]" />
-        </div>
-
-        <div className="relative max-w-6xl mx-auto px-4 sm:px-8 pt-20 sm:pt-28 pb-12 sm:pb-16">
-          <div
-            className={`flex flex-wrap items-center justify-center gap-2 mb-6 transition-all duration-700 ${
-              heroVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-            }`}
-          >
-            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#D6F63E]/20 border border-[#D6F63E]/40 text-[11px] font-semibold text-[#0F0F0F]">
-              <span className="relative flex w-2 h-2">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-[#0F0F0F] animate-[dotPulse_1.6s_ease-in-out_infinite]" />
-                <span className="relative inline-flex rounded-full w-2 h-2 bg-[#0F0F0F]" />
-              </span>
-              <Sparkles className="w-3.5 h-3.5 text-[#0F0F0F]" />
-              AI-Powered Adaptive Learning Platform
-            </span>
-          </div>
-
-          <div className="text-center max-w-3xl mx-auto">
-            <h1
-              className={`text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight leading-[1.06] mb-6 transition-all duration-700 delay-100 ${
-                heroVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
-              }`}
-            >
-              Learn to Code with Adaptive
-              <br />
-              <span className="relative inline-block text-[#171717] mt-2">
-                AI Teachers
-                <span
-                  className="absolute left-0 -bottom-1.5 h-[5px] w-full rounded-full bg-[#D6F63E] origin-left animate-[underlineDraw_900ms_cubic-bezier(0.22,0.61,0.36,1)_0.7s_both]"
-                  style={{ transform: heroVisible ? undefined : "scaleX(0)" }}
-                />
-              </span>
-            </h1>
-            <p
-              className={`text-base sm:text-lg text-[#6B6B6B] max-w-2xl mx-auto mb-8 leading-relaxed transition-all duration-700 delay-200 ${
-                heroVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
-              }`}
-            >
-              Interactive coding lessons, AI avatar teachers with voice, gamified
-              progress, and a complete classroom management system for schools.
-            </p>
-
-            <div
-              className={`flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 transition-all duration-700 delay-300 ${
-                heroVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
-              }`}
-            >
-              <Link
-                href={user ? "/student/dashboard" : "/register"}
-                className="inline-flex items-center gap-2 px-8 py-4 bg-[#D6F63E] text-[#0F0F0F] rounded-full font-semibold text-base hover:bg-[#c5e535] hover:scale-105 active:scale-95 transition-all"
-              >
-                Get Started
-                <ArrowRight className="w-5 h-5" />
-              </Link>
-              <Link
-                href={user ? "/student/whiteboard" : "/login?next=" + encodeURIComponent("/student/whiteboard")}
-                className="inline-flex items-center gap-2 px-8 py-4 bg-[#171717] text-white rounded-full font-semibold text-base hover:bg-[#333] hover:scale-105 active:scale-95 transition-all"
-              >
-                <Play className="w-5 h-5 fill-white" />
-                Try Whiteboard
-              </Link>
+      <main>
+        <section className={styles.hero} aria-labelledby="hero-title">
+          <div className={styles.heroInner}>
+            <div className={styles.heroCopy}>
+              <span className={styles.eyebrow}><i />{copy.heroLabel}</span>
+              <h1 id="hero-title">{copy.headline}</h1>
+              <p>{copy.intro}</p>
+              <div className={styles.heroActions}>
+                <Link href={primaryHref} className={styles.primaryButton}>
+                  {copy.tryDemo}
+                </Link>
+                <a href="#video" className={styles.secondaryButton}>{copy.watch}</a>
+              </div>
+            </div>
+            <div className={styles.heroArt} aria-hidden="true">
+              <span className={styles.sparkleOne}>✦</span>
+              <span className={styles.sparkleTwo}>✦</span>
+              <div className={styles.mascotStage}><Mascot celebrate /></div>
             </div>
           </div>
+        </section>
 
-          <div
-            className={`flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mt-9 transition-all duration-700 delay-400 ${
-              heroVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-            }`}
-          >
-            {[
-              "Personalized AI tutor",
-              "Gamified learning experience",
-              "Real-time progress tracking",
-            ].map((t) => (
-              <span key={t} className="inline-flex items-center gap-1.5 text-[12.5px] text-[#6B6B6B] font-medium">
-                <span className="w-4 h-4 rounded-full bg-[#D6F63E]/30 flex items-center justify-center">
-                  <Check className="w-2.5 h-2.5 text-[#0F0F0F]" strokeWidth={3} />
-                </span>
-                {t}
-              </span>
-            ))}
+        <section className={styles.section} aria-labelledby="problem-title">
+          <div className={styles.container}>
+            <header className={styles.sectionHeader}>
+              <h2 id="problem-title">{copy.problemTitle}</h2>
+              <p>{copy.problemIntro}</p>
+            </header>
+            <div className={styles.problemGrid}>
+              {copy.problemCards.map(([title, strength, tradeoff], index) => {
+                const Icon = problemIcons[index];
+                return (
+                  <article className={styles.problemCard} key={title}>
+                    <div className={styles.cardTitle}>
+                      <span className={`${styles.iconArch} ${styles[featureColors[index]]}`}><Icon size={20} /></span>
+                      <h3>{title}</h3>
+                    </div>
+                    <p><Check size={13} aria-hidden="true" />{strength}</p>
+                    <p className={styles.tradeoff}><span aria-hidden="true">•</span>{tradeoff}</p>
+                  </article>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        </section>
 
-        {/* floating code chips — tucked into the hero's empty top/bottom bands so nothing overlaps text */}
-        <div className="pointer-events-none absolute inset-0 z-10" aria-hidden>
-          <div data-parallax="0.05" className="absolute left-[4%] top-[3%] sm:left-[6%] sm:top-[5%]">
-            <div className="bg-white border border-[#E5E5E5] rounded-md lg:rounded-xl px-2 py-1.5 lg:px-3.5 lg:py-2.5 shadow-sm animate-[heroChip_6.5s_ease-in-out_infinite]" style={{ "--chip-tilt": "1.5deg" } as CSSProperties}>
-              <div className="flex items-center gap-1 mb-1">
-                {["#FF5F57", "#FEBC2E", "#28C840"].map((c) => (
-                  <span key={c} className="w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full" style={{ backgroundColor: c }} />
+        <section className={styles.sectionCompact}>
+          <div className={styles.container}>
+            <div className={styles.solution}>
+              <h2>{copy.solutionTitle}</h2>
+              <div className={styles.solutionRows}>
+                {copy.solutionRows.map(([source, keeps, adds], index) => (
+                  <article className={styles.solutionRow} key={source}>
+                    <strong><span className={`${styles.sourceMark} ${styles[featureColors[index]]}`} />{source}</strong>
+                    <p><Check size={15} />{keeps}</p>
+                    <p><Sparkles size={15} />{adds}</p>
+                  </article>
                 ))}
               </div>
-              <code className="text-[9px] lg:text-[11px] font-medium text-[#0F0F0F]"><span className="text-[#A0A0A0]">for</span> i <span className="text-[#A0A0A0]">in</span> range(5):</code>
             </div>
           </div>
-          <div data-parallax="-0.04" className="absolute right-[4%] top-[3%] sm:right-[6%] sm:top-[6%]">
-            <div className="bg-[#171717] text-white rounded-xl px-2.5 py-2 lg:px-3.5 lg:py-2.5 shadow-sm animate-[heroChip_7.5s_ease-in-out_infinite]" style={{ "--chip-tilt": "-1.5deg" } as CSSProperties}>
-              <code className="text-[10px] lg:text-[11px] font-medium"><span className="text-[#D6F63E]">print</span>(i)</code>
+        </section>
+
+        <section className={styles.section} aria-labelledby="steps-title">
+          <div className={styles.container}>
+            <header className={styles.sectionHeader}>
+              <h2 id="steps-title">{copy.stepsTitle}</h2>
+            </header>
+            <div className={styles.stepsGrid}>
+              {copy.steps.map(([title, description], index) => (
+                <article className={styles.stepCard} key={title}>
+                  <span className={`${styles.stepNumber} ${index === 2 ? styles.stepNumberMango : ""}`}>{index + 1}</span>
+                  <h3>{title}</h3>
+                  <p>{description}</p>
+                </article>
+              ))}
             </div>
-          </div>
-          <div data-parallax="0.08" className="absolute left-[4%] bottom-[1%] sm:left-[7%] sm:bottom-[4%]">
-            <div className="bg-[#D6F63E]/90 text-[#0F0F0F] rounded-xl px-2.5 py-2 lg:px-3.5 lg:py-2.5 shadow-sm animate-[heroChip_8.5s_ease-in-out_infinite]" style={{ "--chip-tilt": "-2deg" } as CSSProperties}>
-              <code className="text-[10px] lg:text-[11px] font-semibold">print(<span className="opacity-70 font-medium">"hello"</span>)</code>
-            </div>
-          </div>
-          <div data-parallax="0.07" className="absolute right-[4%] bottom-[1%] sm:right-[7%] sm:bottom-[4%]">
-            <div className="bg-white border border-[#E5E5E5] rounded-xl px-2 py-1.5 lg:px-3.5 lg:py-2.5 shadow-sm animate-[heroChip_9s_ease-in-out_infinite]" style={{ "--chip-tilt": "2deg" } as CSSProperties}>
-              <div className="flex items-center gap-1.5 lg:gap-2 text-[10px] lg:text-[11px] font-semibold text-[#0F0F0F]">
-                <span className="w-2 h-2 rounded-sm bg-[#0F0F0F]" />
-                +12 XP
+            <div className={styles.crestCard}>
+              <div className={styles.crestMascot}><Mascot /></div>
+              <div>
+                <h3>{copy.crestTitle}</h3>
+                <p>{copy.crestBody}</p>
+                <div className={styles.crestModes} aria-hidden="true">
+                  <span className={styles.skyDot} /><span className={styles.coralDot} />
+                  <span className={styles.lagoonDot} /><span className={styles.lemonDot} />
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* ── Marquee strip ───────────────────────────────────────────── */}
-      <div className="relative bg-[#0F0F0F] py-3 overflow-hidden">
-        <div className="flex w-max animate-[marquee_26s_linear_infinite]">
-          {[0, 1].map((dup) => (
-            <div key={dup} className="flex shrink-0 items-center">
-              {["Python", "JavaScript", "HTML & CSS", "Loops", "Functions", "Arrays", "AI Teacher", "XP & Badges", "Live Lessons", "Adaptive Pacing"].map((word) => (
-                <span key={word} className="flex items-center text-sm font-semibold tracking-tight text-white">
-                  <span className="px-5">{word}</span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#D6F63E]" />
-                </span>
-              ))}
+        <section className={styles.section} aria-labelledby="features-title">
+          <div className={styles.container}>
+            <header className={styles.sectionHeader}>
+              <h2 id="features-title">{copy.featuresTitle}</h2>
+            </header>
+            <div className={styles.featureGrid}>
+              {copy.features.map(([title, description], index) => {
+                const Icon = featureIcons[index];
+                return (
+                  <article className={styles.featureCard} key={title}>
+                    <span className={`${styles.iconArch} ${styles[featureColors[index]]}`}><Icon size={20} /></span>
+                    <h3>{title}</h3>
+                    <p>{description}</p>
+                  </article>
+                );
+              })}
             </div>
-          ))}
-        </div>
-      </div>
+          </div>
+        </section>
 
-      {/* ── Dashboard preview (mirrors the real student dashboard) ──── */}
-      <section id="dashboard" className="relative py-12 pt-12 sm:py-16 overflow-hidden">
-        <div className="pointer-events-none absolute inset-0" aria-hidden>
-          <div className="absolute top-8 right-[4%] w-16 h-16 rounded-2xl border-2 border-[#0F0F0F]/8 animate-[heroDriftAlt_13s_ease-in-out_infinite]" />
-          <div className="absolute bottom-16 left-[3%] w-9 h-9 rounded-full bg-[#D6F63E]/35 animate-[heroFloat_10s_ease-in-out_infinite]" />
-          <div className="absolute top-1/3 right-[8%] w-5 h-5 rotate-45 border-2 border-[#D6F63E]/50 animate-[heroDrift_9s_ease-in-out_infinite]" />
-          <div className="absolute bottom-32 right-[18%] w-3 h-3 rounded-full bg-[#0F0F0F]/20 animate-[heroFloat_8s_ease-in-out_infinite]" style={{ animationDelay: "0.6s" }} />
-        </div>
-        <div className="max-w-6xl mx-auto px-4 sm:px-8 grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
-          {/* description column */}
-          <Reveal className="order-2 lg:order-1">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#D6F63E]/20 border border-[#D6F63E]/40 text-[#0F0F0F] text-[11px] font-semibold mb-4">
-              <Target className="w-3.5 h-3.5" /> Student Dashboard
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight leading-[1.12] mb-4 text-[#0F0F0F]">
-              Everything a student needs,
-              <br className="hidden sm:block" /> at a glance
-            </h2>
-            <p className="text-[15px] sm:text-base text-[#6B6B6B] leading-relaxed mb-6">
-              A live overview of progress — XP, streaks, weekly activity, subject
-              mastery, quick actions and upcoming whiteboard lessons, all in one place.
-            </p>
-            <ul className="space-y-3 mb-8">
-              {[
-                "Continuous progress tracking in real time",
-                "Gamified rewards and badge streaks",
-                "A 1:1 AI avatar teacher with voice",
-              ].map((t) => (
-                <li key={t} className="flex items-center gap-3 text-[14px] font-medium text-[#0F0F0F]">
-                  <span className="w-5 h-5 rounded-full bg-[#D6F63E] flex items-center justify-center shrink-0">
-                    <Check className="w-3 h-3 text-[#0F0F0F]" strokeWidth={3.5} />
-                  </span>
-                  {t}
-                </li>
-              ))}
-            </ul>
-            <Link
-              href="/student/dashboard"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-[#0F0F0F] text-white rounded-full font-semibold text-[14px] hover:bg-[#2A2A2A] hover:scale-[1.03] active:scale-95 transition-all"
-            >
-              Open your dashboard
-              <ArrowRight className="w-4 h-4" />
+        <section id="video" className={styles.sectionCompact} aria-labelledby="video-title">
+          <div className={styles.container}>
+            <h2 id="video-title" className={styles.videoTitle}>{copy.videoTitle}</h2>
+            <Link href={primaryHref} className={styles.videoCard} aria-label={copy.tryDemo}>
+              <span className={styles.videoGlow} />
+              <span className={styles.playArch}><Play size={24} fill="currentColor" /></span>
+              <span className={styles.videoDuration}>01:00</span>
             </Link>
-          </Reveal>
+          </div>
+        </section>
 
-          {/* dashboard mock column */}
-          <Reveal delay={120} from="right" className="order-1 lg:order-2">
-          <div className="rounded-[20px] bg-white border border-[#E5E5E5] shadow-2xl shadow-[#171717]/10 overflow-hidden">
-            {/* window bar */}
-            <div className="flex items-center gap-2 px-4 sm:px-5 py-2 border-b border-[#E5E5E5] bg-[#F5F5F5]">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#FF5F57]" />
-              <span className="w-2.5 h-2.5 rounded-full bg-[#FEBC2E]" />
-              <span className="w-2.5 h-2.5 rounded-full bg-[#28C840]" />
-              <span className="ml-3 text-[11px] font-semibold text-[#6B6B6B] truncate">Student Dashboard</span>
-              <div className="ml-auto flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-[#D6F63E] text-[#0F0F0F] text-[9px] font-bold flex items-center justify-center">
-                  ST
-                </span>
+        <section className={styles.section}>
+          <div className={styles.container}>
+            <div className={styles.audienceCard}>
+              <h2>{copy.audiencesTitle}</h2>
+              <div className={styles.audienceChips}>
+                {copy.audiences.map((audience) => <span key={audience}>{audience}</span>)}
               </div>
-            </div>
-
-            <div className="p-3 sm:p-4 bg-[#F5F5F5]">
-              {/* Student ID banner */}
-              <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2 shadow-sm border border-[#E5E5E5] sm:justify-between mb-2">
-                <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-lg bg-[#D6F63E] flex items-center justify-center shrink-0">
-                  <Target size={15} className="text-[#0F0F0F]" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[8.5px] font-semibold uppercase tracking-wider text-[#6B6B6B] leading-tight">Student ID</p>
-                    <p className="text-[14px] font-bold text-[#0F0F0F] tracking-wider leading-tight">ST-2026-0452</p>
-                  </div>
-                </div>
-                <p className="hidden sm:block text-[10px] text-[#A0A0A0] shrink-0">
-                  Share this code with your teacher to connect
-                </p>
-              </div>
-
-              {/* Row 1: 3 stat cards — single row even on mobile */}
-              <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-2">
-                {[
-                  { icon: <Zap size={15} className="text-[#6B6B6B]" />, title: "XP", value: "1,240", change: "+12%" },
-                  { icon: <BookOpen size={15} className="text-[#6B6B6B]" />, title: "Lessons", value: "24" },
-                  { icon: <Flame size={15} className="text-[#6B6B6B]" />, title: "Streak", value: "12", unit: "d" },
-                ].map((s, i) => (
-                  <Reveal key={s.title} delay={i * 80}>
-                    <div className="flux-card flex items-center gap-2 !py-2.5 px-2.5 sm:px-3">
-                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#F5F5F5] flex items-center justify-center shrink-0">{s.icon}</div>
-                      <div className="min-w-0">
-                        <p className="text-[9.5px] sm:text-[10.5px] font-medium text-[#6B6B6B] leading-tight truncate">{s.title}</p>
-                        <div className="flex items-baseline gap-1 flex-wrap">
-                          <StatNumber value={Number(s.value.replace(",", ""))} className="text-base sm:text-xl font-bold tracking-tight text-[#0F0F0F] leading-none" />
-                          {s.unit && <span className="text-[9px] sm:text-[10px] font-medium text-[#6B6B6B]">{s.unit}</span>}
-                        </div>
-                      </div>
-                      {s.change && (
-                        <span className="bg-[#D6F63E]/30 text-[#0F0F0F] rounded-full px-1.5 py-0.5 text-[8.5px] font-semibold shrink-0 ml-auto self-start">
-                          {s.change}
-                        </span>
-                      )}
-                    </div>
-                  </Reveal>
-                ))}
-              </div>
-
-              {/* Row 2: dark activity chart + progress by subject */}
-              <div ref={dashRef.ref} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 mb-2">
-                <div className="lg:col-span-3 flux-card-dark !py-3">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center">
-                        <TrendingUp size={12} className="text-[#A0A0A0]" />
-                      </div>
-                      <span className="text-[12.5px] font-semibold text-white">Learning Activity</span>
-                      <span className="ml-2 hidden sm:flex items-center gap-2 text-[10.5px] text-[#A0A0A0]">
-                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-[#D6F63E]" />24</span>
-                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-[#F5F5F5]" />92%</span>
-                      </span>
-                    </div>
-                    <span className="px-2 py-0.5 bg-[#2A2A2A] text-[#A0A0A0] text-[9.5px] font-medium rounded-full">
-                      Monthly
-                    </span>
-                  </div>
-
-                  <div className="flex items-end gap-1.5 h-[46px]">
-                    {[
-                      { h: 30, today: false },
-                      { h: 55, today: false },
-                      { h: 40, today: false },
-                      { h: 75, today: false },
-                      { h: 60, today: false },
-                      { h: 90, today: true },
-                      { h: 45, today: false },
-                    ].map((bar, i) => (
-                      <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
-                        <div className="w-full flex gap-0.5 items-end justify-center" style={{ height: "36px" }}>
-                          <div
-                            className={`w-[40%] rounded-t-[3px] origin-bottom ${bar.today ? "bg-[#D6F63E]" : "bg-[#2A2A2A]"} ${dashInView ? "animate-[barGrow_800ms_cubic-bezier(0.22,0.61,0.36,1)_both]" : ""}`}
-                            style={{ height: `${bar.h}%`, animationDelay: dashInView ? `${300 + i * 90}ms` : undefined }}
-                          />
-                          <div
-                            className={`w-[40%] rounded-t-[3px] origin-bottom ${bar.today ? "bg-[#F5F5F5]" : "bg-[#171717]"} ${dashInView ? "animate-[barGrow_800ms_cubic-bezier(0.22,0.61,0.36,1)_both]" : ""}`}
-                            style={{ height: `${bar.h * 0.7}%`, animationDelay: dashInView ? `${380 + i * 90}ms` : undefined }}
-                          />
-                        </div>
-                        <span className={`text-[9px] font-medium ${bar.today ? "text-white" : "text-[#A0A0A0]"}`}>
-                          {["M", "T", "W", "T", "F", "S", "S"][i]}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="sm:col-span-1 lg:col-span-2 flux-card !py-3">
-                  <h3 className="text-[12.5px] sm:text-[13px] font-semibold text-[#0F0F0F] mb-2">Progress by Subject</h3>
-                  {[
-                    { pct: 92, name: "Python", color: "#D6F63E" },
-                    { pct: 76, name: "JavaScript", color: "#0F0F0F" },
-                    { pct: 58, name: "HTML & CSS", color: "#171717" },
-                  ].map((bar, barIndex) => (
-                    <div key={bar.name} className="mb-1.5 last:mb-0">
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-sm sm:text-[15px] font-bold text-[#0F0F0F]">{bar.pct}%</span>
-                        <span className="text-[10.5px] sm:text-[11px] font-medium text-[#6B6B6B] truncate ml-2">{bar.name}</span>
-                      </div>
-                      <div className="h-[6px] rounded-full bg-[#EAEAEA] overflow-hidden">
-                        <div
-                          className="h-full rounded-full origin-left"
-                          style={{
-                            width: `${bar.pct}%`,
-                            backgroundColor: bar.color,
-                            transform: dashInView ? undefined : "scaleX(0)",
-                            animation: dashInView ? `fillWipe 1100ms cubic-bezier(0.22,0.61,0.36,1) ${400 + barIndex * 180}ms both` : undefined,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Row 4: Quick Actions + Leaderboard */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
-                <Reveal from="up" className="lg:col-span-3 flux-card !py-3">
-                  <h3 className="text-[12.5px] sm:text-[13px] font-semibold text-[#0F0F0F] mb-1.5">Quick Actions</h3>
-                  <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
-                    {[
-                      { icon: <Compass size={15} className="text-[#0F0F0F]" />, label: "Learn" },
-                      { icon: <Code2 size={15} className="text-[#0F0F0F]" />, label: "Exercises" },
-                      { icon: <Bot size={15} className="text-[#0F0F0F]" />, label: " Teacher" },
-                      { icon: <Trophy size={15} className="text-[#0F0F0F]" />, label: "Leaderboard" },
-                    ].map((a, i) => (
-                      <div key={a.label} className="flex flex-col items-center gap-0.5 p-1.5 sm:p-2 rounded-xl bg-[#F5F5F5] hover:bg-[#E5E5E5] transition-colors cursor-pointer animate-[popBounce_400ms_cubic-bezier(0.34,1.56,0.64,1)_both]" style={{ animationDelay: dashInView ? `${500 + i * 90}ms` : undefined }}>
-                        <span className="transition-transform duration-300 group-hover:-translate-y-1">{a.icon}</span>
-                        <span className="text-[9px] sm:text-[9px] font-semibold text-[#0F0F0F] text-center leading-tight">{a.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </Reveal>
-
-                <Reveal from="up" className="sm:col-span-1 lg:col-span-2 flux-card !py-3">
-                  <h3 className="text-[12.5px] sm:text-[13px] font-semibold text-[#0F0F0F] mb-1.5">Leaderboard</h3>
-                  <div className="space-y-0.5">
-                    {[
-                      { u: "Nora", xp: "2,480 XP", lv: "Lv.14", crown: true },
-                      { u: "Omar", xp: "2,310 XP", lv: "Lv.13" },
-                      { u: "Lina", xp: "2,120 XP", lv: "Lv.13" },
-                    ].map((r, i) => (
-                      <div key={r.u} className="flex items-center gap-2 py-0.5 rounded-md hover:bg-[#F5F5F5] transition-colors animate-[popBounce_400ms_cubic-bezier(0.34,1.56,0.64,1)_both]" style={{ animationDelay: dashInView ? `${600 + i * 90}ms` : undefined }}>
-                        <span className={`w-5 h-6 rounded-full text-[9px] font-bold flex items-center justify-center shrink-0 ${r.crown ? "bg-[#D6F63E] text-[#0F0F0F]" : "bg-[#E5E5E5] text-[#6B6B6B]"}`}>{r.u[0]}</span>
-                        <span className="flex-1 min-w-0 text-[10.5px] font-semibold text-[#0F0F0F] truncate">{r.u}</span>
-                        <span className="text-[9.5px] font-bold text-[#6B6B6B] ml-auto">{r.xp}</span>
-                        <span className="text-[9px] text-[#A0A0A0] w-8 text-right shrink-0">{r.lv}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <span className="block text-center text-[10px] font-semibold text-[#0F0F0F] hover:text-[#6B6B6B] pt-1 transition-colors">
-                    View full leaderboard →
-                  </span>
-                </Reveal>
-              </div>
-
-              {/* Row 5: My Whiteboard Lessons — compact horizontal strips */}
-              <Reveal delay={150} className="flux-card mt-2 !py-2.5">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 rounded-md bg-[#D6F63E] flex items-center justify-center">
-                      <Palette size={11} className="text-[#0F0F0F]" />
-                    </div>
-                    <h3 className="text-[12px] sm:text-[12.5px] font-semibold text-[#0F0F0F]">My Whiteboard Lessons</h3>
-                  </div>
-                  <span className="text-[10px] font-semibold text-[#0F0F0F] hover:text-[#6B6B6B] flex items-center gap-1 transition-colors">
-                    View All <ChevronRight size={11} />
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-1.5">
-                  {[
-                    { title: "Intro to Python Loops", subject: "Python", status: "Ready" },
-                    { title: "HTML Forms", subject: "Web Dev", status: "Ready" },
-                    { title: "JS Functions", subject: "JS", status: "Processing" },
-                    { title: "CSS Flexbox", subject: "Web Dev", status: "Ready" },
-                  ].map((l, i) => (
-                    <div key={l.title} className="flex items-center justify-between gap-1.5 rounded-lg border border-[#E5E5E5] bg-white px-2 py-1 hover:shadow-sm transition-shadow cursor-pointer animate-[popBounce_400ms_cubic-bezier(0.34,1.56,0.64,1)_both]" style={{ animationDelay: dashInView ? `${750 + i * 80}ms` : undefined }}>
-                      <div className="min-w-0">
-                        <h4 className="text-[9.5px] sm:text-[10px] font-semibold text-[#0F0F0F] leading-3 truncate">{l.title}</h4>
-                        <p className="text-[7.5px] sm:text-[8px] text-[#6B6B6B] truncate">{l.subject}</p>
-                      </div>
-                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[7.5px] sm:text-[8px] font-medium shrink-0 ${
-                        l.status === "Processing" ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"
-                      }`}>
-                        <span className={`w-1 h-1 rounded-full ${l.status === "Processing" ? "bg-amber-400" : "bg-emerald-400"}`} />
-                        {l.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </Reveal>
+              <p>{copy.audienceNote}</p>
             </div>
           </div>
-          </Reveal>
-        </div>
-      </section>
+        </section>
 
-      {/* ── Features section ────────────────────────────────────────── */}
-      <section id="features" className="relative py-14 sm:py-20 bg-[#EDEDED] overflow-hidden">
-        <div className="pointer-events-none absolute inset-0" aria-hidden>
-          <div className="absolute top-10 left-[4%] w-14 h-14 rounded-2xl border-2 border-[#0F0F0F]/10 animate-[heroDrift_11s_ease-in-out_infinite]" />
-          <div className="absolute top-24 right-[6%] w-10 h-10 rounded-full bg-[#D6F63E]/40 animate-[heroFloat_8s_ease-in-out_infinite]" />
-          <div className="absolute bottom-24 left-[8%] w-6 h-6 rotate-45 border-2 border-[#0F0F0F]/15 animate-[heroDriftAlt_12s_ease-in-out_infinite]" />
-          <div className="absolute bottom-12 right-[10%] w-8 h-8 rounded-lg bg-[#0F0F0F]/10 animate-[heroFloat_9s_ease-in-out_infinite]" style={{ animationDelay: "0.5s" }} />
-          <div className="absolute top-1/2 left-[2%] w-3 h-3 rounded-full bg-[#0F0F0F]/20 animate-[heroDrift_10s_ease-in-out_infinite]" />
-          <div className="absolute top-1/3 right-[2%] w-2.5 h-2.5 rounded-full bg-[#D6F63E]/60 animate-[heroFloat_7s_ease-in-out_infinite]" style={{ animationDelay: "0.3s" }} />
-        </div>
-        <div className="max-w-6xl mx-auto px-4 sm:px-8">
-          <Reveal className="text-center max-w-2xl mx-auto mb-10 sm:mb-14">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#D6F63E]/20 border border-[#D6F63E]/40 text-[#0F0F0F] text-[11px] font-semibold mb-4">
-              <Sparkles className="w-3.5 h-3.5" /> Everything You Need to Learn
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-3 text-[#0F0F0F]">
-              A complete AI learning platform
-            </h2>
-            <p className="text-[#6B6B6B] leading-relaxed">
-              Every tool a modern student and teacher needs — delivered in one clean,
-              fast, and delightful experience.
-            </p>
-          </Reveal>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-            {[
-              {
-                icon: <Bot className="w-5 h-5 text-[#0F0F0F]" />,
-                ring: "bg-[#F5F5F5]",
-                title: "AI Avatar Teacher",
-                desc: "A lifelike AI teacher that speaks, explains, and encourages — adapting to every student.",
-              },
-              {
-                icon: <Palette className="w-5 h-5 text-[#0F0F0F]" />,
-                ring: "bg-[#D6F63E]/20",
-                title: "Interactive Whiteboard",
-                desc: "Step-by-step visual lessons with animations, diagrams, and live explanations.",
-              },
-              {
-                icon: <Trophy className="w-5 h-5 text-[#0F0F0F]" />,
-                ring: "bg-[#F5F5F5]",
-                title: "Gamified Learning",
-                desc: "Earn XP, badges, and climb the leaderboard. Motivation that never fades.",
-              },
-              {
-                icon: <Code2 className="w-5 h-5 text-[#0F0F0F]" />,
-                ring: "bg-[#D6F63E]/20",
-                title: "Code Exercises",
-                desc: "Real coding challenges with instant AI feedback and a smart hint system.",
-              },
-              {
-                icon: <TrendingUp className="w-5 h-5 text-[#0F0F0F]" />,
-                ring: "bg-[#F5F5F5]",
-                title: "Progress Analytics",
-                desc: "Detailed dashboards reveal strengths, weaknesses, and the best next step.",
-              },
-              {
-                icon: <Users className="w-5 h-5 text-[#0F0F0F]" />,
-                ring: "bg-[#D6F63E]/20",
-                title: "Parent Portal",
-                desc: "Parents track progress, attendance, and achievements in real time.",
-              },
-            ].map((f, i) => (
-              <Reveal key={f.title} delay={(i % 3) * 90 + Math.floor(i / 3) * 60}>
-                <div className="group bg-white rounded-2xl p-5 border border-[#E5E5E5] shadow-sm hover:shadow-md hover:-translate-y-1 transition-all">
-                  <div className={`w-11 h-11 rounded-2xl ${f.ring} flex items-center justify-center mb-4 group-hover:scale-110 group-hover:animate-[iconNudge_700ms_ease-in-out] transition-transform`}>
-                    {f.icon}
-                  </div>
-                  <h3 className="text-[15px] font-bold text-[#0F0F0F] mb-2">{f.title}</h3>
-                  <p className="text-[13px] text-[#6B6B6B] leading-relaxed">{f.desc}</p>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Whiteboard feature split ────────────────────────────────── */}
-      <section id="whiteboard" className="relative py-14 sm:py-20 bg-white border-y border-[#E5E5E5] overflow-hidden">
-        <div className="pointer-events-none absolute inset-0" aria-hidden>
-          <div className="absolute top-12 left-[5%] w-10 h-10 rounded-full bg-[#D6F63E]/35 animate-[heroFloat_9s_ease-in-out_infinite]" />
-          <div className="absolute bottom-16 right-[5%] w-14 h-14 rounded-2xl border-2 border-[#0F0F0F]/8 animate-[heroDrift_12s_ease-in-out_infinite]" />
-          <div className="absolute top-1/2 left-[2%] w-4 h-4 rounded-sm bg-[#0F0F0F]/12 animate-[heroDriftAlt_10s_ease-in-out_infinite]" />
-          <div className="absolute bottom-1/3 right-[3%] w-2.5 h-2.5 rounded-full bg-[#D6F63E]/55 animate-[heroFloat_7s_ease-in-out_infinite]" style={{ animationDelay: "0.4s" }} />
-        </div>
-        <div className="max-w-6xl mx-auto px-4 sm:px-8 grid lg:grid-cols-2 gap-10 lg:gap-12 items-center">
-          <Reveal from="left">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#D6F63E]/20 border border-[#D6F63E]/40 text-[#0F0F0F] text-[11px] font-semibold mb-4">
-              <Layers className="w-3.5 h-3.5" /> Visual learning, reimagined
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-4 text-[#0F0F0F]">
-              The <span className="text-[#171717]">Whiteboard</span> that teaches
-            </h2>
-            <p className="text-[#6B6B6B] leading-relaxed mb-7">
-              Watch abstract concepts come alive as an AI teacher draws, animates, and
-              narrates — turning every lesson into an engaging visual story students
-              actually remember.
-            </p>
-
-            <div className="space-y-4">
-              {[
-                { icon: <Cpu className="w-4 h-4" />, title: "Real-time annotations", desc: "Live drawing and highlighting tied to the spoken lesson." },
-                { icon: <Target className="w-4 h-4" />, title: "Adaptive pacing", desc: "Slows down where a student struggles, speeds up where they shine." },
-                { icon: <BookOpen className="w-4 h-4" />, title: "Aligned with curriculum", desc: "Every visual maps to grade-level learning objectives." },
-              ].map((b, i) => (
-                <div key={b.title} className="flex items-start gap-3.5 animate-[heroFloat_6s_ease-in-out_infinite]" style={{ animationDelay: `${i * 0.8}s` }}>
-                  <span className="w-10 h-10 rounded-xl bg-[#F5F5F5] text-[#0F0F0F] flex items-center justify-center shrink-0">
-                    {b.icon}
-                  </span>
-                  <div>
-                    <div className="text-[14px] font-bold text-[#0F0F0F]">{b.title}</div>
-                    <div className="text-[13px] text-[#6B6B6B] mt-0.5 leading-relaxed">{b.desc}</div>
-                  </div>
-                </div>
+        <section className={styles.section}>
+          <div className={styles.container}>
+            <header className={styles.sectionHeader}>
+              <h2>{copy.teamTitle}</h2>
+              <p>{copy.teamIntro}</p>
+            </header>
+            <div className={styles.teamGrid}>
+              {copy.team.map((name, index) => (
+                <article className={styles.teamCard} key={name}>
+                  <span>{name.split(" ").map((part) => part[0]).join("").slice(0, 2)}</span>
+                  <strong>{name}</strong>
+                  <small>Team {index + 1}</small>
+                </article>
               ))}
             </div>
-          </Reveal>
-
-          <Reveal from="right" delay={120}>
-            <HomeWhiteboardDemo />
-          </Reveal>
-        </div>
-      </section>
-
-      {/* ── Testimonial ─────────────────────────────────────────────── */}
-
-      {/* ── CTA ─────────────────────────────────────────────────────── */}
-      <section className="py-14 sm:py-20 px-4 bg-[#EDEDED]">
-        <Reveal className="max-w-4xl mx-auto">
-          <div className="relative overflow-hidden rounded-[28px] bg-[#171717] text-white px-6 sm:px-14 py-12 sm:py-16 text-center">
-            <div className="pointer-events-none absolute inset-0 opacity-[0.06]">
-              <div className="absolute top-10 left-12 w-20 h-20 rounded-2xl border-2 border-white animate-[spinSlow_22s_linear_infinite]" />
-              <div className="absolute bottom-10 right-16 w-14 h-14 rounded-full border-2 border-[#D6F63E] animate-[heroDrift_10s_ease-in-out_infinite]" />
-              <div className="absolute top-1/2 left-[12%] w-2.5 h-2.5 rounded-sm bg-[#D6F63E] animate-[heroFloat_7s_ease-in-out_infinite]" />
-              <div className="absolute bottom-8 left-1/3 w-2 h-2 rounded-full bg-white animate-[heroDriftAlt_9s_ease-in-out_infinite]" />
+            <div className={styles.universityBox}>
+              <GraduationCap size={18} />
+              <span>{copy.university}</span>
+              <Star size={15} />
+              <span>{copy.supervisor}</span>
             </div>
-            <div className="relative">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-[11px] font-semibold mb-5 animate-[heroFloat_5s_ease-in-out_infinite]">
-                <Sparkles className="w-3.5 h-3.5 text-[#D6F63E]" /> Ready when you are
-              </span>
-              <h2 className="text-2xl sm:text-4xl font-bold tracking-tight mb-4">
-                Start learning with an AI teacher today
-              </h2>
-              <p className="text-white/70 max-w-xl mx-auto mb-8 leading-relaxed">
-                Join thousands of students and educators making lessons faster, clearer,
-                and far more engaging.
+          </div>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.container}>
+            <div className={styles.closingCard}>
+              <div className={styles.closingMascot}><Mascot celebrate /></div>
+              <h2>{copy.closingTitle}</h2>
+              <p>{copy.closingBody}</p>
+              <Link href={primaryHref} className={styles.primaryButton}>
+                {copy.tryDemo}<ArrowRight size={16} />
+              </Link>
+              <p className={styles.loginPrompt}>
+                {isArabic ? "لديك حساب؟" : "Already have an account?"}{" "}
+                <Link href="/login">{copy.signIn}</Link>
               </p>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                <Link
-                  href="/register"
-                  className="inline-flex items-center gap-2 px-7 py-3.5 bg-[#D6F63E] text-[#0F0F0F] rounded-full font-bold text-[15px] hover:bg-[#c5e535] hover:scale-105 active:scale-95 transition-all"
-                >
-                  Get Started Free
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-                <Link
-                  href="/contact"
-                  className="inline-flex items-center gap-2 px-7 py-3.5 text-white rounded-full font-semibold text-[15px] border border-white/30 hover:bg-white/10 hover:border-white/60 transition-all"
-                >
-                  Request a Demo
-                </Link>
-              </div>
             </div>
           </div>
-        </Reveal>
-      </section>
+        </section>
+      </main>
 
-      {/* ── Footer ──────────────────────────────────────────────────── */}
-      <footer className="border-t border-[#E5E5E5] py-8 px-4 sm:px-8 bg-white">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-5 mb-6">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 flex items-center justify-center">
-                <AnimatedLogo size={40} animate={false} className="text-[#D6F63E]" />
-              </div>
-              <span className="font-bold tracking-tight text-[#0F0F0F]">CodeBuddy</span>
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[12px] font-medium text-[#6B6B6B]">
-              <a href="#product" className="hover:text-[#0F0F0F] transition-colors">Product</a>
-              <a href="#features" className="hover:text-[#0F0F0F] transition-colors">Features</a>
-              <a href="#whiteboard" className="hover:text-[#0F0F0F] transition-colors">Whiteboard</a>
-              <a href="#dashboard" className="hover:text-[#0F0F0F] transition-colors">Dashboard</a>
-              <a href="/contact" className="hover:text-[#0F0F0F] transition-colors">Contact</a>
-            </div>
-          </div>
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-5 border-t border-[#E5E5E5]">
-            <p className="text-[11px] text-[#A0A0A0]">
-              © {new Date().getFullYear()} CodeBuddy — AI Coding Teacher Platform.
-            </p>
-          </div>
-        </div>
+      <footer className={styles.footer}>
+        <div className={styles.footerBrand}><BrandMark /><span>{copy.footer}</span></div>
+        <p>© {new Date().getFullYear()} ALMA Academy. {copy.rights}</p>
       </footer>
     </div>
   );
